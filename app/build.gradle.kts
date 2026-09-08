@@ -1,0 +1,56 @@
+import java.util.Properties
+
+plugins { id("com.android.application") }
+
+val sharedSigningPath = providers.environmentVariable("TINYAGENT_SIGNING_PROPERTIES").orNull
+val sharedSigning = Properties().apply {
+    if (sharedSigningPath != null) file(sharedSigningPath).inputStream().use { load(it) }
+}
+
+val bootstrapAssets = tasks.register<Sync>("bootstrapAssets") {
+    from("../scripts") {
+        include("prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py")
+        into("bootstrap")
+    }
+    into(layout.buildDirectory.dir("generated/bootstrap-assets"))
+}
+
+android {
+    namespace = "io.github.gplaider.tinyagent"
+    compileSdk = 36
+    defaultConfig {
+        applicationId = "io.github.gplaider.tinyagent"
+        minSdk = 30
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1.0-dev"
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    sourceSets.getByName("main").assets.srcDir("../preroot")
+    sourceSets.getByName("main").assets.srcDir("../harness")
+    sourceSets.getByName("main").assets.srcDir(bootstrapAssets)
+    androidResources { noCompress += "bin" }
+    packaging { jniLibs { useLegacyPackaging = true; keepDebugSymbols += "**/*.so" } }
+    if (sharedSigningPath != null) {
+        signingConfigs.getByName("debug") {
+            storeFile = file(sharedSigning.getProperty("storeFile") ?: error("Missing signing storeFile"))
+            storePassword = sharedSigning.getProperty("storePassword") ?: error("Missing storePassword")
+            keyAlias = sharedSigning.getProperty("keyAlias") ?: error("Missing keyAlias")
+            keyPassword = sharedSigning.getProperty("keyPassword") ?: error("Missing keyPassword")
+        }
+    }
+    // Release signing is deliberately unset. Never ship the Android debug identity.
+    buildTypes {
+        getByName("debug") { applicationIdSuffix = ".debug" }
+        getByName("release") { isMinifyEnabled = false }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(bootstrapAssets) }
+
+dependencies {
+    implementation("dev.mobile:dadb:1.2.10")
+}

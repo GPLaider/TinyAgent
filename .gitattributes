@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+evidence/** -text -whitespace
+patches/** -text -whitespace
+*.jar binary

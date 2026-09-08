@@ -1,0 +1,41 @@
+TinyAgent Android shell dependency notices
+
+Dadb 1.2.10
+Copyright (c) 2021 mobile.dev inc.
+Apache License, Version 2.0. See dadb-LICENSE.txt.
+Source: https://github.com/mobile-dev-inc/dadb
+Maven coordinates: dev.mobile:dadb:1.2.10
+The pinned Maven Central source archive was inspected for the Java-facing API.
+No Dadb source changes are included in this application.
+
+OpenCode
+Copyright (c) 2025 opencode
+MIT License. See opencode-LICENSE.txt.
+Source: https://github.com/anomalyco/opencode
+The app bundles the patched v1.18.29 GUI and the verified upstream ARM64 backend.
+Source revision: 16747470f976aca3d362ad730bcd3fe82ecc2c9a.
+
+PRoot 5.1.107.92 and loader
+Source: https://github.com/termux/proot/tree/v5.1.107.92
+See proot-5.1.107.92.zip.0.license.txt for upstream copyright and GPL version 2.
+
+talloc 2.4.3
+Source: https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz
+See talloc-2.4.3.tar.gz.0.license.txt and GPL-3.0.txt.
+The source COPYING file is LGPL version 3; the Termux recipe metadata labels the
+package GPL-3.0. Source-level dependency/license closure remains to be reviewed.
+
+libandroid-shmem 0.7
+Source: https://github.com/termux/libandroid-shmem/tree/v0.7
+See libandroid-shmem-0.7.tar.gz.0.license.txt for BSD redistribution terms.
+
+Native packages are taken from official Termux packages. TinyAgent changes the
+ELF libtalloc.so.2 dependency string to libtalloc.so without changing offsets,
+and packages executables under Android native-library filenames.
+scripts/stage-proot.py records this transformation; scripts/collect-proot-sources.py
+collects source archives and pinned Termux build recipes. See
+evidence/native-source-collection.json for source hashes and current limitations.
+
+The full transitive dependency inventory, corresponding-source closure and
+binary rebuild verification remain incomplete. This is a development build,
+not a declaration that redistribution requirements have all been satisfied.

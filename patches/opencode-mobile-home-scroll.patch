@@ -1,0 +1,129 @@
+diff --git a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
+index 9b74c7d..ecb471e 100644
+--- a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
++++ b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
+@@ -1,7 +1,8 @@
+ import { benchmark, expect } from "../benchmark"
+ import { expectSessionTitle } from "../../utils/waits"
+ import { measureNavigationMilestones } from "./navigation-milestones"
+-import { fixture } from "./session-timeline-stress.fixture"
++import { fixture, pageMessages } from "./session-timeline-stress.fixture"
++import { mockOpenCodeServer } from "../../utils/mock-server"
+ import {
+   installStressSessionTabs,
+   installTimelineSettings,
+@@ -14,6 +15,40 @@ const homeRow = '[data-component="home-session-row"]'
+ const homeShell = '[data-component="home-session-search"]'
+ 
+ benchmark.describe("performance: home and tab navigation", () => {
++  benchmark("restores the mobile home list position after browser back", async ({ page, report }) => {
++    await page.setViewportSize({ width: 390, height: 600 })
++    await mockOpenCodeServer(page, {
++      ...fixture,
++      sessions: [
++        ...fixture.sessions,
++        ...Array.from({ length: 20 }, (_, index) => ({
++          ...fixture.sessions[0],
++          id: `ses_mobile_${index}`,
++          title: `Mobile list session ${index}`,
++          time: { created: 1700000010000 + index, updated: 1700000010000 + index },
++        })),
++      ],
++      pageMessages,
++    })
++    await installTimelineSettings(page)
++    await installStressSessionTabs(page, { sessionIDs: [] })
++    await page.goto("/")
++    await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++    const row = page.locator(homeRow).filter({ hasText: fixture.expected.targetTitle })
++    await expect(row).toHaveCount(1)
++    await row.scrollIntoViewIfNeeded()
++    const viewport = page.locator("[data-scrollable]").filter({ has: row })
++    await expect.poll(() => viewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
++    const before = await viewport.evaluate((element) => element.scrollTop)
++    await row.click()
++    await expectSessionTitle(page, fixture.expected.targetTitle)
++    await page.goBack()
++    await expect(page).toHaveURL("/")
++    await expect(row).toBeVisible()
++    await expect.poll(() => viewport.evaluate((element) => element.scrollTop)).toBeCloseTo(before, 0)
++    report({ before, after: await viewport.evaluate((element) => element.scrollTop) })
++  })
++
+   benchmark("opens a home session and paints its titlebar tab", async ({ page, report }) => {
+     await setup(page, [])
+     await page.goto("/")
+diff --git a/packages/app/src/context/layout.tsx b/packages/app/src/context/layout.tsx
+index 6235f35..6ad9994 100644
+--- a/packages/app/src/context/layout.tsx
++++ b/packages/app/src/context/layout.tsx
+@@ -303,6 +303,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
+         },
+         home: {
+           selection: { server: server.key } as HomeProjectSelection,
++          scroll: 0,
+         },
+       }),
+     )
+@@ -616,6 +617,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
+       ready,
+       home: {
+         selection: createMemo(() => store.home.selection),
++        scroll: () => store.home.scroll ?? 0,
++        setScroll: (value: number) => setStore("home", "scroll", Math.max(0, value)),
+         setSelection(selection: HomeProjectSelection) {
+           setStore("home", "selection", reconcile(selection))
+         },
+diff --git a/packages/app/src/pages/home/home-scroll-controller.ts b/packages/app/src/pages/home/home-scroll-controller.ts
+index 96b0cf4..8532f3d 100644
+--- a/packages/app/src/pages/home/home-scroll-controller.ts
++++ b/packages/app/src/pages/home/home-scroll-controller.ts
+@@ -1,12 +1,15 @@
+-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
++import { createEffect, createSignal, onCleanup, untrack, type Accessor } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import type { HomeSessionGroup } from "./home-sessions-controller"
++import { useLayout } from "@/context/layout"
+ 
+ const HOME_SESSION_HEADER_STICKY_TOP = 12
+ const HOME_SESSION_HEADER_TEXT_HEIGHT = 16
+ const HOME_SESSION_HEADER_FADE_DISTANCE = 16
+ 
+ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>) {
++  const layout = useLayout()
++  let restore: number | undefined
+   const [thumbTrack, setThumbTrack] = createSignal<HTMLDivElement>()
+   const [hoverTarget, setHoverTarget] = createSignal<HTMLElement>()
+   const [state, setState] = createStore({
+@@ -20,6 +23,12 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
+   let resizeObserver: ResizeObserver | undefined
+   let stickyTop = HOME_SESSION_HEADER_STICKY_TOP
+ 
++  createEffect(() => {
++    if (!layout.ready()) return
++    restore = untrack(layout.home.scroll)
++    queuePositionUpdate()
++  })
++
+   createEffect(() => {
+     const items = groups()
+     const ids = new Set(items.map((group) => group.id))
+@@ -37,6 +46,7 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
+   })
+ 
+   onCleanup(() => {
++    layout.home.setScroll(restore ?? viewport?.scrollTop ?? 0)
+     if (positionFrame !== undefined) cancelAnimationFrame(positionFrame)
+     resizeObserver?.disconnect()
+   })
+@@ -55,6 +65,10 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
+ 
+   function updatePositionCache() {
+     if (!viewport) return
++    if (restore !== undefined && groups().length > 0) {
++      viewport.scrollTop = restore
++      restore = undefined
++    }
+     const header = groups()
+       .map((group) => headerRefs.get(group.id))
+       .find((element) => element !== undefined)

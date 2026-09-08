@@ -1,0 +1,677 @@
+diff --git a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
+index 9b74c7d..ecb471e 100644
+--- a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
++++ b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
+@@ -1,7 +1,8 @@
+ import { benchmark, expect } from "../benchmark"
+ import { expectSessionTitle } from "../../utils/waits"
+ import { measureNavigationMilestones } from "./navigation-milestones"
+-import { fixture } from "./session-timeline-stress.fixture"
++import { fixture, pageMessages } from "./session-timeline-stress.fixture"
++import { mockOpenCodeServer } from "../../utils/mock-server"
+ import {
+   installStressSessionTabs,
+   installTimelineSettings,
+@@ -14,6 +15,40 @@ const homeRow = '[data-component="home-session-row"]'
+ const homeShell = '[data-component="home-session-search"]'
+ 
+ benchmark.describe("performance: home and tab navigation", () => {
++  benchmark("restores the mobile home list position after browser back", async ({ page, report }) => {
++    await page.setViewportSize({ width: 390, height: 600 })
++    await mockOpenCodeServer(page, {
++      ...fixture,
++      sessions: [
++        ...fixture.sessions,
++        ...Array.from({ length: 20 }, (_, index) => ({
++          ...fixture.sessions[0],
++          id: `ses_mobile_${index}`,
++          title: `Mobile list session ${index}`,
++          time: { created: 1700000010000 + index, updated: 1700000010000 + index },
++        })),
++      ],
++      pageMessages,
++    })
++    await installTimelineSettings(page)
++    await installStressSessionTabs(page, { sessionIDs: [] })
++    await page.goto("/")
++    await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++    const row = page.locator(homeRow).filter({ hasText: fixture.expected.targetTitle })
++    await expect(row).toHaveCount(1)
++    await row.scrollIntoViewIfNeeded()
++    const viewport = page.locator("[data-scrollable]").filter({ has: row })
++    await expect.poll(() => viewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
++    const before = await viewport.evaluate((element) => element.scrollTop)
++    await row.click()
++    await expectSessionTitle(page, fixture.expected.targetTitle)
++    await page.goBack()
++    await expect(page).toHaveURL("/")
++    await expect(row).toBeVisible()
++    await expect.poll(() => viewport.evaluate((element) => element.scrollTop)).toBeCloseTo(before, 0)
++    report({ before, after: await viewport.evaluate((element) => element.scrollTop) })
++  })
++
+   benchmark("opens a home session and paints its titlebar tab", async ({ page, report }) => {
+     await setup(page, [])
+     await page.goto("/")
+diff --git a/packages/app/e2e/regression/mobile-settings.spec.ts b/packages/app/e2e/regression/mobile-settings.spec.ts
+new file mode 100644
+index 0000000..e142604
+--- /dev/null
++++ b/packages/app/e2e/regression/mobile-settings.spec.ts
+@@ -0,0 +1,56 @@
++import { expect, test } from "@playwright/test"
++import { installTimelineSettings, mockStressTimeline } from "../performance/timeline/timeline-test-helpers"
++
++for (const width of [320, 390]) {
++  test(`settings use one readable panel at ${width}px`, async ({ page }, info) => {
++    await page.setViewportSize({ width, height: 844 })
++    await page.emulateMedia({ colorScheme: "light" })
++    await mockStressTimeline(page)
++    await installTimelineSettings(page)
++    await page.goto("/")
++    await page.keyboard.press("Control+,")
++    const dialog = page.locator(".settings-v2-dialog")
++    await expect(dialog.getByRole("heading", { name: "Settings", exact: true })).toBeVisible()
++    const general = dialog.getByRole("tab", { name: /^General/ })
++    await expect(general).toBeVisible()
++    await expect(dialog.getByRole("tab", { name: /^Shortcuts/ })).toBeHidden()
++    expect((await general.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++    await page.screenshot({ path: info.outputPath("settings-menu.png") })
++    for (const name of ["General", "Providers", "Models", "Servers"]) {
++      await dialog.getByRole("tab", { name: new RegExp(`^${name}`) }).click()
++      await expect(dialog.getByRole("tablist")).toBeHidden()
++      const panel = dialog.locator('[data-slot="tabs-v2-content"]:visible')
++      await expect(panel).toHaveCount(1)
++      expect((await panel.boundingBox())!.width).toBeGreaterThanOrEqual(width - 2)
++      expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
++      if (name === "General") {
++        const language = panel.getByRole("button", { name: "English", exact: true })
++        await expect(language).toBeVisible()
++        expect((await language.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++        expect((await language.boundingBox())!.width).toBeGreaterThanOrEqual(width - 50)
++      }
++      await page.screenshot({ path: info.outputPath(`settings-${name.toLowerCase()}.png`) })
++      if (name === "Providers") {
++        const custom = dialog.locator(".settings-v2-provider-row").filter({ hasText: "Custom provider" })
++        await custom.getByRole("button", { name: "Connect", exact: true }).click()
++        const form = page.locator(".provider-connect-dialog")
++        const endpoint = form.getByRole("textbox", { name: "Base URL", exact: true })
++        await expect(endpoint).toBeVisible()
++        expect((await form.boundingBox())!.width).toBe(width)
++        expect((await form.boundingBox())!.height).toBe(844)
++        expect((await endpoint.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++        await endpoint.fill("https://example.invalid/v1")
++        await expect(endpoint).toHaveValue("https://example.invalid/v1")
++        await expect(page.getByText("Something went wrong", { exact: true })).toHaveCount(0)
++        expect(await form.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
++        await page.screenshot({ path: info.outputPath("settings-custom-provider.png") })
++        await form.getByRole("button", { name: "Navigate back", exact: true }).click()
++        await expect(dialog.getByRole("heading", { name: "Providers", exact: true })).toBeVisible()
++      }
++      await dialog.getByRole("button", { name: "Settings", exact: true }).click()
++      await expect(general).toBeVisible()
++    }
++    await dialog.getByRole("button", { name: "Close", exact: true }).click()
++    await expect(dialog).toHaveCount(0)
++  })
++}
+diff --git a/packages/app/e2e/utils/mock-server.ts b/packages/app/e2e/utils/mock-server.ts
+index a581eda..b8ecdf4 100644
+--- a/packages/app/e2e/utils/mock-server.ts
++++ b/packages/app/e2e/utils/mock-server.ts
+@@ -1,6 +1,6 @@
+ import type { Page, Route } from "@playwright/test"
+ 
+-const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status", "/vcs/diff"])
++const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status", "/vcs/diff", "/pty/shells"])
+ const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
+ 
+ export interface MockServerConfig {
+@@ -74,8 +74,8 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
+     }
+     if (path === "/global/health")
+       return config.protocol === "v2" ? json(route, {}, undefined, 404) : json(route, { healthy: true })
+-    if (path === "/api/health" && config.protocol === "v2")
+-      return json(route, { healthy: true, version: "2.0.0", pid: 1 })
++    if (path === "/api/health")
++      return config.protocol === "v2" ? json(route, { healthy: true, version: "2.0.0", pid: 1 }) : json(route, {}, undefined, 404)
+     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: true })
+     if (path === "/provider")
+       return json(route, typeof config.provider === "function" ? config.provider() : config.provider)
+diff --git a/packages/app/src/components/dialog-connect-provider.tsx b/packages/app/src/components/dialog-connect-provider.tsx
+index 1081310..b9648fd 100644
+--- a/packages/app/src/components/dialog-connect-provider.tsx
++++ b/packages/app/src/components/dialog-connect-provider.tsx
+@@ -38,6 +38,7 @@ import { useSettings } from "@/context/settings"
+ import { popularProviders, useProviders } from "@/hooks/use-providers"
+ import { CustomProviderForm } from "./dialog-custom-provider"
+ import { decode64 } from "@/utils/base64"
++import "./settings-v2/mobile.css"
+ 
+ const CUSTOM_ID = "_custom"
+ type ConnectMethod = Extract<IntegrationMethod, { type: "key" | "oauth" }>
+@@ -122,8 +123,8 @@ export const DialogConnectProvider: Component<{
+       }
+     >
+       <DialogV2
+-        containerClass="!h-[min(calc(100vh_-_16px),512px)] !w-[min(calc(100vw_-_16px),640px)]"
+-        class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-5 [&_[data-slot=dialog-header-title]]:!text-[15px] [&_[data-slot=dialog-header-title]]:!tracking-[-0.13px]"
++        containerClass="provider-connect-container"
++        class="provider-connect-dialog [font-family:var(--v2-font-family-sans)]"
+       >
+         <DialogHeader closeLabel={language.t("common.close")}>
+           <Show
+@@ -132,7 +133,8 @@ export const DialogConnectProvider: Component<{
+           >
+             <button
+               type="button"
+-              class="flex size-5 items-center justify-center rounded-sm text-v2-icon-icon-muted hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
++              data-tinyagent-back
++              class="flex size-12 items-center justify-center rounded-sm text-v2-icon-icon-muted hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+               onClick={() => back.current()}
+               aria-label={language.t("common.goBack")}
+             >
+diff --git a/packages/app/src/components/dialog-custom-provider.tsx b/packages/app/src/components/dialog-custom-provider.tsx
+index e3c11c3..79c6f80 100644
+--- a/packages/app/src/components/dialog-custom-provider.tsx
++++ b/packages/app/src/components/dialog-custom-provider.tsx
+@@ -176,7 +176,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
+   }
+ 
+   return (
+-    <div class="flex flex-col gap-6 px-2.5 pb-3 overflow-y-auto max-h-[60vh]">
++    <div class="custom-provider-form flex flex-col gap-6 px-2.5 pb-3 overflow-y-auto max-h-[60vh]">
+       <div class="px-2.5 flex gap-4 items-center">
+         <ProviderIcon id="synthetic" class="size-5 shrink-0 icon-strong-base" />
+         <div class="text-16-medium text-text-strong">{language.t("provider.custom.title")}</div>
+diff --git a/packages/app/src/components/settings-v2/dialog-settings-v2.tsx b/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
+index 4116f4a..7bc1da9 100644
+--- a/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
++++ b/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
+@@ -1,4 +1,5 @@
+-import { Component, createMemo, createSignal, startTransition } from "solid-js"
++import { Component, createMemo, startTransition, Show } from "solid-js"
++import { createStore } from "solid-js/store"
+ import { Dialog } from "@opencode-ai/ui/v2/dialog-v2"
+ import { TabsV2 } from "@opencode-ai/ui/v2/tabs-v2"
+ import { Icon } from "@opencode-ai/ui/icon"
+@@ -9,6 +10,7 @@ import { SettingsKeybinds } from "../settings-keybinds"
+ import { SettingsProvidersV2 } from "./providers"
+ import { SettingsModelsV2 } from "./models"
+ import "./settings-v2.css"
++import "./mobile.css"
+ import { SettingsServersV2 } from "./servers"
+ import { useDialog } from "@opencode-ai/ui/context/dialog"
+ import { useLayout } from "@/context/layout"
+@@ -25,7 +27,7 @@ export const DialogSettings: Component<{
+   const layout = useLayout()
+   const tabs = useTabs()
+   const serverSync = useServerSync()
+-  const [tab, setTab] = createSignal(props.defaultValue ?? "general")
++  const [mobile, setMobile] = createStore({ tab: props.defaultValue ?? "general", detail: !!props.defaultValue })
+   const directory = createMemo(() => {
+     const route = layout.route()
+     if (route.type === "dir-new-sesssion") return route.dir
+@@ -43,14 +45,27 @@ export const DialogSettings: Component<{
+ 
+   return (
+     <Dialog size="x-large" variant="settings" class="settings-v2-dialog">
++      <div class="settings-mobile-header">
++        <Show when={mobile.detail} fallback={<h1>{language.t("sidebar.settings")}</h1>}>
++          <button type="button" data-tinyagent-back onClick={() => setMobile("detail", false)}>
++            <Icon name="arrow-left" />{language.t("sidebar.settings")}
++          </button>
++        </Show>
++        <button type="button" data-tinyagent-close aria-label={language.t("common.close")} onClick={dialog.close}>
++          <Icon name="close" />
++        </button>
++      </div>
+       <TabsV2
+         orientation="vertical"
+         variant="settings"
+-        value={tab()}
+-        onChange={(value) => void startTransition(() => setTab(value))}
++        value={mobile.tab}
++        onChange={(value) => void startTransition(() => setMobile({ tab: value, detail: true }))}
+         class="settings-v2"
++        data-mobile-detail={mobile.detail}
+       >
+-        <TabsV2.List>
++        <TabsV2.List onClick={(event: MouseEvent) => {
++          if ((event.target as HTMLElement).closest('[role="tab"]')) setMobile("detail", true)
++        }}>
+           <div class="flex flex-col justify-between h-full w-full">
+             <div class="flex flex-col gap-3 w-full">
+               <div class="flex flex-col gap-3">
+diff --git a/packages/app/src/components/settings-v2/mobile.css b/packages/app/src/components/settings-v2/mobile.css
+new file mode 100644
+index 0000000..63a78dd
+--- /dev/null
++++ b/packages/app/src/components/settings-v2/mobile.css
+@@ -0,0 +1,153 @@
++/* Phone settings use a menu followed by one full-width panel. Desktop keeps tabs. */
++.settings-mobile-header { display: none; }
++[data-component="dialog-v2"] [data-slot="dialog-container"].provider-connect-container {
++  width: min(calc(100vw - 16px), 640px);
++  height: min(calc(100vh - 16px), 512px);
++}
++
++@media (max-width: 767px) {
++  .settings-v2 [data-slot="tabs-v2-trigger-wrapper"][data-value="shortcuts"] { display: none; }
++  [data-component="dialog-v2"] [data-slot="dialog-container"].provider-connect-container {
++    width: 100%;
++    height: 100dvh;
++    max-height: 100%;
++    border-radius: 0;
++    background: var(--v2-background-bg-base);
++  }
++  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-header"] {
++    min-height: 64px;
++    padding: 8px 16px !important;
++    align-items: center;
++    border-bottom: 1px solid var(--v2-border-border-base);
++  }
++  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-header-title"] {
++    font-size: 20px !important;
++    line-height: 28px;
++    padding-inline: 8px;
++  }
++  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-close-button"] {
++    width: 48px;
++    height: 48px;
++    margin: 0 0 0 auto;
++  }
++  .provider-connect-dialog :is(input, textarea, button) { min-height: 48px; font-size: 16px; }
++  .provider-connect-dialog [data-slot="input-label"] { font-size: 15px; line-height: 24px; }
++  .provider-connect-dialog [data-component="input"] { min-width: 0; }
++  .provider-connect-dialog [data-slot="input-input"] { min-height: 48px; font-size: 16px; }
++  .provider-connect-dialog :is([data-slot="input-description"], [data-slot="input-error"]) {
++    font-size: 14px;
++    line-height: 22px;
++    overflow-wrap: anywhere;
++  }
++  .provider-connect-dialog form [data-row] { display: grid; grid-template-columns: minmax(0, 1fr) 48px; }
++  .provider-connect-dialog form [data-row] > div { grid-column: 1; min-width: 0; }
++  .provider-connect-dialog form [data-row] > button { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
++  .provider-connect-dialog form { font-size: 16px; line-height: 24px; }
++  .provider-connect-dialog .custom-provider-form { max-height: none; min-height: 0; flex: 1; }
++  .provider-connect-dialog [data-slot="dialog-body"] { padding: 16px 8px; }
++  [data-component="dialog-v2"][data-variant="settings"] [data-slot="dialog-container"] {
++    width: 100%;
++    height: 100dvh;
++    max-height: 100%;
++    border-radius: 0;
++  }
++  .settings-mobile-header {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    flex: none;
++    width: 100%;
++    min-height: 64px;
++    padding: 8px 16px;
++    border-bottom: 1px solid var(--v2-border-border-base);
++  }
++  .settings-mobile-header h1 { padding-inline: 8px; font-size: 24px; font-weight: 640; }
++  .settings-mobile-header button {
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    gap: 8px;
++    min-width: 48px;
++    min-height: 48px;
++    font-size: 16px;
++  }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] {
++    height: auto;
++    min-height: 0;
++    flex: 1;
++  }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-list"] {
++    width: 100%;
++    min-width: 0;
++    padding: 16px 24px;
++    background: var(--v2-background-bg-base);
++    overflow-y: auto;
++  }
++  .settings-v2[data-mobile-detail="true"] [data-slot="tabs-v2-list"],
++  .settings-v2[data-mobile-detail="false"] .settings-v2-panel { display: none !important; }
++  .settings-v2 [data-slot="tabs-v2-section-title"] { display: none; }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger-wrapper"] {
++    height: auto;
++    min-height: 56px;
++    border-bottom: 1px solid var(--v2-border-border-base);
++    background: transparent;
++  }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger"] {
++    width: 100%;
++    min-height: 56px;
++    padding: 12px 0;
++    font-size: 16px;
++    background: transparent;
++  }
++  .settings-v2 [data-slot="tabs-v2-trigger"]::after { content: "›"; margin-inline-start: auto; font-size: 24px; }
++  .settings-v2-nav-footer { padding-block: 24px; }
++  .settings-v2-panel { min-width: 0; overscroll-behavior: contain; }
++  .settings-v2-dialog .settings-v2-tab-header { position: static; padding: 24px 24px 20px; background: none; }
++  .settings-v2-dialog .settings-v2-tab-title { font-size: 24px; line-height: 32px; }
++  .settings-v2-dialog .settings-v2-tab-body { padding: 0 24px 32px; gap: 32px; }
++  .settings-v2-dialog [data-component="settings-v2-list"] {
++    padding-inline: 0;
++    border-radius: 0;
++    background: none;
++    box-shadow: none;
++  }
++  .settings-v2-dialog [data-component="settings-v2-row"] { gap: 12px; padding-block: 20px; }
++  .settings-v2-dialog [data-slot="settings-v2-row-copy"] { flex-basis: 100%; gap: 6px; }
++  .settings-v2-dialog [data-slot="settings-v2-row-title"],
++  .settings-v2-dialog .settings-v2-provider-name,
++  .settings-v2-dialog .settings-v2-section-title { font-size: 16px; line-height: 24px; }
++  .settings-v2-dialog [data-slot="settings-v2-row-description"],
++  .settings-v2-dialog .settings-v2-provider-description { font-size: 14px; line-height: 22px; margin: 0; }
++  .settings-v2-dialog [data-slot="settings-v2-row-control"] { width: 100%; justify-content: stretch; }
++  .settings-v2-dialog [data-component="settings-v2-row"]:has([data-component="switch"]) {
++    flex-wrap: nowrap;
++    align-items: flex-start;
++  }
++  .settings-v2-dialog [data-component="settings-v2-row"]:has([data-component="switch"]) [data-slot="settings-v2-row-control"] {
++    width: auto;
++    flex: none;
++    min-width: 48px;
++    min-height: 48px;
++    align-items: center;
++  }
++  .settings-v2-dialog [data-component="select-v2-root"],
++  .settings-v2-dialog [data-slot="settings-v2-row-control"] > div { width: 100% !important; }
++  .settings-v2-dialog [data-component="select-v2"],
++  .settings-v2-dialog [data-slot="text-input-v2-input"],
++  .settings-v2-dialog [data-component="button-v2"] { min-height: 48px; font-size: 16px; }
++  .settings-v2-dialog [data-component="select-v2"] {
++    width: 100%;
++    justify-content: space-between;
++    border: 1px solid var(--v2-border-border-base);
++    border-radius: 8px;
++    padding-inline: 12px;
++  }
++  .settings-v2-dialog [data-slot="select-v2-value-text"] { font-size: 16px; line-height: 24px; }
++  .settings-v2-dialog .settings-v2-provider-row { gap: 12px; }
++  .settings-v2-dialog .settings-v2-provider-lead { flex-basis: 100%; }
++  .settings-v2-dialog .settings-v2-provider-row > [data-component="button-v2"] { width: 100%; }
++  .settings-v2-dialog .settings-v2-provider-empty { font-size: 14px; line-height: 22px; }
++  .settings-v2-dialog .settings-v2-models-group-trigger { min-height: 48px; }
++  .settings-v2-dialog .settings-v2-models [data-slot="settings-v2-row-title"] { white-space: normal; overflow-wrap: anywhere; }
++  .settings-v2-dialog button:focus-visible { outline: 2px solid var(--v2-border-border-focus); outline-offset: 2px; }
++}
+diff --git a/packages/app/src/components/settings-v2/providers.tsx b/packages/app/src/components/settings-v2/providers.tsx
+index acd73dd..c72a59c 100644
+--- a/packages/app/src/components/settings-v2/providers.tsx
++++ b/packages/app/src/components/settings-v2/providers.tsx
+@@ -9,7 +9,6 @@ import { useLanguage } from "@/context/language"
+ import { useServerProtocol, useServerSDK } from "@/context/server-sdk"
+ import { useServerSync } from "@/context/server-sync"
+ import { DialogConnectProvider, useProviderConnectController } from "../dialog-connect-provider"
+-import { DialogCustomProvider } from "../dialog-custom-provider"
+ import { SettingsListV2 } from "./parts/list"
+ import "./settings-v2.css"
+ 
+@@ -247,9 +246,7 @@ export const SettingsProvidersV2: Component<{
+                   size="normal"
+                   variant="neutral"
+                   icon="plus"
+-                  onClick={() => {
+-                    dialog.show(() => <DialogCustomProvider onBack={dialog.close} />)
+-                  }}
++                  onClick={() => connect("_custom")}
+                 >
+                   {language.t("common.connect")}
+                 </ButtonV2>
+diff --git a/packages/app/src/context/layout.tsx b/packages/app/src/context/layout.tsx
+index 6235f35..6ad9994 100644
+--- a/packages/app/src/context/layout.tsx
++++ b/packages/app/src/context/layout.tsx
+@@ -303,6 +303,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
+         },
+         home: {
+           selection: { server: server.key } as HomeProjectSelection,
++          scroll: 0,
+         },
+       }),
+     )
+@@ -616,6 +617,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
+       ready,
+       home: {
+         selection: createMemo(() => store.home.selection),
++        scroll: () => store.home.scroll ?? 0,
++        setScroll: (value: number) => setStore("home", "scroll", Math.max(0, value)),
+         setSelection(selection: HomeProjectSelection) {
+           setStore("home", "selection", reconcile(selection))
+         },
+diff --git a/packages/app/src/index.css b/packages/app/src/index.css
+index 78a9e10..cdecf0c 100644
+--- a/packages/app/src/index.css
++++ b/packages/app/src/index.css
+@@ -3,6 +3,57 @@
+ @import "@opencode-ai/ui/v2/styles/tailwind.css";
+ @import "tw-animate-css";
+ 
++.home-project-picker > summary { display: none; }
++@media (hover: none) {
++  [role="tooltip"] kbd,
++  [role="tooltip"] [data-component="keybind-v2"],
++  [role="tooltip"] [data-component="keybind"] { display: none; }
++}
++@media (min-width: 1024px) {
++  .home-project-picker > aside { display: flex; }
++}
++@media (max-width: 767px) {
++  [data-component="mobile-home"] {
++    margin: 0;
++    border-radius: 0;
++    box-shadow: none;
++  }
++  [data-component="mobile-home"] > [data-component="scroll-view"] > [data-scrollable] > div {
++    padding-inline: 24px;
++  }
++  .home-project-picker {
++    margin-top: 16px;
++    border-bottom: 1px solid var(--v2-border-border-base);
++  }
++  .home-project-picker > summary {
++    display: list-item;
++    padding: 12px 0;
++    min-height: 48px;
++    font-size: 16px;
++    cursor: pointer;
++  }
++  .home-project-picker > aside { margin: 0 0 16px; }
++  [data-component="home-sessions"] .home-session-item {
++    height: auto;
++    border-radius: 0;
++    border-bottom: 1px solid var(--v2-border-border-base);
++  }
++  [data-component="home-session-row"] {
++    min-height: 72px;
++    height: auto;
++    padding: 16px 8px;
++    gap: 12px;
++    font-size: 16px;
++    line-height: 24px;
++  }
++  [data-component="home-session-search"] input {
++    font-size: 16px;
++    min-height: 48px;
++  }
++  [data-component="home-session-search-row"] { min-height: 48px; }
++  [data-action="home-new-session"] { min-height: 48px; font-size: 15px; }
++}
++
+ @font-face {
+   font-family: "JetBrainsMono Nerd Font Mono";
+   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
+diff --git a/packages/app/src/pages/home.tsx b/packages/app/src/pages/home.tsx
+index 4fadb8a..a37ada3 100644
+--- a/packages/app/src/pages/home.tsx
++++ b/packages/app/src/pages/home.tsx
+@@ -1,7 +1,8 @@
+ import { ScrollView } from "@opencode-ai/ui/scroll-view"
+ import { createHomeController } from "./home/home-controller"
+ import { createHomeProjectsController } from "./home/home-projects-controller"
+-import { HomeUtilityNav } from "./home/home-projects-view"
++import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
++import { Icon } from "@opencode-ai/ui/v2/icon"
+ import { HomeProjects } from "./home/home-projects"
+ import { createHomeScrollController } from "./home/home-scroll-controller"
+ import { createHomeSessionSearchController } from "./home/home-session-search-controller"
+@@ -16,13 +17,23 @@ export function NewHome() {
+   const scroll = createHomeScrollController(sessions.data.groups)
+   return (
+     <div
++      data-component="mobile-home"
+       class={`
+-        m-2 min-h-0 flex-1 self-stretch overflow-hidden rounded-[10px]
++        m-2 min-h-0 flex flex-col flex-1 self-stretch overflow-hidden rounded-[10px]
+         bg-v2-background-bg-base shadow-[var(--v2-elevation-raised)]
+       `}
+     >
++      <div class="flex h-14 shrink-0 items-center justify-between px-6 lg:hidden">
++        <h1 class="text-xl font-semibold">{projects.copy.language.t("sidebar.project.recentSessions")}</h1>
++        <IconButtonV2
++          class="!size-12"
++          icon={<Icon name="settings-gear" />}
++          aria-label={projects.copy.language.t("sidebar.settings")}
++          onClick={projects.utility.settings}
++        />
++      </div>
+       <ScrollView
+-        class="h-full [container-type:size]"
++        class="min-h-0 flex-1 [container-type:size]"
+         thumbContainer={scroll.viewport.thumbTrack}
+         thumbHoverTarget={scroll.viewport.hoverTarget}
+         viewportRef={scroll.viewport.setViewport}
+@@ -31,18 +42,15 @@ export function NewHome() {
+       >
+         <div
+           class={`
+-            mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-3
++            mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)] gap-4 px-3
+             lg:grid-cols-[280px_minmax(0,720px)] lg:grid-rows-1 lg:gap-8 lg:px-6
+           `}
+         >
+-          <HomeProjects projects={projects} scroll={scroll} />
++          <details class="home-project-picker" open={projects.project.list().length === 0}>
++            <summary>{projects.copy.language.t("home.projects")}</summary>
++            <HomeProjects projects={projects} scroll={scroll} />
++          </details>
+           <HomeSessions sessions={sessions} search={search} scroll={scroll} />
+-          <HomeUtilityNav
+-            class="flex lg:hidden"
+-            onOpenSettings={projects.utility.settings}
+-            onOpenHelp={projects.utility.help}
+-            language={projects.copy.language}
+-          />
+         </div>
+       </ScrollView>
+     </div>
+diff --git a/packages/app/src/pages/home/home-controller.ts b/packages/app/src/pages/home/home-controller.ts
+index 8b67533..ee8251b 100644
+--- a/packages/app/src/pages/home/home-controller.ts
++++ b/packages/app/src/pages/home/home-controller.ts
+@@ -35,6 +35,15 @@ export function createHomeController() {
+       projects()[0],
+   )
+ 
++  createEffect(() => {
++    if (!navigator.userAgent.includes(" TinyAgent/")) return
++    const conn = focusedServer()
++    if (!conn || new URL(conn.http.url).hostname !== "127.0.0.1") return
++    const ctx = focusedServerCtx()
++    if (!ctx || ctx.projects.list().length !== 0) return
++    ctx.projects.open("/workspace")
++  })
++
+   createEffect(() => {
+     const list = global.servers.list()
+     if (list.some((conn) => ServerConnection.key(conn) === selection().server)) return
+diff --git a/packages/app/src/pages/home/home-scroll-controller.ts b/packages/app/src/pages/home/home-scroll-controller.ts
+index 96b0cf4..8532f3d 100644
+--- a/packages/app/src/pages/home/home-scroll-controller.ts
++++ b/packages/app/src/pages/home/home-scroll-controller.ts
+@@ -1,12 +1,15 @@
+-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
++import { createEffect, createSignal, onCleanup, untrack, type Accessor } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import type { HomeSessionGroup } from "./home-sessions-controller"
++import { useLayout } from "@/context/layout"
+ 
+ const HOME_SESSION_HEADER_STICKY_TOP = 12
+ const HOME_SESSION_HEADER_TEXT_HEIGHT = 16
+ const HOME_SESSION_HEADER_FADE_DISTANCE = 16
+ 
+ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>) {
++  const layout = useLayout()
++  let restore: number | undefined
+   const [thumbTrack, setThumbTrack] = createSignal<HTMLDivElement>()
+   const [hoverTarget, setHoverTarget] = createSignal<HTMLElement>()
+   const [state, setState] = createStore({
+@@ -20,6 +23,12 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
+   let resizeObserver: ResizeObserver | undefined
+   let stickyTop = HOME_SESSION_HEADER_STICKY_TOP
+ 
++  createEffect(() => {
++    if (!layout.ready()) return
++    restore = untrack(layout.home.scroll)
++    queuePositionUpdate()
++  })
++
+   createEffect(() => {
+     const items = groups()
+     const ids = new Set(items.map((group) => group.id))
+@@ -37,6 +46,7 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
+   })
+ 
+   onCleanup(() => {
++    layout.home.setScroll(restore ?? viewport?.scrollTop ?? 0)
+     if (positionFrame !== undefined) cancelAnimationFrame(positionFrame)
+     resizeObserver?.disconnect()
+   })
+@@ -55,6 +65,10 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
+ 
+   function updatePositionCache() {
+     if (!viewport) return
++    if (restore !== undefined && groups().length > 0) {
++      viewport.scrollTop = restore
++      restore = undefined
++    }
+     const header = groups()
+       .map((group) => headerRefs.get(group.id))
+       .find((element) => element !== undefined)
+diff --git a/packages/app/src/pages/home/home-sessions-view.tsx b/packages/app/src/pages/home/home-sessions-view.tsx
+index 72f2f37..a2ee2e4 100644
+--- a/packages/app/src/pages/home/home-sessions-view.tsx
++++ b/packages/app/src/pages/home/home-sessions-view.tsx
+@@ -74,6 +74,7 @@ export type HomeSessionsViewProps = {
+ export function HomeSessionsView(props: HomeSessionsViewProps) {
+   return (
+     <section
++      data-component="home-sessions"
+       ref={props.onSetHoverTarget}
+       class="min-h-0 min-w-0 flex-1 flex flex-col"
+       aria-label={props.language.t("sidebar.project.recentSessions")}
+@@ -82,7 +83,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
+         <HomeSessionSearch {...props} />
+         <Suspense>
+           <Show when={props.groups().length > 0 && props.canCreateSession()}>
+-            <div class="pointer-events-none absolute right-0 top-[84px] z-20 flex lg:top-[108px]">
++            <div class="pointer-events-none absolute right-0 top-[84px] z-20 hidden lg:flex lg:top-[108px]">
+               <ButtonV2
+                 data-action="home-new-session"
+                 variant="ghost-muted"
+@@ -420,7 +421,7 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
+ 
+   return (
+     <div
+-      class="group/session relative flex h-10 min-w-0 items-center rounded-[6px]"
++      class="group/session home-session-item relative flex h-10 min-w-0 items-center rounded-[6px]"
+       classList={{ group: !!showProjectName() }}
+     >
+       <button

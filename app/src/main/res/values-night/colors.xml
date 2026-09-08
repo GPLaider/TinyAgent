@@ -1,0 +1,9 @@
+<resources>
+    <color name="surface">#101A16</color>
+    <color name="text_primary">#E4EEE8</color>
+    <color name="text_secondary">#ACBCB2</color>
+    <color name="text_disabled">#72847A</color>
+    <color name="action">#94D9B8</color>
+    <color name="on_action">#073823</color>
+    <color name="surface_secondary">#202E26</color>
+</resources>

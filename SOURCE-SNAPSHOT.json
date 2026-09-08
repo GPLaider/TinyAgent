@@ -1,0 +1,6 @@
+{
+  "source_commit": "65af6e9008e1fb8244772dd629f74aebfb580911",
+  "snapshot": true,
+  "excluded": "Private device logs/history and signing material; device endpoints in test scripts are placeholders",
+  "apk_sha256": "b59bd21ffbab819f3d6b88e545b0327bf1d6a43443fe28659e10b77d8087377a"
+}

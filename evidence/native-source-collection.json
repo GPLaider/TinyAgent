@@ -1,0 +1,57 @@
+{
+  "sources": [
+    {
+      "file": "proot-5.1.107.92.zip",
+      "url": "https://github.com/termux/proot/archive/v5.1.107.92.zip",
+      "sha256": "29385d1ddb619a9c4449ab512bfd55032034b22f724ddf98fc95ff300ea32135",
+      "bytes": 481443,
+      "notices": [
+        {
+          "source_member": "proot-5.1.107.92/COPYING",
+          "file": "proot-5.1.107.92.zip.0.license.txt",
+          "sha256": "0ffa6454acbe7e410ac6f0007df83b9b3161fe55484c1f4b87487c0f2d228a6d"
+        }
+      ]
+    },
+    {
+      "file": "talloc-2.4.3.tar.gz",
+      "url": "https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz",
+      "sha256": "dc46c40b9f46bb34dd97fe41f548b0e8b247b77a918576733c528e83abd854dd",
+      "bytes": 684092,
+      "notices": [
+        {
+          "source_member": "talloc-2.4.3/LICENSE",
+          "file": "talloc-2.4.3.tar.gz.0.license.txt",
+          "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+        }
+      ]
+    },
+    {
+      "file": "libandroid-shmem-0.7.tar.gz",
+      "url": "https://github.com/termux/libandroid-shmem/archive/refs/tags/v0.7.tar.gz",
+      "sha256": "1e5ff8459bc0a8c229dd8a94b27d119987e09ef3414331c2b5ebfff20b98e867",
+      "bytes": 8891,
+      "notices": [
+        {
+          "source_member": "libandroid-shmem-0.7/LICENSE",
+          "file": "libandroid-shmem-0.7.tar.gz.0.license.txt",
+          "sha256": "0dd43abe17196b0224cb0b159819af798cd508a82a21e5870126fff4e899a7eb"
+        }
+      ]
+    }
+  ],
+  "additional_license": {
+    "file": "GPL-3.0.txt",
+    "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "bytes": 35149
+  },
+  "build_recipes": {
+    "file": "termux-packages-ff422d48d23ad12e8ffba021c2fa3a5c6b4f138e.tar.gz",
+    "url": "https://github.com/termux/termux-packages/archive/ff422d48d23ad12e8ffba021c2fa3a5c6b4f138e.tar.gz",
+    "sha256": "10f95083c4f8444d412adfbe36d6cd2439e6a771fa72ebaa0873f92488489741",
+    "bytes": 10175099
+  },
+  "recipe_revision": "ff422d48d23ad12e8ffba021c2fa3a5c6b4f138e",
+  "scope": "Sources and complete notice files collected. Rebuilt binary equivalence, repository signatures, dependency closure and distribution compliance remain unverified."
+}

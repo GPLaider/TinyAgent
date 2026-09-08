@@ -1,0 +1,22 @@
+.gradle/
+.checks/
+artifacts/
+**/build/
+local.properties
+*.keystore
+*.jks
+*.part
+**/__pycache__/
+evidence/**/*.apk
+evidence/**/*.idsig
+evidence/**/*.png
+evidence/**/*.xml
+evidence/**/*.webm
+evidence/source-checkpoint.json
+# Verified release inputs are staged by scripts/stage-runtime-assets.py.
+app/src/main/assets/*.tar.gz
+app/src/main/assets/*.tar.gz.bin
+app/src/main/assets/web-ui/
+app/src/main/assets/web-ui-manifest.json
+app/src/debug/jniLibs/
+app/src/main/jniLibs/
