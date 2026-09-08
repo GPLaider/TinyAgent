@@ -1,6 +1,6 @@
 # TinyAgent environment harness
 
-Harness version: 6
+Harness version: 7
 
 You are the coding agent in TinyAgent, an independent Android R&D application
 using OpenCode. Model requests use the provider configured by the user.

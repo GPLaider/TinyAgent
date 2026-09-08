@@ -41,6 +41,13 @@ final class LocalLinuxRuntime {
             Files.write(ready.toPath(), "fedora=44\nopencode=1.18.29\n".getBytes(StandardCharsets.UTF_8));
         }
         refreshDns();
+        // The minimal Fedora image lacks development tools. Also repair earlier installs.
+        if (!List.of("git", "python3", "make", "gcc", "unzip").stream()
+                .allMatch(name -> new File(rootfs, "usr/bin/" + name).isFile())) {
+            progress.accept("Fedora 개발 도구 설치 중 · 네트워크 연결이 필요합니다. 실패하면 환경 준비를 다시 누르세요.");
+            run(guest("/workspace", "/usr/bin/microdnf", "install", "-y", "git", "python3", "make", "gcc", "unzip", "tar", "gzip"));
+        }
+        run(guest("/workspace", "/usr/bin/git", "--version"));
         File auth = new File(context.getNoBackupFilesDir(), "stock-backend-auth");
         if (!auth.isFile()) {
             byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
@@ -139,6 +146,9 @@ final class LocalLinuxRuntime {
         String nativeDir = context.getApplicationInfo().nativeLibraryDir;
         var command = new ArrayList<String>(); command.add(nativeDir + "/libproot.so"); command.addAll(args);
         ProcessBuilder builder = new ProcessBuilder(command).directory(base).redirectErrorStream(true);
+        // PRoot's optional seccomp acceleration is incompatible with some stock kernels.
+        // This changes PRoot tracing only, not Android's sandbox or SELinux policy.
+        builder.environment().put("PROOT_NO_SECCOMP", "1");
         builder.environment().put("LD_LIBRARY_PATH", nativeDir);
         builder.environment().put("PROOT_LOADER", nativeDir + "/libproot_loader.so");
         builder.environment().put("PROOT_TMP_DIR", new File(base, "tmp").toString());

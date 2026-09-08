@@ -23,12 +23,15 @@ import dadb.Dadb;
 /** All runtime writes require successful self-device nonce verification on this connection. */
 final class SelfAdbClient implements AutoCloseable {
     private final File privateDirectory;
+    private final Context context;
+    private volatile WirelessAdb wireless;
     private volatile Dadb connection;
     private volatile boolean closed;
     private volatile boolean verifiedRoot;
     private volatile int verifiedUid = -1;
 
     SelfAdbClient(Context context) {
+        this.context = context.getApplicationContext();
         privateDirectory = context.getNoBackupFilesDir();
     }
 
@@ -42,8 +45,16 @@ final class SelfAdbClient implements AutoCloseable {
     }
 
     Result inspect(int port, boolean rootAllowed) throws Exception {
+        if (!rootAllowed && "stock".equals(WirelessAdb.transport(context)))
+            throw new IOException("Stock 모드입니다. Developer 연결 설정에서 권한을 연결하세요.");
         verifiedRoot = false;
         verifiedUid = -1;
+        String connectedHost;
+        if (!rootAllowed && WirelessAdb.selected(context)) {
+            wireless = new WirelessAdb(context);
+            ensureOpen();
+            connectedHost = wireless.connectLocal();
+        } else {
         // Some root-adbd deployments bind only the phone's VPN address, not loopback.
         // Probe only addresses assigned to this phone; never discover remote devices.
         LinkedHashSet<String> addresses = new LinkedHashSet<>();
@@ -57,7 +68,7 @@ final class SelfAdbClient implements AutoCloseable {
             }
         }
         AdbKeyPair identity = keyPair();
-        String connectedHost = null;
+        connectedHost = null;
         StringBuilder failures = new StringBuilder();
         for (String address : addresses) {
             ensureOpen();
@@ -79,8 +90,9 @@ final class SelfAdbClient implements AutoCloseable {
             }
         }
         if (connectedHost == null) throw new IOException("이 폰의 ADB 주소 연결 실패\n" + failures);
+        }
         ensureOpen();
-        StringBuilder transcript = new StringBuilder("대상: " + connectedHost + ":" + port + "\n");
+        StringBuilder transcript = new StringBuilder("대상: " + connectedHost + (port == 0 ? "" : ":" + port) + "\n");
         String directory = read("pwd", transcript);
         String serial = read("getprop ro.serialno", transcript);
         String device = read("getprop ro.product.device", transcript);
@@ -143,6 +155,7 @@ final class SelfAdbClient implements AutoCloseable {
     void install(File apk, boolean root) throws Exception {
         ensureOpen();
         LocalPolicy.verifyInstallerUid(verifiedUid, LocalPolicy.uid(read("id", null)), root);
+        if (wireless != null) { wireless.install(apk); ensureOpen(); return; }
         // Use Dadb's streaming PackageManager path; its legacy fallback does not verify success.
         if (!connection.supportsFeature("cmd")) throw new IOException("이 ADB는 검증 가능한 streaming 설치를 지원하지 않습니다.");
         connection.install(apk, "-r");
@@ -234,6 +247,12 @@ final class SelfAdbClient implements AutoCloseable {
 
     private String read(String command, StringBuilder transcript) throws Exception {
         ensureOpen();
+        if (wireless != null) {
+            String output = wireless.shell(command).trim();
+            ensureOpen();
+            if (transcript != null) transcript.append("\n$ ").append(command).append('\n').append(output).append("\nexit=0\n");
+            return output;
+        }
         AdbShellResponse response = connection.shell(command);
         ensureOpen();
         if (transcript != null) {
@@ -288,6 +307,7 @@ final class SelfAdbClient implements AutoCloseable {
         closed = true;
         verifiedRoot = false;
         verifiedUid = -1;
+        if (wireless != null) try { wireless.close(); } catch (Exception ignored) { }
         Dadb active = connection;
         if (active != null) {
             try { active.close(); } catch (Exception ignored) { }

@@ -1,6 +1,6 @@
 {
-  "source_commit": "65af6e9008e1fb8244772dd629f74aebfb580911",
+  "source_commit": "9225ae95e968b821e81cc978715e37252c12cd78",
   "snapshot": true,
   "excluded": "Private device logs/history and signing material; device endpoints in test scripts are placeholders",
-  "apk_sha256": "b59bd21ffbab819f3d6b88e545b0327bf1d6a43443fe28659e10b77d8087377a"
+  "apk_sha256": "0cfbd92efea5445df2d9ddedd1491f84d7a01151b4a3b48c184248cb4d405f3d"
 }

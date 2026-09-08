@@ -8,6 +8,8 @@ val sharedSigning = Properties().apply {
 }
 
 val bootstrapAssets = tasks.register<Sync>("bootstrapAssets") {
+    from("../third_party/libadb/LICENSES") { into("licenses/libadb") }
+    from("../third_party/libadb/PROVENANCE.md") { into("licenses/libadb") }
     from("../scripts") {
         include("prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py")
         into("bootstrap")
@@ -32,6 +34,7 @@ android {
     sourceSets.getByName("main").assets.srcDir("../preroot")
     sourceSets.getByName("main").assets.srcDir("../harness")
     sourceSets.getByName("main").assets.srcDir(bootstrapAssets)
+    sourceSets.getByName("main").java.srcDir("../third_party/libadb/src")
     androidResources { noCompress += "bin" }
     packaging { jniLibs { useLegacyPackaging = true; keepDebugSymbols += "**/*.so" } }
     if (sharedSigningPath != null) {
@@ -53,4 +56,8 @@ tasks.named("preBuild") { dependsOn(bootstrapAssets) }
 
 dependencies {
     implementation("dev.mobile:dadb:1.2.10")
+    implementation("androidx.annotation:annotation:1.9.1")
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.84")
+    implementation("org.bouncycastle:bctls-jdk15to18:1.84")
+    implementation("org.bouncycastle:bcpkix-jdk15to18:1.84")
 }

@@ -16,6 +16,10 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true">
         <activity android:name=".InstallerActivity" android:exported="false" />
+        <activity android:name=".DeveloperActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <service android:name=".WirelessPairingService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local wireless debugging pairing with notification code entry" />
+        </service>
         <receiver android:name=".InstallResultReceiver" android:exported="false" />
         <service android:name=".RuntimeSetupService" android:exported="false"
             android:foregroundServiceType="specialUse">

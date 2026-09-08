@@ -1,5 +1,8 @@
 # Core runtime and optional Android capabilities
 
+Current update: [v20 wireless Developer onboarding](WIRELESS-DEVELOPER.md).
+Older milestone notes below predate that implementation and its device tests.
+
 The user superseded the root-required design on 2026-09-08. Tier 0 is mandatory.
 Root may extend Android administration, but must never gate local conversations,
 Fedora preparation, Git, compilation or APK generation.
@@ -58,7 +61,7 @@ chroot. It verifies the pinned Fedora archive, extracts it with bundled PRoot,
 and runs Fedora cat/id under the ordinary app UID. The PRoot executable and its
 loader live in Android's extracted nativeLibraryDir, not writable app storage.
 
-On Nothing Pacman USB_TEST_SERIAL, Android 16, SELinux Enforcing, ADB UID 2000,
+On Nothing Pacman 000501423003390, Android 16, SELinux Enforcing, ADB UID 2000,
 the probe ran as Android UID 10225 in untrusted_app, extracted Fedora successfully
 and returned Fedora 44 with exit 0. Guest uid=0 is emulated; it is not Android
 root. See evidence/stock-probe-pacman.log. The bootloader state is orange, so this

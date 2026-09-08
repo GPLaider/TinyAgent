@@ -94,8 +94,11 @@ public final class InstallerActivity extends Activity {
             message("‘이 앱의 설치 허용 설정’에서 허용한 뒤 APK를 다시 선택하세요."); return;
         }
         var connection = getSharedPreferences("connection", MODE_PRIVATE);
+        if (selected == 1 && "stock".equals(WirelessAdb.transport(this))) {
+            message("Stock 모드입니다. Developer 연결 설정에서 먼저 권한을 연결하세요."); return;
+        }
         final int port;
-        try { port = selected == 1 || selected == 2 ? LocalPolicy.port(connection.getString("port", "5555")) : 0; }
+        try { port = selected == 2 || (selected == 1 && !WirelessAdb.selected(this)) ? LocalPolicy.port(connection.getString("port", "")) : 0; }
         catch (Exception error) { message(error.getMessage()); return; }
         if (selected == 2 && !connection.getBoolean("rootAllowed", false)) { message("작업 환경에서 Root 실행을 명시적으로 허용하세요."); return; }
         if (selected == 3 && checkSelfPermission("android.permission.INSTALL_PACKAGES") != PackageManager.PERMISSION_GRANTED) {

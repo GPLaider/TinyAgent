@@ -60,15 +60,18 @@ final class AndroidDiagnosticsBridge implements AutoCloseable {
                 .put("measured_at", java.time.Instant.now().toString()).put("device", Build.DEVICE)
                 .put("model", Build.MODEL).put("android_version", Build.VERSION.RELEASE)
                 .put("sdk", Build.VERSION.SDK_INT).put("app_uid", android.os.Process.myUid())
-                .put("root_selected", prefs.getBoolean("rootAllowed", false));
+                .put("root_selected", prefs.getBoolean("rootAllowed", false))
+                .put("selected_transport", WirelessAdb.transport(context));
         if (mode.equals("stock")) return result.put("execution_uid", android.os.Process.myUid())
                 .put("serial", JSONObject.NULL).put("authority", "app-sandbox");
         boolean root = mode.equals("root");
+        if (!root && "stock".equals(WirelessAdb.transport(context)))
+            throw new IOException("Stock 모드입니다. Developer 연결 설정에서 권한을 연결하세요.");
         if (root && !prefs.getBoolean("rootAllowed", false)) throw new IOException("Root 실행이 허용되지 않았습니다.");
         try (SelfAdbClient connection = new SelfAdbClient(context)) {
             adb = connection;
             if (closed) throw new IOException("진단 중단");
-            SelfAdbClient.Result proof = connection.inspect(LocalPolicy.port(prefs.getString("port", "5555")), root);
+            SelfAdbClient.Result proof = connection.inspect(!root && WirelessAdb.selected(context) ? 0 : LocalPolicy.port(prefs.getString("port", "")), root);
             if (!proof.verifiedSelf) throw new IOException(proof.transcript);
             return result.put("verified_self", true).put("execution_uid", root ? 0 : 2000).put("transcript", proof.transcript);
         } finally { adb = null; }

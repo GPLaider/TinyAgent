@@ -1,15 +1,14 @@
 # TinyAgent
 
-**비공개 테스트 저장소** · [APK 다운로드](https://github.com/GPLaider/TinyAgent/releases/tag/v0.1.0-preview.1)
+**비공개 테스트 저장소** · [APK 다운로드](https://github.com/GPLaider/TinyAgent/releases/tag/v0.1.0-preview.2)
 · [설치·검증 범위·빌드 안내](docs/PREVIEW-RELEASE.md)
 
-최신 기준은 위 사전 릴리즈 안내입니다. 개발 기록에 연결된 원시 기기 로그는 이 저장소에 포함하지 않았습니다.
 
 폰 내부 Fedora와 OpenCode를 사용하는 Android 개발 에이전트입니다.
 현재는 실기기 통합 검증 중인 개발 빌드이며 정식 릴리즈가 아닙니다.
-v12는 권한별 하네스, 시스템 테마 연동과 폰 빌드의 동일 개발 서명을
-반영했습니다. 최신 v14는 기본 작업공간 누락으로 새 세션이 열리지 않던 문제를
-수정했습니다. [최신 회귀 검증과 남은 항목](docs/REGRESSION-V14.md).
+v20은 Stock 초기 개발 도구 준비와 앱 내부 무선 ADB 페어링을 반영했습니다.
+[무선 Developer 설정·검증 범위](docs/WIRELESS-DEVELOPER.md)와
+[Stock 준비 수정](docs/STOCK-COMPATIBILITY.md)을 참고하세요.
 
 ## 시작
 
@@ -26,6 +25,11 @@ v12는 권한별 하네스, 시스템 테마 연동과 폰 빌드의 동일 개�
 이 명령은 네트워크가 필요합니다. Git·Java 17·Node와 ARM64 Android SDK를
 준비하며 `development_prepare_exit=0`까지 확인합니다.
 작업 파일은 `/workspace`, Android와 교환할 파일은 `/shared`에 둡니다.
+
+Stock에서는 ADB가 필요하지 않습니다. Android shell 권한이 필요하면
+**Developer 연결 설정 → 페어링 알림 켜기**를 사용하세요. Android 무선 디버깅의
+페어링 창을 유지한 채 알림에 6자리 코드를 입력하면 포트를 자동으로 찾습니다.
+기존 PC ADB나 Tailscale 연결은 필요하지 않습니다. 연결 실패 후에도 Fedora는 사용할 수 있습니다.
 
 ## APK 설치 경로
 

@@ -38,7 +38,7 @@ public final class StockProbeActivity extends Activity {
             log("host_uid=" + Process.myUid());
             log("host_context=" + new String(Files.readAllBytes(new File("/proc/self/attr/current").toPath()), StandardCharsets.UTF_8).trim());
             if (Process.myUid() < 10000) throw new IllegalStateException("Ordinary app UID required");
-            File base = new File(getFilesDir(), "stock-probe");
+            File base = new File(getFilesDir(), "stock-probe-noseccomp-v1");
             File rootfs = new File(base, "rootfs");
             File links = new File(rootfs, ".l2s");
             File temp = new File(base, "tmp");
@@ -80,6 +80,7 @@ public final class StockProbeActivity extends Activity {
         command.addAll(args);
         log("argv=" + command);
         ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true).directory(base);
+        builder.environment().put("PROOT_NO_SECCOMP", "1");
         builder.environment().put("LD_LIBRARY_PATH", nativeDir);
         builder.environment().put("PROOT_LOADER", nativeDir + "/libproot_loader.so");
         builder.environment().put("PROOT_TMP_DIR", new File(base, "tmp").toString());

@@ -13,8 +13,16 @@ To install a generated APK, use the native installer with Developer selected.
 The APK must have a matching signer for an update. Streaming installation runs
 on the verified self-ADB connection. Failure is not authorization to uninstall.
 
-The current agent bridge exposes inspection only. Wireless pairing, Shizuku,
-and arbitrary Android shell execution are not provided by this bridge. If the
-task needs them, report the missing capability rather than fabricating commands.
+First authorization is a user action: Developer connection setup guides Android
+Wireless debugging pairing. The user enters the six-digit code through the
+TinyAgent notification while the Android pairing dialog stays open. Pairing and
+connection ports are discovered separately; no PC, Tailscale or existing ADB is
+required. Never suggest `adb tcpip` as the way to obtain initial authorization.
+The app stores its key privately and rediscovers the local connection endpoint
+for subsequent operations. Selecting Developer is not proof of a live connection.
+
+The current agent bridge exposes inspection only. Shizuku and arbitrary Android
+shell execution are not provided by this bridge. If the task needs them, report
+the missing capability rather than fabricating commands.
 Connection loss leaves Fedora available. Reconnect and remeasure before retrying
 Android work; confirm the installed package before repeating an uncertain install.

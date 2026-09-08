@@ -141,6 +141,9 @@ public final class AppActivity extends Activity {
         body.addView(heading);
         body.addView(text("이 폰에서 Android와 Fedora 작업을 실행합니다.", 15));
         section(body, "Android 권한 확장 · 선택 사항");
+        Button developer = button("Developer 연결 설정", false);
+        developer.setOnClickListener(v -> startActivity(new Intent(this, DeveloperActivity.class)));
+        body.addView(developer);
         rootAllowed = new Switch(this);
         rootAllowed.setText("Root 실행 허용");
         rootAllowed.setContentDescription("Unrestricted root 연결 허용");
@@ -154,15 +157,16 @@ public final class AppActivity extends Activity {
         LinearLayout advanced = new LinearLayout(this);
         advanced.setOrientation(LinearLayout.VERTICAL);
         fold(body, "고급 연결 설정", advanced);
-        advanced.addView(text("활성화된 TCP ADB로 이 폰에 연결합니다. 무선 디버깅 페어링은 아직 지원하지 않습니다.", 14));
-        TextView portLabel = text("ADB 포트", 15);
+        advanced.addView(text("기존 TCP ADB와 Root 연결용 설정입니다. 일반 Developer 연결은 위의 무선 페어링을 사용하세요.", 14));
+        TextView portLabel = text("기존 TCP ADB 연결 포트 · 수동 입력", 15);
         port = new EditText(this);
         port.setId(View.generateViewId());
         portLabel.setLabelFor(port.getId());
         port.setInputType(InputType.TYPE_CLASS_NUMBER);
         port.setSingleLine(true);
         port.setSelectAllOnFocus(true);
-        port.setText(preferences.getString("port", "5555"));
+        port.setText(preferences.getString("port", ""));
+        port.setHint("실제 연결 포트 · 페어링 포트 아님");
         port.setTextSize(16);
         advanced.addView(portLabel);
         advanced.addView(port, new LinearLayout.LayoutParams(-1, dp(52)));
@@ -198,7 +202,9 @@ public final class AppActivity extends Activity {
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
         fold(body, "진단 정보", details);
+        details.addView(text("Android 권한 확장 · ADB 연결 진단", 16));
         details.addView(diagnostics);
+        details.addView(text("Fedora · 앱 내부 실행환경 진단", 16));
         runtimeDetails = text("", 14);
         runtimeDetails.setTextIsSelectable(true);
         details.addView(runtimeDetails);
@@ -250,14 +256,15 @@ public final class AppActivity extends Activity {
 
     private void startInspection(boolean resumeWeb) {
         final int selectedPort;
-        try { selectedPort = LocalPolicy.port(port.getText().toString()); }
+        try { selectedPort = !rootAllowed.isChecked() && WirelessAdb.selected(this) ? 0 : LocalPolicy.port(port.getText().toString()); }
         catch (IllegalArgumentException error) { port.setError(error.getMessage()); return; }
-        preferences.edit().putString("port", Integer.toString(selectedPort)).apply();
+        if (selectedPort != 0) preferences.edit().putString("port", Integer.toString(selectedPort)).putString("transport","legacy").apply();
         final boolean rootPermission = rootAllowed.isChecked();
         final int request = ++operation;
         verifiedSelf = false;
         setBusy(true);
-        diagnostics.setText("이 폰의 ADB 주소 확인 중 · 포트 " + selectedPort + "\n처음 연결하면 Android의 디버깅 허용 창을 확인하세요.");
+        diagnostics.setText(selectedPort == 0 ? "이 폰의 무선 ADB 연결을 자동으로 찾는 중…"
+                : "이 폰의 ADB 주소 확인 중 · 포트 " + selectedPort + "\n처음 연결하면 Android의 디버깅 허용 창을 확인하세요.");
         backendStatus.setText("기기 연결 확인 중…");
         pending = worker.submit(() -> {
             try (SelfAdbClient client = new SelfAdbClient(getApplicationContext())) {
@@ -277,9 +284,11 @@ public final class AppActivity extends Activity {
                         ? error.getMessage() : error.getClass().getSimpleName();
                 runOnUiThread(() -> {
                     if (isDestroyed() || request != operation) return;
-                    diagnostics.setText("연결 확인 실패\n" + detail
-                            + "\n\nTCP ADB 포트, 디버깅 허용, root adbd 상태를 확인한 뒤 다시 시도하세요.");
-                    backendStatus.setText("기기 연결 실패 · 고급 연결 설정과 진단 정보를 확인하세요.");
+                    diagnostics.setText("선택 사항인 ADB 연결을 확인하지 못했습니다.\n"
+                            + "Fedora 준비와 대화에는 ADB나 Root가 필요하지 않습니다.\n\n" + detail
+                            + (rootPermission ? "\n\nRoot 기능을 사용할 때만 root ADB 설정을 확인하세요."
+                                              : "\n\nADB 기능을 사용할 때만 TCP ADB 포트와 디버깅 허용을 확인하세요."));
+                    backendStatus.setText("ADB 연결 안 됨 · Fedora 환경 준비는 별도로 진행할 수 있습니다.");
                     setBusy(false);
                 });
             } finally { activeClient = null; }
