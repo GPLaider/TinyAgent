@@ -6,7 +6,7 @@ import subprocess
 
 ADB = Path('C:/Users/Administrator/AppData/Local/Android/Sdk/platform-tools/adb.exe')
 REPO = Path(__file__).resolve().parents[1]
-TARGET = '192.0.2.2:5555'
+TARGET = '100.79.65.42:5555'
 ROOT = '/data/local/tmp/tinyagent-compat-20260908'
 STAGE = '/data/local/tmp/tinyagent-preroot-0.1.0'
 
@@ -18,7 +18,7 @@ def adb(*args):
 
 def main():
     identity = adb('shell', 'getprop', 'ro.serialno')
-    assert identity.returncode == 0 and identity.stdout.strip() == 'EDGE40_ROOT_SERIAL'
+    assert identity.returncode == 0 and identity.stdout.strip() == 'ZY22HZPLL8'
     before = adb('shell', 'cat', '/proc/mounts')
     assert before.returncode == 0
     assert adb('shell', 'mkdir', '-p', STAGE).returncode == 0

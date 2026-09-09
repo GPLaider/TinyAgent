@@ -1,6 +1,6 @@
 #!/system/bin/sh
 set -eu
-test "$(getprop ro.serialno)" = EDGE40_ROOT_SERIAL
+test "$(getprop ro.serialno)" = ZY22HZPLL8
 root=/data/local/tinyagent/runtime/0.1.0/rootfs
 read -r pid started boot < /data/local/tinyagent/run/backend.state
 case "$pid" in ''|*[!0-9]*) exit 1;; esac

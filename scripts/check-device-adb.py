@@ -9,14 +9,14 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
-TARGET = '192.0.2.2:5555'
-SERIAL = 'EDGE40_ROOT_SERIAL'
+TARGET = '100.79.65.42:5555'
+SERIAL = 'ZY22HZPLL8'
 PACKAGE = 'io.github.gplaider.tinyagent.debug'
 ROOT = Path(__file__).resolve().parents[1]
 
 def select_device(target):
     global TARGET, SERIAL
-    SERIAL = {'192.0.2.2:5555': 'EDGE40_ROOT_SERIAL', 'USB_TEST_SERIAL': 'USB_TEST_SERIAL'}[target]
+    SERIAL = {'100.79.65.42:5555': 'ZY22HZPLL8', '100.79.134.53:5555': 'ZY22J58799', '000501423003390': '000501423003390'}[target]
     TARGET = target
     return SERIAL
 

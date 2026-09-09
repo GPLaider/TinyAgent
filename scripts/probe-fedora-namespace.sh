@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # Run only via: unshare -m /system/bin/sh THIS_FILE
 set -eu
-test "$(getprop ro.serialno)" = EDGE40_ROOT_SERIAL
+test "$(getprop ro.serialno)" = ZY22HZPLL8
 test "$(id -u)" = 0
 test "$(readlink /proc/self/ns/mnt)" != "$(readlink /proc/$PPID/ns/mnt)"
 root=/data/local/tmp/tinyagent-compat-20260908

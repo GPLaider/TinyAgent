@@ -6,7 +6,7 @@ import re
 import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser()
-parser.add_argument('serial', choices=['USB_TEST_SERIAL', '192.0.2.2:5555'])
+parser.add_argument('serial', choices=['000501423003390', '100.79.65.42:5555', '100.79.134.53:5555'])
 parser.add_argument('--tap')
 args = parser.parse_args()
 adb = str(Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe')

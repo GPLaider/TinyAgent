@@ -7,9 +7,9 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 ui = runpy.run_path(str(ROOT/'scripts/check-device-adb.py'))
-ui['select_device']('USB_TEST_SERIAL')
+ui['select_device']('000501423003390')
 adb, snapshot, tap = ui['adb'], ui['snapshot'], ui['tap']
-assert adb('shell', 'getprop', 'ro.serialno').decode().strip() == 'USB_TEST_SERIAL'
+assert adb('shell', 'getprop', 'ro.serialno').decode().strip() == '000501423003390'
 out = ROOT/'evidence/system-theme-v12'
 out.mkdir(exist_ok=True)
 initial = adb('shell', 'cmd', 'uimode', 'night').decode().strip().split(': ')[1]
@@ -42,7 +42,7 @@ try:
     adb('shell', 'cmd', 'uimode', 'night', 'no')
     time.sleep(4)
     capture('web-light')
-    (out/'result.json').write_text(json.dumps(dict(serial='USB_TEST_SERIAL', initial_mode=initial,
+    (out/'result.json').write_text(json.dumps(dict(serial='000501423003390', initial_mode=initial,
         scope='Actual native/WebView captures; visually inspect screenshots before claiming theme acceptance'), indent=2)+'\n')
 finally:
     adb('shell', 'cmd', 'uimode', 'night', initial)

@@ -10,7 +10,7 @@ import argparse
 ROOT = Path(__file__).resolve().parents[1]
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
 parser = argparse.ArgumentParser()
-parser.add_argument('--serial', choices=['USB_TEST_SERIAL', '192.0.2.2:5555'], default='USB_TEST_SERIAL')
+parser.add_argument('--serial', choices=['000501423003390', '100.79.65.42:5555', '100.79.134.53:5555'], default='000501423003390')
 parser.add_argument('--command', default='/usr/bin/cat /etc/fedora-release')
 parser.add_argument('--output', default='stock-backend-shell')
 parser.add_argument('--session', help='Read progress of an existing test session instead of executing a command')
@@ -29,8 +29,8 @@ SERIAL = args.serial
 PACKAGE = 'io.github.gplaider.tinyagent.debug'
 def adb(*args):
     return subprocess.check_output([str(ADB), '-s', SERIAL, *args], timeout=30)
-assert adb('shell', 'getprop', 'ro.serialno').decode().strip() == ('EDGE40_ROOT_SERIAL' if ':' in SERIAL else SERIAL)
-PORT = 14098 if ':' in SERIAL else 14097
+hardware, PORT = {'100.79.65.42:5555': ('ZY22HZPLL8',14098), '100.79.134.53:5555': ('ZY22J58799',14099), '000501423003390': ('000501423003390',14097)}[SERIAL]
+assert adb('shell', 'getprop', 'ro.serialno').decode().strip() == hardware
 adb('forward', 'tcp:' + str(PORT), 'tcp:4097')
 password = adb('exec-out', 'run-as', PACKAGE, 'cat', 'no_backup/stock-backend-auth').strip()
 assert len(password) == 64

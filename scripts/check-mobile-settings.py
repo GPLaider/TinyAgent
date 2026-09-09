@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--expect-back-failure', action='store_true')
     parser.add_argument('--provider-form', action='store_true')
-    parser.add_argument('--serial', choices=['192.0.2.2:5555', 'USB_TEST_SERIAL'], default='192.0.2.2:5555')
+    parser.add_argument('--serial', choices=['100.79.65.42:5555', '000501423003390'], default='100.79.65.42:5555')
     args = parser.parse_args()
     ui['SERIAL'] = ui['select_device'](args.serial)
     assert args.name.replace('-', '').isalnum()

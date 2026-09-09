@@ -9,12 +9,12 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
-SERIAL = '192.0.2.2:5555'
+SERIAL = '100.79.65.42:5555'
 PACKAGE = 'io.github.gplaider.tinyagent.debug'
 SHARED = '/data/user/0/' + PACKAGE + '/files/linux/shared/'
 def adb(*args):
     return subprocess.check_output([str(ADB), '-s', SERIAL, *args], timeout=30).decode().strip()
-assert adb('shell', 'getprop', 'ro.serialno') == 'EDGE40_ROOT_SERIAL'
+assert adb('shell', 'getprop', 'ro.serialno') == 'ZY22HZPLL8'
 adb('push', str(ROOT/'scripts/recovery-job.sh'), SHARED+'recovery-job.sh')
 adb('shell', 'chmod', '644', SHARED+'recovery-job.sh')
 adb('forward', 'tcp:14098', 'tcp:4097')
@@ -55,4 +55,4 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         results.append(dict(iteration=iteration+1, session=session, pid=pid, process_gone=True, seconds=round(time.monotonic()-started,2)))
         print('abort', iteration+1, 'passed', flush=True)
 apk = adb('shell', 'pm', 'path', PACKAGE).removeprefix('package:')
-(ROOT/'evidence/job-abort-v12.json').write_text(json.dumps(dict(serial='EDGE40_ROOT_SERIAL', apk_sha256=adb('shell','sha256sum',apk).split()[0], results=results), indent=2)+'\n')
+(ROOT/'evidence/job-abort-v12.json').write_text(json.dumps(dict(serial='ZY22HZPLL8', apk_sha256=adb('shell','sha256sum',apk).split()[0], results=results), indent=2)+'\n')

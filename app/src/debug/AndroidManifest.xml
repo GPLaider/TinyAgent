@@ -2,5 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity android:name=".StockProbeActivity" android:exported="true" />
+        <activity android:name=".FdRoundTripActivity" android:exported="true" />
+        <activity android:name=".DnfastProbeActivity" android:exported="true" />
     </application>
 </manifest>

@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--serial', choices=['192.0.2.2:5555', 'USB_TEST_SERIAL'], required=True)
+parser.add_argument('--serial', choices=['100.79.65.42:5555', '000501423003390'], required=True)
 args = parser.parse_args()
 adb = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
 package = 'io.github.gplaider.tinyagent.debug'
@@ -21,7 +21,7 @@ def run(*argv, data=None):
     return subprocess.run([str(adb), '-s', args.serial, *argv], input=data,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=30).stdout
 
-assert run('shell', 'getprop', 'ro.serialno').decode().strip() == ('EDGE40_ROOT_SERIAL' if ':' in args.serial else args.serial)
+assert run('shell', 'getprop', 'ro.serialno').decode().strip() == ('ZY22HZPLL8' if ':' in args.serial else args.serial)
 assert int(run('shell', 'run-as', package, 'id', '-u')) >= 10000
 key = Path.home() / '.android/debug.keystore'
 certificate = subprocess.run(['keytool', '-exportcert', '-keystore', str(key), '-alias', 'androiddebugkey',

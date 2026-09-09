@@ -29,13 +29,13 @@ configuration; release signing remains separate and unset. This development
 certificate is not a production/release identity.
 
 Reproduce provisioning with:
-`python scripts/provision-development-signing.py --serial 192.0.2.2:5555`.
+`python scripts/provision-development-signing.py --serial 100.79.65.42:5555`.
 Then run `scripts/build-android-fedora.sh` inside the phone source checkout.
 
 ## Verified on 2026-09-08
 
 - Source 24666a4d1c625ecbd140648e333b7a079e51d944 rebuilt on Edge 40
-  EDGE40_ROOT_SERIAL inside app-managed Fedora in 2m39s. The existing phone-compiled
+  ZY22HZPLL8 inside app-managed Fedora in 2m39s. The existing phone-compiled
   GUI was reused. Packaged harness, bootstrap, native, notice, 952 GUI asset
   and runtime archive checks all passed.
 - Phone APK SHA256:
@@ -47,7 +47,7 @@ Then run `scripts/build-android-fedora.sh` inside the phone source checkout.
   `make clean test` passed again in its preserved workspace.
 - Actual v12 backend configuration loaded all six instruction files, including
   STOCK/ADB/ROOT. This proves configuration and packaging, not new model inference.
-- Pacman USB_TEST_SERIAL: native light/dark and OpenCode dark/light screenshots
+- Pacman 000501423003390: native light/dark and OpenCode dark/light screenshots
   were visually reviewed. Both followed system appearance. Initial system mode
   `no` was restored. Host APK SHA256:
   b3f24ce94096cc75cd0d6b8410b6e945938149aa696005fcdfee1b277502a285.

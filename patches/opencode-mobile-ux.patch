@@ -184,6 +184,42 @@ index e3c11c3..79c6f80 100644
        <div class="px-2.5 flex gap-4 items-center">
          <ProviderIcon id="synthetic" class="size-5 shrink-0 icon-strong-base" />
          <div class="text-16-medium text-text-strong">{language.t("provider.custom.title")}</div>
+diff --git a/packages/app/src/components/dialog-select-directory.tsx b/packages/app/src/components/dialog-select-directory.tsx
+index fc248d8..f32343a 100644
+--- a/packages/app/src/components/dialog-select-directory.tsx
++++ b/packages/app/src/components/dialog-select-directory.tsx
+@@ -4,7 +4,8 @@ import { FileIcon } from "@opencode-ai/ui/file-icon"
+ import { List } from "@opencode-ai/ui/list"
+ import type { ListRef } from "@opencode-ai/ui/list"
+ import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
+-import { createMemo, createResource, createSignal } from "solid-js"
++import { createMemo, createResource, createSignal, onCleanup, Show } from "solid-js"
++import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+ import { useLanguage } from "@/context/language"
+ import { ServerConnection } from "@/context/server"
+ import { useGlobal } from "@/context/global"
+@@ -128,8 +129,21 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
+     dialog.close()
+   }
+ 
++  const localWorkspace = navigator.userAgent.includes(" TinyAgent/") && new URL(props.server.http.url).hostname === "127.0.0.1"
++  const created = (event: Event) => {
++    const path = (event as CustomEvent<{ path?: string }>).detail?.path
++    if (localWorkspace && typeof path === "string" && path.startsWith("/workspace/")) resolve(path)
++  }
++  window.addEventListener("tinyagent:project-created", created)
++  onCleanup(() => window.removeEventListener("tinyagent:project-created", created))
++
+   return (
+     <Dialog title={props.title ?? language.t("command.project.open")}>
++      <Show when={localWorkspace}>
++        <div class="px-4 pb-3"><ButtonV2 class="w-full min-h-12" onClick={() => {
++          window.location.assign("/tinyagent/project/create")
++        }}>{language.t("dialog.directory.createWorkspaceFolder")}</ButtonV2></div>
++      </Show>
+       <List
+         class="px-3"
+         search={{ placeholder: language.t("dialog.directory.search.placeholder"), autofocus: true }}
 diff --git a/packages/app/src/components/settings-v2/dialog-settings-v2.tsx b/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
 index 4116f4a..7bc1da9 100644
 --- a/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
@@ -446,15 +482,75 @@ index 6235f35..6ad9994 100644
          setSelection(selection: HomeProjectSelection) {
            setStore("home", "selection", reconcile(selection))
          },
+diff --git a/packages/app/src/i18n/en.ts b/packages/app/src/i18n/en.ts
+index 62d4dc1..cab80dc 100644
+--- a/packages/app/src/i18n/en.ts
++++ b/packages/app/src/i18n/en.ts
+@@ -1,6 +1,16 @@
+ import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
+ 
+ export const dict = {
++  "home.list.selection": "Selection",
++  "home.list.selected": "{{count}} selected",
++  "home.list.deleteSelected": "Delete {{count}} selected items?",
++  "home.list.deleteDescription": "You can undo this briefly after deleting. Project folders and files are kept.",
++  "home.list.removed": "{{count}} removed",
++  "home.list.undo": "Undo",
++  "home.sessions.pin": "Pin",
++  "home.sessions.unpin": "Unpin",
++  "home.sessions.pinned": "Pinned",
++  "dialog.directory.createWorkspaceFolder": "New folder in /workspace",
+   ...DESKTOP_NATIVE_ENGLISH,
+   "command.category.suggested": "Suggested",
+   "command.category.view": "View",
+diff --git a/packages/app/src/i18n/ko.ts b/packages/app/src/i18n/ko.ts
+index b96fb4c..a367687 100644
+--- a/packages/app/src/i18n/ko.ts
++++ b/packages/app/src/i18n/ko.ts
+@@ -1,4 +1,14 @@
+ export const dict = {
++  "home.list.selection": "항목 선택",
++  "home.list.selected": "{{count}}개 선택",
++  "home.list.deleteSelected": "선택한 {{count}}개를 삭제할까요?",
++  "home.list.deleteDescription": "삭제 직후 잠시 되돌릴 수 있습니다. 프로젝트 폴더와 파일은 보존됩니다.",
++  "home.list.removed": "{{count}}개 삭제됨",
++  "home.list.undo": "되돌리기",
++  "home.sessions.pin": "고정",
++  "home.sessions.unpin": "고정 해제",
++  "home.sessions.pinned": "고정됨",
++  "dialog.directory.createWorkspaceFolder": "/workspace에 새 폴더",
+   "command.category.suggested": "추천",
+   "command.category.view": "보기",
+   "command.category.project": "프로젝트",
 diff --git a/packages/app/src/index.css b/packages/app/src/index.css
-index 78a9e10..cdecf0c 100644
+index 78a9e10..354168c 100644
 --- a/packages/app/src/index.css
 +++ b/packages/app/src/index.css
-@@ -3,6 +3,57 @@
+@@ -3,6 +3,80 @@
  @import "@opencode-ai/ui/v2/styles/tailwind.css";
  @import "tw-animate-css";
  
 +.home-project-picker > summary { display: none; }
++.home-session-item, .home-project-item { overflow: hidden; }
++.home-project-actions { width: 72px !important; }
++.home-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; margin-bottom: 8px; border-radius: 14px; background: var(--v2-background-bg-layer-02); }
++.home-selection-bar button, .home-undo-bar button { min-width: 64px; min-height: 48px; padding: 8px 14px; border: 0; border-radius: 12px; background: transparent; color: inherit; font-weight: 600; }
++.home-selection-delete { color: #c83a48 !important; }
++.home-selection-check { width: 22px; height: 22px; flex-shrink: 0; border: 1.5px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-size: 15px; }
++.home-undo-bar { position: fixed; z-index: 1000; bottom: calc(24px + env(safe-area-inset-bottom)); left: 16px; right: 16px; max-width: 480px; margin-inline: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 8px 4px 20px; border-radius: 18px; color: var(--v2-text-text-base); background: var(--v2-background-bg-layer-02); box-shadow: 0 8px 30px #0005; animation: home-snackbar-in 180ms ease-out; }
++.home-undo-bar button { color: var(--v2-text-text-base); text-decoration: underline; text-underline-offset: 4px; }
++@keyframes home-snackbar-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
++[data-component="home-session-row"], [data-component="home-project-row"] { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
++[data-component="home-project-row"] { position: relative; background: var(--v2-background-bg-base); touch-action: pan-y; user-select: none; transition: transform 210ms cubic-bezier(.2,.8,.2,1), background-color 90ms ease; }
++[data-component="home-session-row"][data-pressed="true"], [data-component="home-project-row"][data-pressed="true"], [data-component="home-session-row"][data-selected="true"], [data-component="home-project-row"][data-checked="true"] { background: var(--v2-background-bg-layer-02); }
++.home-session-actions button:active, .home-selection-bar button:active, .home-undo-bar button:active { filter: brightness(1.2); scale: .96; }
++@media (prefers-reduced-motion: reduce) { .home-undo-bar { animation: none; } [data-component="home-session-row"], [data-component="home-project-row"] { transition: none !important; } }
++.home-session-actions { position: absolute; inset: 0 0 0 auto; display: flex; width: 144px; }
++.home-session-actions[aria-hidden="true"] { visibility: hidden; }
++.home-session-actions button { width: 72px; min-height: 40px; background: var(--v2-background-bg-layer-02); color: var(--v2-text-text-base); border: 0; }
++.home-session-actions .home-session-delete { background: #a52a35; color: white; }
++[data-component="home-session-row"] { position: relative; background: var(--v2-background-bg-base); touch-action: pan-y; user-select: none; transition: transform 210ms cubic-bezier(.2,.8,.2,1), background-color 90ms ease; }
++.home-session-more { position: absolute; right: 0; top: 0; bottom: 0; width: 44px; border: 0; background: transparent; color: var(--v2-text-text-muted); font-size: 24px; }
 +@media (hover: none) {
 +  [role="tooltip"] kbd,
 +  [role="tooltip"] [data-component="keybind-v2"],
@@ -484,15 +580,18 @@ index 78a9e10..cdecf0c 100644
 +    cursor: pointer;
 +  }
 +  .home-project-picker > aside { margin: 0 0 16px; }
++  .home-project-item { min-height: 56px; }
++  [data-component="home-project-row"] { min-height: 56px; font-size: 16px; }
 +  [data-component="home-sessions"] .home-session-item {
 +    height: auto;
-+    border-radius: 0;
++    border-radius: 14px;
++    margin-bottom: 4px;
 +    border-bottom: 1px solid var(--v2-border-border-base);
 +  }
 +  [data-component="home-session-row"] {
 +    min-height: 72px;
 +    height: auto;
-+    padding: 16px 8px;
++    padding: 16px 44px 16px 8px;
 +    gap: 12px;
 +    font-size: 16px;
 +    line-height: 24px;
@@ -509,7 +608,7 @@ index 78a9e10..cdecf0c 100644
    font-family: "JetBrainsMono Nerd Font Mono";
    src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
 diff --git a/packages/app/src/pages/home.tsx b/packages/app/src/pages/home.tsx
-index 4fadb8a..a37ada3 100644
+index 4fadb8a..27d3788 100644
 --- a/packages/app/src/pages/home.tsx
 +++ b/packages/app/src/pages/home.tsx
 @@ -1,7 +1,8 @@
@@ -558,7 +657,7 @@ index 4fadb8a..a37ada3 100644
            `}
          >
 -          <HomeProjects projects={projects} scroll={scroll} />
-+          <details class="home-project-picker" open={projects.project.list().length === 0}>
++          <details class="home-project-picker">
 +            <summary>{projects.copy.language.t("home.projects")}</summary>
 +            <HomeProjects projects={projects} scroll={scroll} />
 +          </details>
@@ -592,6 +691,223 @@ index 8b67533..ee8251b 100644
    createEffect(() => {
      const list = global.servers.list()
      if (list.some((conn) => ServerConnection.key(conn) === selection().server)) return
+diff --git a/packages/app/src/pages/home/home-projects-controller.tsx b/packages/app/src/pages/home/home-projects-controller.tsx
+index 18c58bd..f5316bb 100644
+--- a/packages/app/src/pages/home/home-projects-controller.tsx
++++ b/packages/app/src/pages/home/home-projects-controller.tsx
+@@ -13,6 +13,7 @@ import { showToast } from "@/utils/toast"
+ import { useDialog } from "@opencode-ai/ui/context/dialog"
+ import { createResource } from "solid-js"
+ import { createStore } from "solid-js/store"
++import { createListActions } from "./home-list-actions"
+ import type { HomeController } from "./home-controller"
+ 
+ export function createHomeProjectsController(home: HomeController) {
+@@ -32,6 +33,15 @@ export function createHomeProjectsController(home: HomeController) {
+     (promise) => promise.then(() => _state),
+     { initialValue: _state },
+   )
++  const actions = createListActions<{ server: ServerConnection.Any; directory: string }>({
++    key: (item) => `${ServerConnection.key(item.server)}\0${item.directory}`,
++    remove: async (item) => {
++      const next = closeHomeProject(home.selection.value(), ServerConnection.key(item.server),
++        home.server.context(item.server).projects, item.directory)
++      if (next) home.selection.set(next)
++    },
++  })
++  const visible = (conn: ServerConnection.Any, project: LocalProject) => !actions.hidden({ server: conn, directory: project.worktree })
+   function directories(project: LocalProject) {
+     return [project.worktree, ...(project.sandboxes ?? [])]
+   }
+@@ -41,6 +51,7 @@ export function createHomeProjectsController(home: HomeController) {
+   }
+ 
+   return {
++    actions,
+     copy: {
+       language,
+     },
+@@ -50,7 +61,7 @@ export function createHomeProjectsController(home: HomeController) {
+     server: {
+       list: home.server.list,
+       health: home.server.health,
+-      projects: home.project.forServer,
++      projects: (conn: ServerConnection.Any) => home.project.forServer(conn).filter((project) => visible(conn, project)),
+       collapsed: (conn: ServerConnection.Any) => state().collapsed[ServerConnection.key(conn)] ?? false,
+       toggleCollapsed: (conn: ServerConnection.Any) => {
+         const key = ServerConnection.key(conn)
+@@ -65,7 +76,7 @@ export function createHomeProjectsController(home: HomeController) {
+       focus: home.selection.focusServer,
+     },
+     project: {
+-      list: home.project.list,
++      list: () => home.project.list().filter((project) => { const conn = home.server.focused(); return !conn || visible(conn, project) }),
+       recentlyClosed: home.project.recentlyClosed,
+       homedir: home.project.homedir,
+       select: home.project.select,
+@@ -95,15 +106,7 @@ export function createHomeProjectsController(home: HomeController) {
+           onSelect: (result) => home.project.add(conn, homeProjectDirectories(result)),
+         })
+       },
+-      close: (conn: ServerConnection.Any, directory: string) => {
+-        const next = closeHomeProject(
+-          home.selection.value(),
+-          ServerConnection.key(conn),
+-          home.server.context(conn).projects,
+-          directory,
+-        )
+-        if (next) home.selection.set(next)
+-      },
++      close: (server: ServerConnection.Any, directory: string) => actions.queue({ server, directory }),
+       move: (conn: ServerConnection.Any, worktree: string, index: number) => {
+         home.server.context(conn).projects.move(worktree, index)
+       },
+diff --git a/packages/app/src/pages/home/home-projects-view.tsx b/packages/app/src/pages/home/home-projects-view.tsx
+index eebb0d5..9121c38 100644
+--- a/packages/app/src/pages/home/home-projects-view.tsx
++++ b/packages/app/src/pages/home/home-projects-view.tsx
+@@ -21,6 +21,9 @@ import { ServerHealthIndicator } from "@/components/server/server-row"
+ import { type ServerHealth } from "@/utils/server-health"
+ import { fileManagerApp } from "@/utils/file-manager"
+ 
++import { createRowGesture, ListActionBars } from "./home-list-actions"
++import type { HomeProjectsController } from "./home-projects-controller"
++
+ const HOME_PROJECT_NAV_LABEL = "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+ 
+ const serverContextMenuID = (server: ServerConnection.Any) => `server:${ServerConnection.key(server)}`
+@@ -28,6 +31,7 @@ const projectContextMenuID = (server: ServerConnection.Any, directory: string) =
+   `project:${ServerConnection.key(server)}:${directory}`
+ 
+ export type HomeProjectsViewProps = {
++  actions: HomeProjectsController["actions"]
+   language: ReturnType<typeof useLanguage>
+   servers: Accessor<ServerConnection.Any[]>
+   projects: Accessor<LocalProject[]>
+@@ -97,6 +101,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
+           </TooltipV2>
+         </Show>
+       </div>
++      <ListActionBars actions={props.actions} />
+       <ScrollView data-slot="home-projects-scroll" class="min-h-0 min-w-0 shrink">
+         <Show
+           when={props.servers().length > 1}
+@@ -323,7 +328,7 @@ function HomeProjectList(props: HomeProjectListProps) {
+             event.pointerType === "touch"
+               ? [new PointerActivationConstraints.Delay({ value: 250, tolerance: 5 })]
+               : [new PointerActivationConstraints.Distance({ value: 4 })],
+-          preventActivation: (event) => event.target instanceof Element && !!event.target.closest("[data-action]"),
++          preventActivation: (event) => event.pointerType !== "mouse" || props.actions.count() > 0 || (event.target instanceof Element && !!event.target.closest("[data-action]")),
+         }),
+       ]}
+       modifiers={[RestrictToVerticalAxis, RestrictToElement.configure({ element: () => listRef })]}
+@@ -464,7 +469,8 @@ function HomeProjectRow(
+       return props.index()
+     },
+   })
+-  let pointerDownSelected: boolean | undefined
++  const item = () => ({ server: props.server, directory: props.project.worktree })
++  const gesture = createRowGesture({ hold: () => props.actions.toggle(item()), selecting: () => props.actions.count() > 0, width: 72 })
+   const contextMenuID = () => projectContextMenuID(props.server, props.project.worktree)
+   onCleanup(() => {
+     const id = contextMenuID()
+@@ -473,13 +479,17 @@ function HomeProjectRow(
+   return (
+     <div
+       ref={sortable.ref}
+-      class="group/project relative flex h-7 min-w-0 items-center rounded-[6px]"
++      class="group/project home-project-item relative flex h-7 min-w-0 items-center rounded-[6px]"
+       classList={{ "z-10": sortable.isDragSource() }}
+       onContextMenu={(event) => {
+         event.preventDefault()
+-        props.onSetContextMenuOpen(contextMenuID(), true)
++        props.actions.toggle(item())
+       }}
+     >
++      <div class="home-session-actions home-project-actions" aria-hidden={!gesture.state.open && !gesture.state.dragging}>
++        <button type="button" class="home-session-delete" tabIndex={gesture.state.open ? 0 : -1}
++          onClick={() => { gesture.close(); props.onCloseProject(props.server, props.project.worktree) }}>{props.language.t("common.delete")}</button>
++      </div>
+       <HomeProjectNavButton
+         type="button"
+         data-component="home-project-row"
+@@ -490,38 +500,31 @@ function HomeProjectRow(
+         data-selected={props.selected ? "" : undefined}
+         aria-current={props.selected ? "page" : undefined}
+         disabled={serverUnreachable()}
+-        onPointerDown={(event) => {
+-          // Same-server mouse selection happens on pointerdown (like tabs),
+-          // but only ever selects; selectProject toggles, and deselecting here
+-          // would fire on every drag before the threshold is met. Cross-server
+-          // selection waits for click so reordering a remote server's projects
+-          // does not focus that server and load its session index. Touch is
+-          // excluded so flick-scrolling the list cannot select rows.
+-          pointerDownSelected = undefined
+-          if (event.button !== 0 || event.pointerType === "touch") return
+-          if (!props.serverSelected) return
+-          pointerDownSelected = props.selected
+-          if (!props.selected) props.onSelectProject(props.server, props.project.worktree)
++        style={gesture.style()}
++        data-pressed={gesture.state.pressed}
++        data-checked={props.actions.selected(item())}
++        aria-pressed={props.actions.count() ? props.actions.selected(item()) : undefined}
++        onPointerDown={gesture.down}
++        onPointerMove={gesture.move}
++        onPointerUp={gesture.up}
++        onPointerCancel={gesture.cancel}
++        onKeyDown={(event) => {
++          if (event.key === "Escape") { gesture.close(); props.actions.clear() }
++          if (event.key === "ArrowLeft") { event.preventDefault(); gesture.reveal() }
++          if (event.key === " " && event.shiftKey) { event.preventDefault(); props.actions.toggle(item()) }
+         }}
+         onClick={(event) => {
+-          // The drag sensor calls preventDefault on post-drag clicks; never
+-          // toggle selection as part of a reorder.
+-          if (event.defaultPrevented) return
+-          // Keyboard activation and touch taps keep the original toggle.
+-          if (event.detail === 0 || pointerDownSelected === undefined) {
+-            props.onSelectProject(props.server, props.project.worktree)
+-            return
+-          }
+-          // Mouse: pointerdown already selected unselected rows; a plain click
+-          // on an already-selected row toggles it off.
+-          if (pointerDownSelected) props.onSelectProject(props.server, props.project.worktree)
+-          pointerDownSelected = undefined
++          if (event.defaultPrevented || gesture.consumed()) return
++          if (props.actions.count()) { props.actions.toggle(item()); return }
++          props.onSelectProject(props.server, props.project.worktree)
+         }}
+       >
++        <Show when={props.actions.count()}><span class="home-selection-check" aria-hidden="true">{props.actions.selected(item()) ? "✓" : ""}</span></Show>
+         <HomeProjectAvatar project={props.project} />
+         <span class={HOME_PROJECT_NAV_LABEL}>{displayName(props.project)}</span>
+       </HomeProjectNavButton>
+       <div
++        style={{ display: gesture.state.open || props.actions.count() ? "none" : undefined }}
+         class={`
+           hover-reveal absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1
+           group-hover/project:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
+@@ -567,7 +570,7 @@ function HomeProjectRow(
+               </MenuV2.Item>
+               <MenuV2.Separator />
+               <MenuV2.Item onSelect={() => props.onCloseProject(props.server, props.project.worktree)}>
+-                {props.language.t("common.close")}
++                {props.language.t("common.delete")}
+               </MenuV2.Item>
+             </MenuV2.Content>
+           </MenuV2.Portal>
+diff --git a/packages/app/src/pages/home/home-projects.tsx b/packages/app/src/pages/home/home-projects.tsx
+index ff2abf7..9ed79ae 100644
+--- a/packages/app/src/pages/home/home-projects.tsx
++++ b/packages/app/src/pages/home/home-projects.tsx
+@@ -5,6 +5,7 @@ import type { HomeScrollController } from "./home-scroll-controller"
+ export function HomeProjects(props: { projects: HomeProjectsController; scroll: HomeScrollController }) {
+   return (
+     <HomeProjectsView
++      actions={props.projects.actions}
+       language={props.projects.copy.language}
+       servers={props.projects.server.list}
+       projects={props.projects.project.list}
 diff --git a/packages/app/src/pages/home/home-scroll-controller.ts b/packages/app/src/pages/home/home-scroll-controller.ts
 index 96b0cf4..8532f3d 100644
 --- a/packages/app/src/pages/home/home-scroll-controller.ts
@@ -645,11 +961,164 @@ index 96b0cf4..8532f3d 100644
      const header = groups()
        .map((group) => headerRefs.get(group.id))
        .find((element) => element !== undefined)
+diff --git a/packages/app/src/pages/home/home-sessions-controller.tsx b/packages/app/src/pages/home/home-sessions-controller.tsx
+index f306f20..aad044a 100644
+--- a/packages/app/src/pages/home/home-sessions-controller.tsx
++++ b/packages/app/src/pages/home/home-sessions-controller.tsx
+@@ -3,8 +3,10 @@ import { preloadMarkdown } from "@opencode-ai/session-ui/markdown-cache"
+ import { useDialog } from "@opencode-ai/ui/context/dialog"
+ import { useQuery } from "@tanstack/solid-query"
+ import { DateTime } from "luxon"
+-import { type Accessor, createEffect, createMemo, createRoot, type JSX, startTransition } from "solid-js"
+-import { produce } from "solid-js/store"
++import { type Accessor, createEffect, on, createMemo, createRoot, type JSX, startTransition } from "solid-js"
++import { createStore, produce } from "solid-js/store"
++import { Persist, persisted } from "@/utils/persist"
++import { notifySessionTabsRemoved } from "@/components/titlebar-session-events"
+ import { useCommand } from "@/context/command"
+ import {
+   loadHomeSessionIndex,
+@@ -23,6 +25,8 @@ import { Binary } from "@opencode-ai/core/util/binary"
+ import { archiveHomeSession } from "../home-session-archive"
+ import type { HomeController } from "./home-controller"
+ 
++import { createListActions } from "./home-list-actions"
++
+ const HOME_SESSION_LIMIT = 64
+ export type HomeSessionRecord = {
+   session: Session
+@@ -31,7 +35,7 @@ export type HomeSessionRecord = {
+ }
+ 
+ export type HomeSessionGroup = {
+-  id: "today" | "yesterday" | "older"
++  id: "pinned" | "today" | "yesterday" | "older"
+   title: string
+   sessions: HomeSessionRecord[]
+ }
+@@ -43,6 +47,31 @@ export function createHomeSessionsController(home: HomeController) {
+   const command = useCommand()
+   const dialog = useDialog()
+   const language = useLanguage()
++  const [pins, setPins] = persisted(Persist.global("home.pinned-sessions.v1"), createStore({ keys: [] as string[] }))
++  const pinKey = (session: Session) => `${home.selection.value().server}\0${pathKey(session.directory)}\0${session.id}`
++  const isPinned = (session: Session) => pins.keys.includes(pinKey(session))
++  const actions = createListActions<Session>({
++    key: (session) => session.id,
++    remove: async (session) => {
++      const ctx = home.server.focusedContext()
++      const conn = home.server.focused()
++      if (!ctx || !conn) throw new Error(language.t("common.requestFailed"))
++      const cache = homeSessions()
++      const [store, setStore] = ctx.sync.child(session.directory)
++      const key = pinKey(session)
++      const removed = new Set([session.id])
++      for (let count = -1; count !== removed.size;) {
++        count = removed.size
++        for (const item of store.session) if (item.parentID && removed.has(item.parentID)) removed.add(item.id)
++      }
++      await ctx.sdk.api.session.remove({ sessionID: session.id, directory: session.directory })
++      setStore("session", (sessions) => sessions.filter((item) => !removed.has(item.id)))
++      for (const id of removed) cache.remove(id)
++      setPins("keys", (keys) => keys.filter((item) => item !== key))
++      notifySessionTabsRemoved({ server: ServerConnection.key(conn), directory: session.directory, sessionIDs: [...removed] })
++    },
++  })
++  createEffect(on(() => home.selection.value().server, actions.reset, { defer: true }))
+   const projectDirectories = createMemo(() => {
+     const project = home.project.selected()
+     if (!project) return home.project.list().flatMap(directories)
+@@ -79,23 +108,30 @@ export function createHomeSessionsController(home: HomeController) {
+     refetchOnMount: true,
+     refetchOnReconnect: true,
+   }))
+-  const indexedSessions = createMemo(() =>
+-    retainHomeSessions(
+-      homeSessions().sessions(sessionLoad.data, sessionEventLoad.data),
+-      HOME_SESSION_LIMIT,
+-      Date.now(),
+-    ),
+-  )
++  const indexedSessions = createMemo(() => {
++    const sessions = homeSessions().sessions(sessionLoad.data, sessionEventLoad.data)
++    return [...new Map([
++      ...sessions.filter(isPinned),
++      ...retainHomeSessions(sessions, HOME_SESSION_LIMIT, Date.now()),
++    ].map((session) => [session.id, session])).values()]
++  })
+   const allRecords = createMemo(() =>
+     buildHomeSessionRecords({
+-      sessions: indexedSessions,
++      sessions: () => indexedSessions().filter((session) => !actions.hidden(session)),
+       projectDirectories,
+       projects: home.project.list,
+       projectByID,
+     }),
+   )
+-  const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
+-  const groups = createMemo(() => groupSessions(records(), language))
++  const records = createMemo(() => [
++    ...allRecords().filter((record) => isPinned(record.session)),
++    ...allRecords().filter((record) => !isPinned(record.session)).slice(0, HOME_SESSION_LIMIT),
++  ])
++  const groups = createMemo(() => {
++    const pinned = records().filter((record) => isPinned(record.session))
++    const groups = groupSessions(records().filter((record) => !isPinned(record.session)), language)
++    return pinned.length ? [{ id: "pinned" as const, title: language.t("home.sessions.pinned"), sessions: pinned }, ...groups] : groups
++  })
+   const prefetched = new Set<string>()
+ 
+   createEffect(() => {
+@@ -164,6 +200,7 @@ export function createHomeSessionsController(home: HomeController) {
+   ])
+ 
+   return {
++    actions,
+     copy: {
+       language,
+     },
+@@ -174,6 +211,10 @@ export function createHomeSessionsController(home: HomeController) {
+       searchRecords: allRecords,
+     },
+     session: {
++      isPinned,
++      togglePin: (session: Session) => setPins("keys", (keys) =>
++        isPinned(session) ? keys.filter((key) => key !== pinKey(session)) : [...keys, pinKey(session)]),
++      delete: actions.queue,
+       showProjectName: () => !home.project.selected(),
+       server: () => home.selection.value().server,
+       canCreate: () => !!home.project.newSession(),
 diff --git a/packages/app/src/pages/home/home-sessions-view.tsx b/packages/app/src/pages/home/home-sessions-view.tsx
-index 72f2f37..a2ee2e4 100644
+index 72f2f37..fe83834 100644
 --- a/packages/app/src/pages/home/home-sessions-view.tsx
 +++ b/packages/app/src/pages/home/home-sessions-view.tsx
-@@ -74,6 +74,7 @@ export type HomeSessionsViewProps = {
+@@ -1,5 +1,7 @@
+ import type { Session } from "@opencode-ai/sdk/v2/client"
+ import { type Accessor, createMemo, For, Show, Suspense } from "solid-js"
++import { createRowGesture, ListActionBars } from "./home-list-actions"
++import type { HomeSessionsController } from "./home-sessions-controller"
+ import { Spinner } from "@opencode-ai/ui/spinner"
+ import { ScrollView } from "@opencode-ai/ui/scroll-view"
+ import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+@@ -37,6 +39,7 @@ function isBackgroundOpen(event: MouseEvent) {
+ }
+ 
+ export type HomeSessionsViewProps = {
++  actions: HomeSessionsController["actions"]
+   language: ReturnType<typeof useLanguage>
+   groups: Accessor<HomeSessionGroup[]>
+   showProjectName: Accessor<boolean>
+@@ -54,6 +57,9 @@ export type HomeSessionsViewProps = {
+   onCreateSession: () => void
+   onOpenSession: (session: Session, options?: OpenSessionOptions) => void
+   onArchiveSession: (session: Session) => Promise<void>
++  isPinned: (session: Session) => boolean
++  onTogglePin: (session: Session) => void
++  onDeleteSession: (session: Session) => void
+   onSetHoverTarget: (element: HTMLElement) => void
+   onSetThumbTrack: (element: HTMLDivElement) => void
+   onSetContent: (element: HTMLDivElement) => void
+@@ -74,15 +80,17 @@ export type HomeSessionsViewProps = {
  export function HomeSessionsView(props: HomeSessionsViewProps) {
    return (
      <section
@@ -657,7 +1126,9 @@ index 72f2f37..a2ee2e4 100644
        ref={props.onSetHoverTarget}
        class="min-h-0 min-w-0 flex-1 flex flex-col"
        aria-label={props.language.t("sidebar.project.recentSessions")}
-@@ -82,7 +83,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
+     >
+       <div class="sticky top-0 z-30 shrink-0 bg-v2-background-bg-base pb-3 pt-6 lg:pt-12" onWheel={props.onWheel}>
++        <ListActionBars actions={props.actions} />
          <HomeSessionSearch {...props} />
          <Suspense>
            <Show when={props.groups().length > 0 && props.canCreateSession()}>
@@ -666,7 +1137,11 @@ index 72f2f37..a2ee2e4 100644
                <ButtonV2
                  data-action="home-new-session"
                  variant="ghost-muted"
-@@ -420,7 +421,7 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
+@@ -417,12 +425,21 @@ function HomeSessionGroupHeader(props: {
+ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionRecord }) {
+   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
+   const showProjectName = () => props.showProjectName() && props.record.projectName
++  const gesture = createRowGesture({ hold: () => props.actions.toggle(props.record.session), selecting: () => props.actions.count() > 0, width: 144 })
  
    return (
      <div
@@ -674,4 +1149,548 @@ index 72f2f37..a2ee2e4 100644
 +      class="group/session home-session-item relative flex h-10 min-w-0 items-center rounded-[6px]"
        classList={{ group: !!showProjectName() }}
      >
++      <div class="home-session-actions" aria-hidden={!gesture.state.open && !gesture.state.dragging}>
++        <button type="button" tabIndex={gesture.state.open ? 0 : -1} onClick={() => {
++          gesture.close(); props.onTogglePin(props.record.session)
++        }}>{props.language.t(props.isPinned(props.record.session) ? "home.sessions.unpin" : "home.sessions.pin")}</button>
++        <button type="button" tabIndex={gesture.state.open ? 0 : -1} class="home-session-delete" onClick={() => {
++          gesture.close(); props.onDeleteSession(props.record.session)
++        }}>{props.language.t("common.delete")}</button>
++      </div>
        <button
+         type="button"
+         data-component="home-session-row"
+@@ -432,16 +449,36 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
+           transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
+           hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
+         `}
++        style={gesture.style()}
++        data-pressed={gesture.state.pressed}
++        data-selected={props.actions.selected(props.record.session)}
++        aria-pressed={props.actions.count() ? props.actions.selected(props.record.session) : undefined}
++        aria-expanded={gesture.state.open}
++        onPointerDown={gesture.down}
++        onPointerMove={gesture.move}
++        onPointerUp={gesture.up}
++        onPointerCancel={gesture.cancel}
++        onContextMenu={(event) => event.preventDefault()}
++        onKeyDown={(event) => {
++          if (event.key === "Escape") { gesture.close(); props.actions.clear() }
++          if (event.key === "ArrowLeft") { event.preventDefault(); gesture.reveal() }
++          if (event.key === " " && event.shiftKey) { event.preventDefault(); props.actions.toggle(props.record.session) }
++        }}
+         onMouseDown={(event) => {
+           if (event.button === 1) event.preventDefault()
+         }}
+-        onClick={(event) => props.onOpenSession(props.record.session, { background: isBackgroundOpen(event) })}
++        onClick={(event) => {
++          if (gesture.consumed()) { event.preventDefault(); return }
++          if (props.actions.count()) { props.actions.toggle(props.record.session); return }
++          props.onOpenSession(props.record.session, { background: isBackgroundOpen(event) })
++        }}
+         onAuxClick={(event) => {
+           if (!isBackgroundOpen(event)) return
+           event.preventDefault()
+           props.onOpenSession(props.record.session, { background: true })
+         }}
+       >
++        <Show when={props.actions.count()}><span class="home-selection-check" aria-hidden="true">{props.actions.selected(props.record.session) ? "✓" : ""}</span></Show>
+         <HomeSessionLeadingController
+           server={props.server}
+           isOpenTab={props.isOpenTab}
+@@ -449,10 +486,15 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
+           revealProjectOnHover={!!showProjectName()}
+         />
+         <HomeSessionTitle title={title()} showProjectName={!!showProjectName()} />
++        <Show when={props.isPinned(props.record.session)}><span aria-label={props.language.t("home.sessions.pinned")}>📌</span></Show>
+         <Show when={showProjectName()}>
+           <HomeSessionProjectName name={props.record.projectName} />
+         </Show>
+       </button>
++      <Show when={!gesture.state.open && !props.actions.count()}>
++        <button type="button" class="home-session-more" aria-label={props.language.t("common.moreOptions")}
++          onClick={() => gesture.reveal()}>⋯</button>
++      </Show>
+       <Show when={SHOW_HOME_SESSION_ARCHIVE}>
+         <div
+           class={`
+diff --git a/packages/app/src/pages/home/home-sessions.tsx b/packages/app/src/pages/home/home-sessions.tsx
+index 7bda4dd..e0c39d1 100644
+--- a/packages/app/src/pages/home/home-sessions.tsx
++++ b/packages/app/src/pages/home/home-sessions.tsx
+@@ -10,6 +10,7 @@ export function HomeSessions(props: {
+ }) {
+   return (
+     <HomeSessionsView
++      actions={props.sessions.actions}
+       language={props.sessions.copy.language}
+       groups={props.sessions.data.groups}
+       showProjectName={props.sessions.session.showProjectName}
+@@ -27,6 +28,9 @@ export function HomeSessions(props: {
+       onCreateSession={props.sessions.session.create}
+       onOpenSession={props.sessions.session.open}
+       onArchiveSession={props.sessions.session.archive}
++      isPinned={props.sessions.session.isPinned}
++      onTogglePin={props.sessions.session.togglePin}
++      onDeleteSession={props.sessions.session.delete}
+       onSetHoverTarget={props.scroll.viewport.setHoverTarget}
+       onSetThumbTrack={props.scroll.viewport.setThumbTrack}
+       onSetContent={props.scroll.header.setContent}
+diff --git a/packages/app/src/pages/session/composer/session-composer-region.tsx b/packages/app/src/pages/session/composer/session-composer-region.tsx
+index 600ff41..51e2357 100644
+--- a/packages/app/src/pages/session/composer/session-composer-region.tsx
++++ b/packages/app/src/pages/session/composer/session-composer-region.tsx
+@@ -1,7 +1,7 @@
+ import { Show, type JSX } from "solid-js"
+ import { useLanguage } from "@/context/language"
+ import { useSettings } from "@/context/settings"
+-import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
++import { TinyAgentAccess } from "./tinyagent-access"
+ import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
+ import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
+ import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
+@@ -44,20 +44,7 @@ export function SessionComposerRegion(props: {
+           )}
+         </Show>
+ 
+-        <Show when={controller.state.permissionRequest()} keyed>
+-          {(request) => (
+-            <div>
+-              <SessionPermissionDock
+-                request={request}
+-                responding={controller.state.permissionResponding()}
+-                onDecide={(response) => {
+-                  controller.onResponseSubmit()
+-                  controller.state.decide(response)
+-                }}
+-              />
+-            </div>
+-          )}
+-        </Show>
++        <TinyAgentAccess />
+ 
+         <Show when={controller.showComposer()}>
+           <Show when={controller.dock()}>
+diff --git a/packages/app/src/pages/session/composer/tinyagent-access.tsx b/packages/app/src/pages/session/composer/tinyagent-access.tsx
+new file mode 100644
+index 0000000..ee9e0ae
+--- /dev/null
++++ b/packages/app/src/pages/session/composer/tinyagent-access.tsx
+@@ -0,0 +1,111 @@
++import { createEffect, createSignal, onCleanup, Show } from "solid-js"
++import { useParams } from "@solidjs/router"
++import { useSDK } from "@/context/sdk"
++import { SessionPermissionDock } from "./session-permission-dock"
++import type { PermissionRequest } from "@opencode-ai/sdk/v2"
++
++type Mode = "basic" | "read" | "yolo"
++type Rule = { permission: string; pattern: string; action: "allow" | "ask" }
++export function accessRules(mode: Mode): Rule[] {
++  const rule = (permission: string, action: "allow" | "ask", pattern = "*"): Rule => ({ permission, pattern, action })
++  const rules = [rule("*", mode === "read" ? "ask" : "allow"), rule("external_directory", mode === "yolo" ? "allow" : "ask"), rule("doom_loop", mode === "yolo" ? "allow" : "ask")]
++  for (const name of ["read", "glob", "grep", "list"]) rules.push(rule(name, "allow"))
++  // The directory includes signing material; allow only known harness reads via
++  // one-time replies below, never grant broad /root access in the basic modes.
++  return rules
++}
++const safeReads = new Set(["AGENTS.md", "STOCK.md", "ADB.md", "ROOT.md", "TINYAGENT_ENVIRONMENT.md", "ANDROID_TOOL.md"].map(x => "/root/.tinyagent/" + x))
++for (const x of ["prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py"]) safeReads.add("/root/.tinyagent/bootstrap/" + x)
++safeReads.add("/etc/os-release")
++safeReads.add("/etc/fedora-release")
++
++export function TinyAgentAccess() {
++  const params = useParams()
++  const sdk = useSDK()
++  const [mode, setMode] = createSignal<Mode>("basic")
++  const [pending, setPending] = createSignal<PermissionRequest[]>([])
++  const [busy, setBusy] = createSignal(false)
++  const [error, setError] = createSignal("")
++  let policyVersion = 0
++  let refresh = async () => {}
++  async function request(path: string, method = "GET", body?: unknown) {
++    const response = await fetch(path, { method, headers: { "Content-Type": "application/json", "x-opencode-directory": sdk().directory }, body: body === undefined ? undefined : JSON.stringify(body) })
++    if (!response.ok) throw new Error(`권한 설정 요청 실패 (${response.status})`)
++    return response.json()
++  }
++  createEffect(() => {
++    const id = params.id
++    sdk().directory
++    setPending([])
++    if (!id) return
++    let disposed = false, loading = false
++    refresh = async () => {
++      if (loading || disposed) return
++      loading = true
++      const version = policyVersion
++      try {
++        const [session, requests] = await Promise.all([request(`/session/${id}`), request("/permission")])
++        if (disposed) return
++        const rules: Rule[] = session.permission ?? []
++        const wildcard = rules.filter(r => r.permission === "*" && r.pattern === "*").at(-1)
++        const external = rules.filter(r => r.permission === "external_directory").at(-1)
++        setMode(wildcard?.action === "ask" ? "read" : wildcard?.action === "allow" && external?.action === "allow" ? "yolo" : "basic")
++        const selected: PermissionRequest[] = requests.filter((r: PermissionRequest) => r.sessionID === id)
++        setPending(selected)
++        setError("")
++        // Reconcile initial events and reconnects using the backend's actual queue.
++        // Only verify bundled, read-only environment requests automatically.
++        for (const p of selected) {
++          if (disposed || busy() || version !== policyVersion) break
++          const path = p.metadata?.filepath
++          if (mode() === "yolo") {
++            await request(`/permission/${p.id}/reply`, "POST", { reply: "once" })
++          } else if (p.permission === "external_directory" && typeof path === "string" && safeReads.has(path)) {
++            const messages = await request(`/session/${id}/message`)
++            const read = messages.flatMap((m: { parts: any[] }) => m.parts).some((part: any) => part.tool === "read" && part.callID === p.tool?.callID && part.state?.input?.filePath === path)
++            if (!disposed && !busy() && version === policyVersion && read) await request(`/permission/${p.id}/reply`, "POST", { reply: "once" })
++          }
++        }
++      } catch (e) { if (!disposed) setError(e instanceof Error ? e.message : "권한 상태 확인 실패") }
++      finally { loading = false }
++    }
++    void refresh()
++    const timer = setInterval(() => void refresh(), 2000)
++    onCleanup(() => { disposed = true; clearInterval(timer) })
++  })
++  async function change(value: Mode) {
++    const id = params.id
++    if (!id || busy()) return
++    policyVersion++
++    setBusy(true)
++    try {
++      await request(`/session/${id}`, "PATCH", { permission: accessRules(value) })
++      await refresh()
++    } catch (e) { setError(e instanceof Error ? e.message : "권한 설정 실패") }
++    finally { setBusy(false) }
++  }
++  async function decide(reply: "once" | "always" | "reject") {
++    const p = pending()[0]
++    if (!p || busy()) return
++    setBusy(true)
++    try { await request(`/permission/${p.id}/reply`, "POST", { reply }); await refresh() }
++    catch (e) { setError(e instanceof Error ? e.message : "승인 응답 실패") }
++    finally { setBusy(false) }
++  }
++  return <Show when={params.id}>
++    <div data-component="tinyagent-access" class="rounded-lg border border-border-weak-base bg-background-base p-3 mb-2 text-text-base">
++      <label class="flex items-center justify-between gap-3 text-14-medium">
++        에이전트 승인
++        <select aria-label="에이전트 승인 모드" value={mode()} disabled={busy()} onChange={e => void change(e.currentTarget.value as Mode)} class="min-h-11 rounded-md bg-background-stronger px-3 text-text-base">
++          <option value="basic">기본</option><option value="read">읽기 전용</option><option value="yolo">전체 허용 · YOLO</option>
++        </select>
++      </label>
++      <p class="text-12-regular text-text-weak mt-1">이 세션에 저장됩니다. Android의 Stock·Developer·Root 권한은 바뀌지 않습니다.</p>
++      <Show when={error()}><p role="alert" class="text-13-regular mt-2">{error()}</p></Show>
++      <Show when={pending()[0]} keyed>{p => <div class="mt-2" role="region" aria-label="승인 대기">
++        <p role="status" class="text-14-medium">승인 대기 · {pending().length}건 — 허용 또는 거부를 선택하세요.</p>
++        <SessionPermissionDock request={p} responding={busy()} onDecide={reply => void decide(reply)} />
++      </div>}</Show>
++    </div>
++  </Show>
++}
+diff --git a/packages/session-ui/src/components/markdown.tsx b/packages/session-ui/src/components/markdown.tsx
+index 95894ba..9df5585 100644
+--- a/packages/session-ui/src/components/markdown.tsx
++++ b/packages/session-ui/src/components/markdown.tsx
+@@ -103,6 +103,15 @@ const copyButtonState = new WeakMap<HTMLElement, CopyButtonState>()
+ const urlPattern = /^https?:\/\/[^\s<>()`"']+$/
+ 
+ function codeUrl(text: string) {
++  const path = text.trim()
++  if (typeof location !== "undefined" && location.origin === "http://127.0.0.1:4097") {
++    const relative = path.startsWith("/workspace/")
++      ? path.slice("/workspace/".length)
++      : path.match(/^\/data\/(?:user\/0|data)\/io\.github\.gplaider\.tinyagent(?:\.debug)?\/files\/linux\/workspace\/(.+)$/)?.[1]
++    if (relative && !/[\r\n\0]/.test(relative) && !relative.split("/").includes("..")) {
++      return `${location.origin}/tinyagent/file?path=${encodeURIComponent(relative)}`
++    }
++  }
+   const href = text.trim().replace(/[),.;!?]+$/, "")
+   if (!urlPattern.test(href)) return
+   try {
+diff --git a/packages/app/src/pages/home/home-list-actions.tsx b/packages/app/src/pages/home/home-list-actions.tsx
+new file mode 100644
+index 0000000..ff85061
+--- /dev/null
++++ b/packages/app/src/pages/home/home-list-actions.tsx
+@@ -0,0 +1,125 @@
++import { createMemo, onCleanup, Show } from "solid-js"
++import { createStore } from "solid-js/store"
++import { Portal } from "solid-js/web"
++import { useDialog } from "@opencode-ai/ui/context/dialog"
++import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
++import { useLanguage } from "@/context/language"
++import { errorMessage } from "@/pages/layout/helpers"
++import { showToast } from "@/utils/toast"
++
++export function createListActions<T>(options: { key: (item: T) => string; remove: (item: T) => Promise<void> }) {
++  const language = useLanguage()
++  const dialog = useDialog()
++  const [state, setState] = createStore({ selected: [] as T[], pending: [] as T[], removing: [] as T[] })
++  let timer: ReturnType<typeof setTimeout> | undefined
++  const contains = (items: T[], item: T) => items.some((entry) => options.key(entry) === options.key(item))
++  const undo = () => { clearTimeout(timer); setState("pending", []) }
++  // Leaving the list during the undo window cancels uncommitted deletion.
++  onCleanup(undo)
++  const queue = (items: T[]) => {
++    clearTimeout(timer)
++    setState("pending", (pending) => [...pending, ...items.filter((item) => !contains(pending, item))])
++    setState("selected", [])
++    timer = setTimeout(() => {
++      const pending = [...state.pending]
++      setState("removing", (items) => [...items, ...pending])
++      setState("pending", [])
++      void Promise.all(pending.map(async (item) => {
++        await options.remove(item).catch((cause) => showToast({
++          title: language.t("session.delete.failed.title"),
++          description: errorMessage(cause, language.t("common.requestFailed")),
++        }))
++        setState("removing", (items) => items.filter((entry) => options.key(entry) !== options.key(item)))
++      }))
++    }, 6000)
++  }
++  const confirm = async () => {
++    const selected = [...state.selected]
++    if (!selected.length) return
++    const { DialogV2, DialogHeader, DialogTitleGroup, DialogFooter } = await import("@opencode-ai/ui/v2/dialog-v2")
++    dialog.show(() => <DialogV2 fit>
++      <DialogHeader><DialogTitleGroup title={language.t("home.list.deleteSelected", { count: selected.length })}
++        description={language.t("home.list.deleteDescription")} /></DialogHeader>
++      <DialogFooter>
++        <ButtonV2 variant="ghost" onClick={() => dialog.close()}>{language.t("common.cancel")}</ButtonV2>
++        <ButtonV2 variant="danger" onClick={() => { queue(selected); dialog.close() }}>{language.t("common.delete")}</ButtonV2>
++      </DialogFooter>
++    </DialogV2>)
++  }
++  return {
++    count: () => state.selected.length,
++    pending: () => state.pending.length,
++    selected: (item: T) => contains(state.selected, item),
++    hidden: (item: T) => contains(state.pending, item) || contains(state.removing, item),
++    toggle: (item: T) => setState("selected", (items) => contains(items, item)
++      ? items.filter((entry) => options.key(entry) !== options.key(item)) : [...items, item]),
++    clear: () => setState("selected", []),
++    reset: () => { undo(); setState("selected", []) },
++    queue: (item: T) => queue([item]),
++    confirm,
++    undo,
++  }
++}
++
++export function ListActionBars(props: { actions: Pick<ReturnType<typeof createListActions>, "count" | "pending" | "clear" | "confirm" | "undo"> }) {
++  const language = useLanguage()
++  return <>
++    <Show when={props.actions.count()}>
++      <div class="home-selection-bar" role="toolbar" aria-label={language.t("home.list.selection")}>
++        <button type="button" onClick={props.actions.clear}>{language.t("common.cancel")}</button>
++        <strong aria-live="polite">{language.t("home.list.selected", { count: props.actions.count() })}</strong>
++        <button type="button" class="home-selection-delete" onClick={props.actions.confirm}>{language.t("common.delete")}</button>
++      </div>
++    </Show>
++    <Show when={props.actions.pending()}>
++      <Portal><div class="home-undo-bar" role="status">
++        <span>{language.t("home.list.removed", { count: props.actions.pending() })}</span>
++        <button type="button" onClick={props.actions.undo}>{language.t("home.list.undo")}</button>
++      </div></Portal>
++    </Show>
++  </>
++}
++
++export function createRowGesture(options: { hold: () => void; selecting: () => boolean; width: number }) {
++  const [state, setState] = createStore({ offset: 0, open: false, dragging: false, pressed: false })
++  const start = { x: 0, y: 0, active: false, moved: false }
++  let timer: ReturnType<typeof setTimeout> | undefined
++  const releaseClickGuard = () => {
++    document.removeEventListener("click", suppressClick, true)
++    document.removeEventListener("pointerdown", releaseClickGuard, true)
++  }
++  const suppressClick = (event: MouseEvent) => { event.preventDefault(); event.stopImmediatePropagation(); releaseClickGuard() }
++  const close = () => setState({ open: false, offset: 0, dragging: false, pressed: false })
++  const cancel = () => { clearTimeout(timer); start.active = false; setState({ dragging: false, pressed: false, offset: state.open ? -options.width : 0 }) }
++  onCleanup(() => { clearTimeout(timer); releaseClickGuard() })
++  return {
++    state, close,
++    reveal: () => setState({ open: true, offset: -options.width }),
++    style: createMemo(() => ({ transform: `translateX(${state.offset}px)`, transition: state.dragging ? "none" : undefined })),
++    down: (event: PointerEvent) => {
++      if (event.button !== 0) return
++      start.x = event.clientX; start.y = event.clientY; start.active = true; start.moved = false
++      setState("pressed", true)
++      timer = setTimeout(() => {
++        start.moved = true; start.active = false; close()
++        // Android can retarget touch-release click after the selection toolbar moves rows.
++        document.addEventListener("click", suppressClick, true)
++        document.addEventListener("pointerdown", releaseClickGuard, true)
++        options.hold()
++      }, 450)
++      ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
++    },
++    move: (event: PointerEvent) => {
++      if (!start.active) return
++      const x = event.clientX - start.x
++      const y = event.clientY - start.y
++      if (Math.hypot(x, y) > 8) { clearTimeout(timer); setState("pressed", false); start.moved = true }
++      if (Math.abs(y) > 10 && Math.abs(y) > Math.abs(x)) { cancel(); return }
++      if (options.selecting() || Math.abs(x) < 8 || Math.abs(x) < Math.abs(y)) return
++      setState({ dragging: true, offset: Math.max(-options.width - 18, Math.min(0, (state.open ? -options.width : 0) + x)) })
++    },
++    up: () => { clearTimeout(timer); start.active = false; const open = state.offset < -40; setState({ open, dragging: false, pressed: false, offset: open ? -options.width : 0 }) },
++    cancel: () => { start.moved = true; cancel() },
++    consumed: () => { if (start.moved) { start.moved = false; return true }; if (state.open) { close(); return true }; return false },
++  }
++}
+diff --git a/packages/app/e2e/regression/mobile-session-actions.spec.ts b/packages/app/e2e/regression/mobile-session-actions.spec.ts
+new file mode 100644
+index 0000000..7f3c3f8
+--- /dev/null
++++ b/packages/app/e2e/regression/mobile-session-actions.spec.ts
+@@ -0,0 +1,149 @@
++import { expect, test } from "@playwright/test"
++import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
++import { installStressSessionTabs, installTimelineSettings } from "../performance/timeline/timeline-test-helpers"
++import { mockOpenCodeServer } from "../utils/mock-server"
++
++test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
++
++test("swipe reveals pin and delete without opening the session", async ({ page }) => {
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  const row = page.locator('[data-component="home-session-row"]').filter({ hasText: fixture.expected.targetTitle })
++  await expect(row).toBeVisible()
++  const box = (await row.boundingBox())!
++  const touch = await page.context().newCDPSession(page)
++  const x = box.x + box.width - 70
++  const y = box.y + box.height / 2
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
++  for (const distance of [15, 40, 80, 140]) {
++    await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - distance, y }] })
++  }
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  const item = page.locator(".home-session-item").filter({ hasText: fixture.expected.targetTitle })
++  await expect(item.getByRole("button", { name: "Pin", exact: true })).toBeVisible()
++  await expect(item.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
++  await expect(page).toHaveURL("/")
++  await item.getByRole("button", { name: "Pin", exact: true }).click()
++  await expect(page.getByText("Pinned", { exact: true })).toBeVisible()
++  await page.reload()
++  await expect(page.getByText("Pinned", { exact: true })).toBeVisible()
++  await expect(page.locator('[data-component="home-session-row"]').first()).toContainText(fixture.expected.targetTitle)
++  await item.getByRole("button", { name: "More options", exact: true }).click()
++  await item.getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(page.getByRole("dialog")).toHaveCount(0)
++  await expect(row).toHaveCount(0)
++  await page.getByRole("button", { name: "Undo", exact: true }).click()
++  await expect(row).toBeVisible()
++  await item.getByRole("button", { name: "More options", exact: true }).click()
++  const removed = page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes("ses_smoke_target"))
++  await item.getByRole("button", { name: "Delete", exact: true }).click()
++  await removed
++  await expect(row).toHaveCount(0)
++  await expect(page.getByRole("dialog")).toHaveCount(0)
++  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0)
++})
++
++test("long press selects multiple sessions and bulk deletion can be undone", async ({ page }) => {
++  const errors: string[] = []
++  page.on("pageerror", (error) => errors.push(error.message))
++  const deleted: string[] = []
++  page.on("request", (request) => { if (request.method() === "DELETE") deleted.push(request.url()) })
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  const rows = page.locator('[data-component="home-session-row"]')
++  const target = rows.filter({ hasText: fixture.expected.targetTitle })
++  const source = rows.filter({ hasText: fixture.sessions.find((item) => item.id === fixture.sourceID)!.title })
++  await expect(target).toBeVisible()
++  const box = (await target.boundingBox())!
++  const touch = await page.context().newCDPSession(page)
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 90, y: box.y + box.height / 2 }] })
++  await expect(page.getByText("1 selected", { exact: true })).toBeVisible()
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  await expect(target).toHaveAttribute("aria-pressed", "true")
++  await source.tap()
++  await expect(page.getByText("2 selected", { exact: true })).toBeVisible()
++  await page.screenshot({ path: "e2e/test-results/session-multiselect.png" })
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(page.getByRole("dialog")).toContainText("Delete 2 selected items?")
++  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click()
++  await expect(target).toBeVisible()
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(target).toHaveCount(0)
++  await expect(source).toHaveCount(0)
++  await page.screenshot({ path: "e2e/test-results/session-undo.png" })
++  await page.getByRole("button", { name: "Undo", exact: true }).click()
++  await expect(target).toBeVisible()
++  await expect(source).toBeVisible()
++  expect(deleted).toEqual([])
++  expect(errors).toEqual([])
++  await target.focus()
++  await page.keyboard.press("Shift+Space")
++  await source.tap()
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  const committed = Promise.all([fixture.targetID, fixture.sourceID].map((id) =>
++    page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes(id))))
++  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
++  await committed
++  await expect(target).toHaveCount(0)
++  await expect(source).toHaveCount(0)
++})
++
++test("project swipe removal offers undo without a confirmation dialog", async ({ page }) => {
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  await page.locator(".home-project-picker > summary").click()
++  const row = page.locator('[data-component="home-project-row"]')
++  await expect(row).toHaveCount(1)
++  await expect(row).toBeVisible()
++  const box = (await row.boundingBox())!
++  const touch = await page.context().newCDPSession(page)
++  const x = box.x + 100, y = box.y + box.height / 2
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
++  await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - 65, y }] })
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  await page.locator(".home-project-item").getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(row).toHaveCount(0)
++  await expect(page.getByRole("dialog")).toHaveCount(0)
++  await page.getByRole("button", { name: "Undo", exact: true }).click()
++  await expect(row).toBeVisible()
++  const restored = (await row.boundingBox())!
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: restored.x + 80, y: restored.y + restored.height / 2 }] })
++  await expect(page.getByText("1 selected", { exact: true })).toBeVisible()
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  await expect(row).toHaveAttribute("aria-pressed", "true")
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0)
++  await expect(row).toHaveCount(0)
++  // The stress init script deliberately re-seeds projects on every reload.
++  // Check the persisted close flag before that fixture overwrites it.
++  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("opencode.global.dat:server")!).projects.local)).toEqual([])
++})
++
++test("failed deletion restores the session instead of losing it", async ({ page }) => {
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await page.route("**/session/" + fixture.targetID + "**", async (route) => {
++    if (route.request().method() !== "DELETE") return route.fallback()
++    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Test deletion rejected" }) })
++  })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  const item = page.locator(".home-session-item").filter({ hasText: fixture.expected.targetTitle })
++  await item.getByRole("button", { name: "More options", exact: true }).click()
++  await item.getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(item).toHaveCount(0)
++  await expect(item).toBeVisible()
++  await expect(page.getByText("Failed to delete session", { exact: true })).toBeVisible()
++})

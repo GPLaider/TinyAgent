@@ -62,6 +62,10 @@ public final class AppActivity extends Activity {
     private TextView backendStatus;
     private TextView runtimeStatus;
     private TextView runtimeDetails;
+    private Button prepare;
+    private LinearLayout preparation;
+    private TextView preparationLabel;
+    private ProgressBar preparationBar;
     private SharedPreferences runtimePreferences;
     private final SharedPreferences.OnSharedPreferenceChangeListener runtimeListener = (prefs, key) ->
             runOnUiThread(() -> { if (!isDestroyed() && runtimeStatus != null)
@@ -187,18 +191,41 @@ public final class AppActivity extends Activity {
         runtimeStatus = text(runtimePreferences.getString("status", "환경 준비 전"), 14);
         runtimeStatus.setTextIsSelectable(true);
         body.addView(runtimeStatus);
-        Button prepare = button("환경 준비하기", true);
+        prepare = button("환경 준비하기", true);
         prepare.setContentDescription("Fedora 환경 준비");
         prepare.setOnClickListener(view -> {
+            prepare.setEnabled(false);
+            prepare.setVisibility(View.GONE);
+            preparation.setVisibility(View.VISIBLE);
+            preparationLabel.setText("환경 준비 시작 중…");
             try {
                 if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                         != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 1);
                 }
                 startForegroundService(new Intent(this, RuntimeSetupService.class));
-            } catch (IllegalArgumentException error) { port.setError(error.getMessage()); }
+            } catch (RuntimeException error) {
+                preparation.setVisibility(View.GONE);
+                prepare.setVisibility(View.VISIBLE); prepare.setEnabled(true);
+                runtimeStatus.setText("환경 준비 시작 실패 · " + error.getClass().getSimpleName());
+            }
         });
-        body.addView(prepare);
+        FrameLayout preparationSlot = new FrameLayout(this);
+        preparationSlot.addView(prepare, new FrameLayout.LayoutParams(-1, -2));
+        preparation = new LinearLayout(this);
+        preparation.setOrientation(LinearLayout.VERTICAL);
+        preparation.setPadding(dp(16), dp(12), dp(16), dp(12));
+        preparation.setMinimumHeight(dp(48));
+        preparationLabel = text("환경 준비 중…", 15);
+        preparationLabel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        preparation.addView(preparationLabel);
+        preparationBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        preparationBar.setIndeterminate(true);
+        preparationBar.setContentDescription("환경 준비 진행 중");
+        preparation.addView(preparationBar, new LinearLayout.LayoutParams(-1, dp(6)));
+        preparation.setVisibility(View.GONE);
+        preparationSlot.addView(preparation, new FrameLayout.LayoutParams(-1, -2));
+        body.addView(preparationSlot);
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
         fold(body, "진단 정보", details);
@@ -405,8 +432,45 @@ public final class AppActivity extends Activity {
         config.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                if (!LocalPolicy.isBackendUrl(url)) return;
+                // OpenCode marks Markdown links target=_blank; route local file actions in this WebView.
+                view.evaluateJavascript("(() => { if(window.__tinyagentFiles) return; window.__tinyagentFiles=true;"
+                        + "document.addEventListener('click', e => { const a=e.target.closest?.('a[href]'); if(!a) return;"
+                        + "const u=new URL(a.href,location.href); if(u.origin!==location.origin || !['/tinyagent/file','/tinyagent/export'].includes(u.pathname)) return;"
+                        + "const r=a.getBoundingClientRect(); u.searchParams.set('tapX',String((e.detail?e.clientX:r.left)/innerWidth));"
+                        + "u.searchParams.set('tapY',String((e.detail?e.clientY:r.bottom)/innerHeight));"
+                        + "e.preventDefault(); e.stopImmediatePropagation(); location.assign(u.href); },true); })()", null);
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
+                if (request.isForMainFrame() && LocalPolicy.isBackendUrl(view.getUrl())
+                        && LocalPolicy.isBackendUrl(url) && "/tinyagent/project/create".equals(request.getUrl().getPath())) {
+                    createProjectFolder(view);
+                    return true;
+                }
+                if (request.isForMainFrame() && LocalPolicy.isBackendUrl(view.getUrl())
+                        && LocalPolicy.isBackendUrl(url) && "/tinyagent/file".equals(request.getUrl().getPath())) {
+                    int[] point = new int[2]; view.getLocationOnScreen(point);
+                    try {
+                        float x=Float.parseFloat(request.getUrl().getQueryParameter("tapX"));
+                        float y=Float.parseFloat(request.getUrl().getQueryParameter("tapY"));
+                        if (Float.isFinite(x) && Float.isFinite(y)) {
+                            point[0] += (int)(Math.max(0,Math.min(1,x))*view.getWidth());
+                            point[1] += (int)(Math.max(0,Math.min(1,y))*view.getHeight());
+                        }
+                    } catch (Exception ignored) { /* Older links anchor at the conversation's top edge. */ }
+                    startActivity(new Intent(AppActivity.this, ArtifactActivity.class)
+                            .putExtra("path", request.getUrl().getQueryParameter("path"))
+                            .putExtra("tapX",point[0]).putExtra("tapY",point[1]));
+                    return true;
+                }
+                if (request.isForMainFrame() && LocalPolicy.isBackendUrl(view.getUrl())
+                        && LocalPolicy.isBackendUrl(url) && "/tinyagent/export".equals(request.getUrl().getPath())) {
+                    startActivity(new Intent(AppActivity.this, InstallerActivity.class)
+                            .putExtra("exportPath", request.getUrl().getQueryParameter("path")));
+                    return true;
+                }
                 if (LocalPolicy.isBackendUrl(url)) return false;
                 if (request.isForMainFrame() && LocalPolicy.isBrowserUrl(url)) {
                     try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
@@ -467,6 +531,35 @@ public final class AppActivity extends Activity {
             }
         });
         content.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void createProjectFolder(WebView source) {
+        EditText name = new EditText(this);
+        name.setSingleLine(true);
+        name.setHint("폴더 이름");
+        name.setPadding(dp(20), dp(16), dp(20), dp(16));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("새 프로젝트 폴더")
+                .setMessage("/workspace 안에 새 폴더를 만들고 프로젝트로 엽니다.")
+                .setView(name).setNegativeButton("취소", null).setPositiveButton("만들고 열기", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+            String value = name.getText().toString().trim();
+            if (value.isEmpty() || value.length() > 120 || value.equals(".") || value.equals("..")
+                    || value.indexOf('/') >= 0 || value.indexOf('\\') >= 0 || value.chars().anyMatch(Character::isISOControl)) {
+                name.setError("경로 구분자 없이 폴더 이름을 입력하세요.");
+                return;
+            }
+            try {
+                java.io.File workspace = new java.io.File(getFilesDir(), "linux/workspace").getCanonicalFile();
+                if (!workspace.toPath().startsWith(getFilesDir().getCanonicalFile().toPath())) throw new IOException("작업공간 경로 확인 필요");
+                java.nio.file.Files.createDirectory(new java.io.File(workspace, value).toPath());
+                String event = "window.dispatchEvent(new CustomEvent('tinyagent:project-created',{detail:{path:"
+                        + JSONObject.quote("/workspace/" + value) + "}}))";
+                if (source == webView && LocalPolicy.isBackendUrl(source.getUrl())) source.evaluateJavascript(event, null);
+                dialog.dismiss();
+            } catch (java.nio.file.FileAlreadyExistsException error) { name.setError("같은 이름의 폴더가 이미 있습니다."); }
+            catch (Exception error) { name.setError("폴더를 만들지 못했습니다. 실행 환경과 저장 공간을 확인하세요."); }
+        }));
+        dialog.show();
     }
 
     private void showWeb() {
@@ -563,6 +656,16 @@ public final class AppActivity extends Activity {
 
     private void updateRuntimeStatus() {
         String status = runtimePreferences.getString("status", "환경 준비 전");
+        boolean preparing = RuntimeSetupService.preparing;
+        prepare.setEnabled(!preparing);
+        prepare.setVisibility(preparing ? View.GONE : View.VISIBLE);
+        preparation.setVisibility(preparing ? View.VISIBLE : View.GONE);
+        preparationLabel.setText(runtimePreferences.getString("progressDetail", status));
+        int percent = runtimePreferences.getInt("percent", -1);
+        preparationBar.setIndeterminate(percent < 0);
+        preparationBar.setProgress(Math.max(0, percent));
+        if (LocalPolicy.RUNTIME_READY.equals(status) && backendStatus != null) backendStatus.setText("");
+        prepare.setText(status.startsWith("환경 준비 실패") ? "환경 준비 다시 시도" : "환경 준비하기");
         runtimeDetails.setText(status);
         runtimeStatus.setText(status.startsWith("Fedora 설치 완료") && !new java.io.File(getNoBackupFilesDir(), "stock-backend-auth").isFile()
                 ? "앱 내부 환경을 준비하세요. 이전 관리자 환경의 파일은 보관되어 있습니다."

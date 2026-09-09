@@ -30,15 +30,15 @@ try {
     await page.getByRole('button', {name:`w 검증 · 화면 복구 ${i} workspace`, exact:true}).click()
     await page.getByRole('button', {name:'전송', exact:true}).waitFor()
     for (let back=0; back<2; back++) {
-      execFileSync(adb, ['-s','USB_TEST_SERIAL','shell','input','keyevent','4'])
+      execFileSync(adb, ['-s','000501423003390','shell','input','keyevent','4'])
       if (await page.getByText('최근 세션', {exact:true}).isVisible()) break
     }
     await page.getByText('최근 세션', {exact:true}).waitFor()
     results[i].savedSessionOpened = true
     results[i].androidBackRestoredHome = true
   }
-  const apk = execFileSync(adb, ['-s','USB_TEST_SERIAL','shell','pm','path','io.github.gplaider.tinyagent.debug']).toString().trim().replace(/^package:/,'')
-  const apk_sha256 = execFileSync(adb, ['-s','USB_TEST_SERIAL','shell','sha256sum',apk]).toString().split(/\s/)[0]
+  const apk = execFileSync(adb, ['-s','000501423003390','shell','pm','path','io.github.gplaider.tinyagent.debug']).toString().trim().replace(/^package:/,'')
+  const apk_sha256 = execFileSync(adb, ['-s','000501423003390','shell','sha256sum',apk]).toString().split(/\s/)[0]
   await writeFile(new URL('result.json',out), JSON.stringify({scope:'Actual Android WebView; no mock backend', apk_sha256, results},null,2))
   console.log(JSON.stringify(results))
 } finally { await browser.close() }

@@ -42,7 +42,7 @@ python3 - <<'PROCESS'
 import json, os, subprocess
 from pathlib import Path
 android = dict(line.split('=', 1) for line in Path('/workspace/android-device.txt').read_text().splitlines())
-assert android['serial'] == 'EDGE40_ROOT_SERIAL' and android['device'] == 'lyriq'
+assert android['serial'] == 'ZY22HZPLL8' and android['device'] == 'lyriq'
 result = dict(android=android, fedora_arch=os.uname().machine, cwd=str(Path.cwd()),
               compiled_result=int(subprocess.check_output(['./app'])), test='passed')
 assert result['fedora_arch'] == 'aarch64' and result['compiled_result'] == 42

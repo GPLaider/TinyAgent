@@ -8,6 +8,7 @@ import java.nio.file.*;
 import java.security.*;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /** Fedora belongs to the app UID; Android administration is a separate transport. */
 final class LocalLinuxRuntime {
@@ -16,6 +17,7 @@ final class LocalLinuxRuntime {
     private volatile Process active;
     private final Map<Process, File> pids = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean cancelled;
+    private BiConsumer<String, Integer> measured = (label, percent) -> {};
     LocalLinuxRuntime(Context context) {
         this.context = context.getApplicationContext();
         base = new File(context.getFilesDir(), "linux");
@@ -23,7 +25,8 @@ final class LocalLinuxRuntime {
         workspace = new File(base, "workspace");
         home = new File(base, "home");
     }
-    void prepare(Consumer<String> progress) throws Exception {
+    void prepare(Consumer<String> progress, BiConsumer<String, Integer> reporter) throws Exception {
+        this.measured = reporter;
         for (File dir : List.of(base, rootfs, workspace, home, new File(base, "shared"), new File(rootfs, "shared"), new File(rootfs, ".l2s"), new File(base, "tmp")))
             Files.createDirectories(dir.toPath());
         try (var input = context.getAssets().open("linux-launch.sh")) {
@@ -32,10 +35,10 @@ final class LocalLinuxRuntime {
         File ready = new File(base, "prepared-v1");
         if (!ready.isFile()) {
             progress.accept("앱 내부 Fedora 파일 준비 중…");
-            unpack("fedora-44-arm64-rootfs.tar.gz.bin", "3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125", rootfs);
+            unpack("fedora-44-arm64-rootfs.tar.gz.bin", "3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125", rootfs, "Fedora", 5638);
             File bin = new File(rootfs, "usr/local/bin");
             Files.createDirectories(bin.toPath());
-            unpack("opencode-linux-arm64.tar.gz.bin", "70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0", bin);
+            unpack("opencode-linux-arm64.tar.gz.bin", "70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0", bin, "OpenCode", 1);
             for (String path : List.of("workspace", "shared", "root", "proc", "dev", "tmp"))
                 Files.createDirectories(new File(rootfs, path).toPath());
             Files.write(ready.toPath(), "fedora=44\nopencode=1.18.29\n".getBytes(StandardCharsets.UTF_8));
@@ -45,7 +48,22 @@ final class LocalLinuxRuntime {
         if (!List.of("git", "python3", "make", "gcc", "unzip").stream()
                 .allMatch(name -> new File(rootfs, "usr/bin/" + name).isFile())) {
             progress.accept("Fedora 개발 도구 설치 중 · 네트워크 연결이 필요합니다. 실패하면 환경 준비를 다시 누르세요.");
-            run(guest("/workspace", "/usr/bin/microdnf", "install", "-y", "git", "python3", "make", "gcc", "unzip", "tar", "gzip"));
+            var network = context.getSystemService(ConnectivityManager.class).getActiveNetwork();
+            if (network == null) throw new IOException("인터넷 연결이 필요합니다. Wi-Fi 또는 모바일 데이터 연결 후 다시 시도하세요.");
+            boolean[] installing = {false};
+            run(guest("/workspace", "/usr/bin/microdnf", "install", "-y", "git", "python3", "make", "gcc", "unzip", "tar", "gzip"), line -> {
+                String clean = line.replaceAll("\u001B\\[[0-9;]*[A-Za-z]", "").trim();
+                if (clean.contains("Running transaction")) {
+                    installing[0] = true;
+                    measured.accept("개발 도구 설치 준비 중…", -1);
+                }
+                var match = java.util.regex.Pattern.compile("^\\[\\s*(\\d+)\\s*/\\s*(\\d+)\\].*").matcher(clean);
+                if (match.matches()) {
+                    long current = Long.parseLong(match.group(1)), total = Long.parseLong(match.group(2));
+                    if (total > 0) measured.accept("개발 도구 " + (installing[0] ? "설치" : "다운로드") + " · " + current + "/" + total + " 항목",
+                            (int)Math.min(99, Math.max(0, (current - 1) * 100 / total)));
+                }
+            });
         }
         run(guest("/workspace", "/usr/bin/git", "--version"));
         File auth = new File(context.getNoBackupFilesDir(), "stock-backend-auth");
@@ -79,7 +97,9 @@ final class LocalLinuxRuntime {
                 + "\nFedora tool: OpenCode bash tool; commands run directly in the guest. Try `cat /etc/fedora-release`, `id`, `pwd`."
                 + "\nAndroid diagnostic tool: read /root/.tinyagent/ANDROID_TOOL.md for this runtime's actual connection. It exposes read-only inspection, not arbitrary shell commands."
                 + "\nWorkspace: /workspace = " + workspace + "\nHome: /root = " + home
-                + "\nExchange: /shared = " + new File(base, "shared")
+                + "\nPrivate internal exchange: /shared = " + new File(base, "shared")
+                + "\nAll paths above are app-private, NOT browsable in Android Files. Copying to /shared does not export."
+                + "\nUser file export: 작업 환경 > APK 설치 > workspace-relative path > 작업공간 파일 내보내기 > Android save dialog. See AGENTS.md."
                 + "\nBackend: " + LocalPolicy.BACKEND_ORIGIN + " owned by RuntimeSetupService."
                 + "\nStop: native Work Environment > diagnostics > stop; signals PRoot to terminate its tracees."
                 + "\nRecovery: reopen the app; an explicitly stopped runtime requires Prepare. Check real session state before repeating writes."
@@ -155,27 +175,54 @@ final class LocalLinuxRuntime {
         builder.environment().put("PROOT_L2S_DIR", new File(rootfs, ".l2s").toString());
         return builder;
     }
-    private void unpack(String asset, String expected, File destination) throws Exception {
+    private void unpack(String asset, String expected, File destination, String label, int entries) throws Exception {
         File archive = new File(base, "input.tar.gz");
         MessageDigest hash = MessageDigest.getInstance("SHA-256");
+        long length;
+        try (var descriptor = context.getAssets().openFd(asset)) { length = descriptor.getLength(); }
+        measured.accept(label + " 파일 복사", 0);
         try (var input = context.getAssets().open(asset); var output = new FileOutputStream(archive)) {
             byte[] buffer = new byte[65536];
-            for (int n; (n = input.read(buffer)) != -1;) { hash.update(buffer, 0, n); output.write(buffer, 0, n); }
+            long copied = 0;
+            int last = -1;
+            for (int n; (n = input.read(buffer)) != -1;) {
+                if (cancelled) throw new InterruptedException("환경 준비 중단");
+                hash.update(buffer, 0, n); output.write(buffer, 0, n); copied += n;
+                int percent = (int)(copied * 100 / length);
+                if (percent != last) { measured.accept(label + " 파일 복사", percent); last = percent; }
+            }
         }
         if (!hex(hash.digest()).equals(expected)) throw new IOException("런타임 파일 SHA256 불일치");
-        run(process(List.of("-0", "-l", "--kill-on-exit", "/system/bin/tar", "-xzf", archive.toString(), "-C", destination.toString())));
+        // Entry totals belong to the SHA256-pinned archives above, not an estimated duration.
+        int[] extracted = {0};
+        measured.accept(label + " 압축 해제", 0);
+        run(process(List.of("-0", "-l", "--kill-on-exit", "/system/bin/tar", "-xvzf", archive.toString(), "-C", destination.toString())), line -> {
+            if (!line.startsWith("proot") && !line.startsWith("tar:") && !line.isBlank()) {
+                extracted[0]++;
+                measured.accept(label + " 압축 해제 · " + Math.min(extracted[0], entries) + "/" + entries + " 항목", Math.min(99, extracted[0] * 100 / entries));
+            }
+        });
+        measured.accept(label + " 압축 해제 완료", 100);
         Files.delete(archive.toPath());
     }
     private void run(ProcessBuilder builder) throws Exception {
+        run(builder, line -> {});
+    }
+    private void run(ProcessBuilder builder, Consumer<String> lines) throws Exception {
         active = start(builder);
         StringBuilder output = new StringBuilder();
         try (var reader = new BufferedReader(new InputStreamReader(active.getInputStream()))) {
-            for (String line; (line = reader.readLine()) != null;) if (output.length() < 8192) output.append(line).append('\n');
+            for (String line; (line = reader.readLine()) != null;) {
+                lines.accept(line);
+                output.append(line).append('\n');
+                if (output.length() > 8192) output.delete(0, output.length() - 8192);
+            }
         }
         int code = active.waitFor(); forget(active); active = null;
+        if (cancelled) throw new InterruptedException("환경 준비 중단");
         if (code != 0) throw new IOException("Fedora exit=" + code + "\n" + output);
     }
-    private synchronized Process start(ProcessBuilder builder) throws Exception {
+    synchronized Process start(ProcessBuilder builder) throws Exception {
         if (cancelled) throw new InterruptedException("환경 준비 중단");
         File pid = File.createTempFile("process-", ".pid", base);
         var command = new ArrayList<>(List.of("/system/bin/sh", new File(base, "launch.sh").toString(), pid.toString()));

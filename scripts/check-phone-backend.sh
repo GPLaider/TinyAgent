@@ -1,12 +1,12 @@
 #!/system/bin/sh
 set -eu
-test "$(getprop ro.serialno)" = EDGE40_ROOT_SERIAL
+test "$(getprop ro.serialno)" = ZY22HZPLL8
 root=/data/local/tmp/tinyagent-compat-20260908
 pid=$(pidof opencode)
 case "$pid" in ''|*[!0-9]*) echo 'Expected exactly one diagnostic backend' >&2; exit 1;; esac
 test "$(readlink /proc/$pid/root)" = "$root"
 test "$(readlink /proc/$pid/cwd)" = "$root/workspace"
-printf 'device=EDGE40_ROOT_SERIAL pid=%s\nroot=' "$pid"
+printf 'device=ZY22HZPLL8 pid=%s\nroot=' "$pid"
 readlink "/proc/$pid/root"
 printf 'cwd='
 readlink "/proc/$pid/cwd"

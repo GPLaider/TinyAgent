@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
-parser.add_argument('serial', choices=['USB_TEST_SERIAL', '192.0.2.2:5555'])
+parser.add_argument('serial', choices=['000501423003390', '100.79.65.42:5555'])
 parser.add_argument('route', choices=['stock', 'developer', 'root'])
 args = parser.parse_args()
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
@@ -33,7 +33,7 @@ def state():
     raw = adb('shell', 'run-as', PACKAGE, 'cat', 'shared_prefs/installer.xml')
     return {n.get('name'): n.get('value', n.text) for n in ET.fromstring(raw)}
 
-expected_serial = 'USB_TEST_SERIAL' if args.serial == 'USB_TEST_SERIAL' else 'EDGE40_ROOT_SERIAL'
+expected_serial = '000501423003390' if args.serial == '000501423003390' else 'ZY22HZPLL8'
 assert adb('shell', 'getprop', 'ro.serialno') == expected_serial
 nodes = tree()
 current = next(n.get('text') for n in nodes.iter('node') if n.get('text') in labels)

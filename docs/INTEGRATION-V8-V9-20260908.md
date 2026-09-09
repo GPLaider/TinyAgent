@@ -4,7 +4,7 @@
 
 APK SHA256: `3e234a6681df985e87dd40652e498c03bae2e3c792501571279748b3aad900cb`.
 All installation routes used that same APK: Stock PackageInstaller and Developer
-UID 2000 on Pacman USB_TEST_SERIAL, Root UID 0 on Edge EDGE40_ROOT_SERIAL. Each passed
+UID 2000 on Pacman 000501423003390, Root UID 0 on Edge ZY22HZPLL8. Each passed
 three consecutive fixture installs. Reports: `evidence/install-*.json`.
 
 Actual Fedora calls reached the Android diagnostic bridge on both phones.

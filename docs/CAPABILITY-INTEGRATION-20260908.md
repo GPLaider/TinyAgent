@@ -26,18 +26,18 @@ SHA256: `a7d10b7149567f0bcbb48af492bc07e1515ba700096d2de9616deed4848ce495`.
 
 | Route | Device | Actual mechanism | Result |
 | --- | --- | --- | --- |
-| Stock | Pacman USB_TEST_SERIAL | PackageInstaller session and Android approval dialog | 3 consecutive successes |
-| Developer | Pacman USB_TEST_SERIAL | App self-ADB, loopback nonce, UID 2000, streaming package install | 3 consecutive successes |
-| Root | Edge 40 EDGE40_ROOT_SERIAL | App self-ADB, private nonce, UID 0, streaming package install | 3 consecutive successes |
+| Stock | Pacman 000501423003390 | PackageInstaller session and Android approval dialog | 3 consecutive successes |
+| Developer | Pacman 000501423003390 | App self-ADB, loopback nonce, UID 2000, streaming package install | 3 consecutive successes |
+| Root | Edge 40 ZY22HZPLL8 | App self-ADB, private nonce, UID 0, streaming package install | 3 consecutive successes |
 
 Fixture package: `io.github.gplaider.tinyagent.installfixture`.
 Installed SHA256: `1b5480033cf4197db93a4c743f8e96e046caa08fc0d70fc77039fb84d00002ee`.
 The first stock cancellation returned STATUS_FAILURE_ABORTED without installing;
 selecting the APK again and approving the native dialog succeeded.
 
-Evidence: `evidence/install-stock-USB_TEST_SERIAL.json`,
-`evidence/install-developer-USB_TEST_SERIAL.json`,
-`evidence/install-root-EDGE40_ROOT_SERIAL.json`, `evidence/stock-install-confirm.xml`.
+Evidence: `evidence/install-stock-000501423003390.json`,
+`evidence/install-developer-000501423003390.json`,
+`evidence/install-root-ZY22HZPLL8.json`, `evidence/stock-install-confirm.xml`.
 Runnable fixture and UI checks: `build-install-fixture.py`, `check-install-route.py`.
 
 Pacman's Developer test enabled legacy TCP ADB on 5555 through the existing USB

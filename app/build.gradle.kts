@@ -24,8 +24,8 @@ android {
         applicationId = "io.github.gplaider.tinyagent"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-dev"
+        versionCode = 2
+        versionName = "0.1.0-preview.3"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -55,6 +55,7 @@ android {
 tasks.named("preBuild") { dependsOn(bootstrapAssets) }
 
 dependencies {
+    implementation("androidx.core:core:1.16.0")
     implementation("dev.mobile:dadb:1.2.10")
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("org.bouncycastle:bcprov-jdk15to18:1.84")

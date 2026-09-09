@@ -53,7 +53,7 @@ unsafe extraction members and stages the original layer without extracting
 Linux filesystem links on Windows.
 
 The probe root belongs only to TinyAgent's diagnosis, not a completed runtime:
-`/data/local/tmp/tinyagent-compat-20260908` on `EDGE40_ROOT_SERIAL`.
+`/data/local/tmp/tinyagent-compat-20260908` on `ZY22HZPLL8`.
 The matching scripts are in `/data/local/tmp/tinyagent-stage-20260908`.
 `probe-fedora-android.sh` performs the first extraction and refuses an existing
 root. Do not run it again over the populated root.

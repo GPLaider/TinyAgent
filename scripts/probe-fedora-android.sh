@@ -2,7 +2,7 @@
 # Compatibility probe only. No mounts, service installation, or PreRoot replacement.
 set -eu
 umask 077
-test "$(getprop ro.serialno)" = EDGE40_ROOT_SERIAL
+test "$(getprop ro.serialno)" = ZY22HZPLL8
 test "$(id -u)" = 0
 stage=/data/local/tmp/tinyagent-stage-20260908
 root=/data/local/tmp/tinyagent-compat-20260908

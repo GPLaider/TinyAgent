@@ -1,6 +1,6 @@
 #!/system/bin/sh
 set -eu
-test "$(getprop ro.serialno)" = EDGE40_ROOT_SERIAL
+test "$(getprop ro.serialno)" = ZY22HZPLL8
 test "$(id -u)" = 0
 root=/data/local/tinyagent/runtime/0.1.0/rootfs
 manager=/data/local/tmp/tinyagent-preroot-0.1.0/backend.sh

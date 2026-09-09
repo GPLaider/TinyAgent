@@ -1,6 +1,6 @@
 #!/system/bin/sh
 set -eu
-test "$(getprop ro.serialno)" = EDGE40_ROOT_SERIAL
+test "$(getprop ro.serialno)" = ZY22HZPLL8
 root=/data/local/tmp/tinyagent-compat-20260908
 pid=$(pidof opencode)
 case "$pid" in ''|*[!0-9]*) exit 1;; esac

@@ -84,10 +84,10 @@ forms. Final device acceptance is recorded with each APK hash under `evidence/`.
   approximately 128 GiB RAM. Debian WSL is installed.
 - PC2 LAN SSH did not connect. Its Tailscale SSH endpoint requested additional
   user authentication. No PC2 CPU, checkout or build environment was verified.
-- Edge 40 #2: serial `EDGE40_ROOT_SERIAL`, Android 16, `arm64-v8a`, ADB reported
+- Edge 40 #2: serial `ZY22HZPLL8`, Android 16, `arm64-v8a`, ADB reported
   `uid=0(root)`, SELinux context `u:r:su:s0`. TinyAgent/Termux not installed at
   inventory time. `su` was absent; root ADB and a `su` binary are separate facts.
-- Edge 40 #1: serial `EDGE40_SHELL_SERIAL`, Android 16, ADB reported `uid=2000(shell)`;
+- Edge 40 #1: serial `ZY22J58799`, Android 16, ADB reported `uid=2000(shell)`;
   TinyAgent/Termux not installed at inventory time.
 - The selected initial test target is #2. The separate `.debug` app was installed
   and its Korean setup UI rendered. No flash, reset or rootfs provisioning occurred.
@@ -119,7 +119,7 @@ The canonical source is `D:\TinyAgent-work\tinyagent`; the old workspace path is
 a junction. D: also holds build temporary files to avoid Windows Java socket
 and non-ASCII Gradle path failures. Build and lint now work.
 
-The target adbd listens only on `192.0.2.2:5555`, not `127.0.0.1:5555`.
+The target adbd listens only on `100.79.65.42:5555`, not `127.0.0.1:5555`.
 The initial app failed with ECONNREFUSED. Local-interface address discovery was
 added; its real UI regression runner is `scripts/check-device-adb.py`.
 

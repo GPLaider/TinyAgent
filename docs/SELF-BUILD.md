@@ -1,6 +1,6 @@
 # Phone-local TinyAgent self-build acceptance
 
-The final target is the app-managed Fedora on Edge 40, serial `EDGE40_ROOT_SERIAL`.
+The final target is the app-managed Fedora on Edge 40, serial `ZY22HZPLL8`.
 Source compilation, GUI asset generation, Android resource compilation, DEX
 generation and APK signing must run on the phone. Record the source revision,
 tool versions, working directory, process architecture, exit status and APK hash.

@@ -11,10 +11,10 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
 parser = argparse.ArgumentParser()
-parser.add_argument('--serial', choices=['USB_TEST_SERIAL', '192.0.2.2:5555'], default='USB_TEST_SERIAL')
+parser.add_argument('--serial', choices=['000501423003390', '100.79.65.42:5555'], default='000501423003390')
 SERIAL = parser.parse_args().serial
 EDGE = ':' in SERIAL
-HARDWARE = 'EDGE40_ROOT_SERIAL' if EDGE else SERIAL
+HARDWARE = 'ZY22HZPLL8' if EDGE else SERIAL
 PORT = 14101 if EDGE else 14100
 PACKAGE = 'io.github.gplaider.tinyagent.debug'
 

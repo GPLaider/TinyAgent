@@ -7,7 +7,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
-SERIAL = 'USB_TEST_SERIAL'
+SERIAL = '000501423003390'
 PACKAGE = 'io.github.gplaider.tinyagent.debug'
 
 

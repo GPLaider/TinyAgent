@@ -1,75 +1,79 @@
-"""Lossless APK transfer with source/target hash checks. Building is a separate operation."""
+"""Reuse identical ZIP payloads; reconstruct the exact signed APK, never re-sign it."""
 import argparse
+import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import zipfile
 
-def digest(path):
-    with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
-def spans(path):
-    with zipfile.ZipFile(path) as archive, path.open('rb') as stream:
-        cuts = {0, path.stat().st_size, archive.start_dir}
-        for entry in archive.infolist():
-            stream.seek(entry.header_offset + 26)
-            name, extra = struct.unpack('<HH', stream.read(4))
-            data = entry.header_offset + 30 + name + extra
-            cuts.update((entry.header_offset, data, data + entry.compress_size))
-        ordered = sorted(cuts)
-        for start, end in zip(ordered, ordered[1:]):
-            stream.seek(start)
-            chunk = stream.read(end-start)
-            yield start, chunk
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
 
-def create(old, new, patch):
-    known = {hashlib.sha256(chunk).hexdigest(): (offset, len(chunk)) for offset, chunk in spans(old)}
-    plan = dict(old_sha256=digest(old), new_sha256=digest(new), size=new.stat().st_size, segments=[])
-    with zipfile.ZipFile(patch, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
-        for index, (_, chunk) in enumerate(spans(new)):
-            key = hashlib.sha256(chunk).hexdigest()
-            if key in known:
-                offset, size = known[key]
-                plan['segments'].append(dict(offset=offset, size=size))
-            else:
-                name = str(index)
-                archive.writestr(name, chunk)
-                plan['segments'].append(dict(file=name, size=len(chunk)))
-        archive.writestr('plan.json', json.dumps(plan))
-    print(json.dumps(dict(patch_bytes=patch.stat().st_size, target_bytes=plan['size'], target_sha256=plan['new_sha256'])))
 
-def apply(old, patch, target):
-    assert old.resolve() != target.resolve() and patch.resolve() != target.resolve()
-    with zipfile.ZipFile(patch) as archive:
-        plan = json.loads(archive.read('plan.json'))
-        assert digest(old) == plan['old_sha256'], 'Installed APK differs from delta source'
-        assert 0 < plan['size'] <= 1024**3
-        assert sum(part['size'] for part in plan['segments']) == plan['size']
-        with old.open('rb') as source, target.open('xb') as output:
-            for part in plan['segments']:
-                assert 0 <= part['size'] <= plan['size']
-                if 'offset' in part:
-                    assert 0 <= part['offset'] <= old.stat().st_size - part['size']
-                    source.seek(part['offset'])
-                    remaining = part['size']
-                    while remaining:
-                        chunk = source.read(min(65536, remaining))
-                        assert chunk
-                        output.write(chunk); remaining -= len(chunk)
+def payloads(path, data):
+    with zipfile.ZipFile(path) as archive:
+        for entry in sorted(archive.infolist(), key=lambda entry: entry.header_offset):
+            offset = entry.header_offset
+            assert data[offset:offset + 4] == b'PK\x03\x04'
+            name, extra = struct.unpack_from('<HH', data, offset + 26)
+            start = offset + 30 + name + extra
+            yield entry.filename, start, entry.compress_size
+
+
+def create(old_path, new_path, patch_path):
+    old, new = old_path.read_bytes(), new_path.read_bytes()
+    previous = {name: (start, size) for name, start, size in payloads(old_path, old)}
+    spans, cursor = [], 0
+    for name, start, size in payloads(new_path, new):
+        source, length = previous.get(name, (-1, -1))
+        if size < 4096 or size != length or old[source:source + size] != new[start:start + size]:
+            continue
+        if start > cursor:
+            spans.append(base64.b64encode(new[cursor:start]).decode('ascii'))
+        spans.append([source, size])
+        cursor = start + size
+    spans.append(base64.b64encode(new[cursor:]).decode('ascii'))
+    patch_path.write_text(json.dumps({'old': digest(old), 'new': digest(new), 'size': len(new), 'spans': spans}), encoding='utf-8')
+    print(f'patch_bytes={patch_path.stat().st_size} apk_bytes={len(new)} sha256={digest(new)}')
+
+
+def apply(old_path, patch_path, output):
+    old = old_path.read_bytes()
+    plan = json.loads(patch_path.read_text(encoding='utf-8'))
+    assert digest(old) == plan['old'], 'Base APK differs'
+    assert not output.exists(), 'Refusing to replace an existing APK'
+    temporary = output.with_name(output.name + '.part')
+    written, checksum = 0, hashlib.sha256()
+    with temporary.open('xb') as stream:
+        try:
+            for span in plan['spans']:
+                if isinstance(span, list):
+                    start, size = span
+                    assert isinstance(start, int) and isinstance(size, int) and 0 <= start <= len(old) and 0 <= size <= len(old) - start
+                    data = old[start:start + size]
                 else:
-                    chunk = archive.read(part['file'])
-                    assert len(chunk) == part['size']
-                    output.write(chunk)
-        assert digest(target) == plan['new_sha256'], 'Reconstructed APK hash mismatch; do not install'
-    print('Verified reconstructed APK:', plan['new_sha256'])
+                    data = base64.b64decode(span, validate=True)
+                written += len(data)
+                assert written <= plan['size']
+                checksum.update(data)
+                stream.write(data)
+            assert written == plan['size'] and checksum.hexdigest() == plan['new'], 'Reconstructed APK differs'
+            stream.flush()
+            os.fsync(stream.fileno())
+        except BaseException:
+            stream.close()
+            temporary.unlink()
+            raise
+    os.replace(temporary, output)
+    print(f'verified_bytes={written} sha256={checksum.hexdigest()}')
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['create', 'apply'])
-    parser.add_argument('old', type=Path)
-    parser.add_argument('second', type=Path)
-    parser.add_argument('third', type=Path)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('operation', choices=['create', 'apply'])
+    parser.add_argument('paths', nargs=3, type=Path)
     args = parser.parse_args()
-    (create if args.mode == 'create' else apply)(args.old, args.second, args.third)
+    (create if args.operation == 'create' else apply)(*args.paths)

@@ -54,6 +54,6 @@ remain 0/3. Root-only execution is not a restricted security sandbox.
 Apply the integration patch only after comparing its source-baseline hashes.
 Run `scripts/stage-runtime-assets.py D:/TinyAgent-work/artifacts`,
 `scripts/check-runtime-host.py`, then the canonical Android build/lint script.
-Re-identify target Edge 40 serial EDGE40_ROOT_SERIAL before installing the new APK.
+Re-identify target Edge 40 serial ZY22HZPLL8 before installing the new APK.
 Run clean installation and interruption/retry flows on device before acceptance.
 Do not delete an incomplete root or reset app data to hide recovery failures.

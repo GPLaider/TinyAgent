@@ -21,7 +21,9 @@ attempt to bootstrap that setup by executing ADB commands.
    Developer probe; a Stock selection must not attempt any ADB connection.
 2. Use OpenCode bash directly for Fedora. Confirm `pwd`, tool availability and
    session workspace before edits. Work in the session's directory under
-   `/workspace`; `/shared` is the exchange directory, `/root` persists app data.
+   `/workspace`; `/shared` is a PRIVATE internal exchange directory, `/root`
+   persists app data. None are visible in ordinary Android file managers.
+   Follow AGENTS.md's "Deliver files to the user" workflow for real export.
 3. Existing tools first. Bootstrap only missing prerequisites when the task
    permits downloads/installations. Preserve source and credentials on recovery.
 4. APK installation uses the native APK installation screen, Stock route, and
