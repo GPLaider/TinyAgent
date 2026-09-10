@@ -25,8 +25,10 @@ unverified cross-app procfd access. Regular root-ID files remain0600 and the fin
 state directory0700. Invalid root IDs are never silently regenerated. Interrupted
 root-ID staging may leave an ignored64byte staging file; the published ID is atomic.
 
-Build using `scripts/build-dnfast-launcher.py` with installed NDK28.0.13004108.
-It stages only the debug native library. On an ARM Linux host, compile and run
+Build using `scripts/build-dnfast-launcher.py` with installed Windows NDK28.0.13004108
+or the verified Linux ARM64 NDK path in `/opt/tinyagent-build/extra-inputs/toolchains.json`.
+It stages the debug launcher and FD diagnostic seed; the seed source, license and provenance are retained in `native/fd-gate`.
+On an ARM Linux host, compile and run
 `dnfast-launch-test.c` with C11/O2/Wall/Wextra/Werror. Controls cover exclusive locks,
 persistent IDs, symlink and mode rejection, corrupt-ID rejection and immutable
 nonexecuting context. Tests create a disposable `/tmp/tinyagent-launch-test-*` root;

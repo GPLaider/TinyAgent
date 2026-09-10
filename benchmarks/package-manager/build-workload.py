@@ -52,6 +52,8 @@ if args.workload == 'organic-maps':
     patterns = ['android/app/build/outputs/apk/**/*.apk']
 if args.workload == 'vlc-android':
     env.update(ANDROID_NDK=extra['ndk_home'], ANDROID_SDK=config['android_home'], MAKEFLAGS='-j2')
+    env.update(GIT_AUTHOR_NAME='TinyAgent build', GIT_AUTHOR_EMAIL='build@localhost',
+               GIT_COMMITTER_NAME='TinyAgent build', GIT_COMMITTER_EMAIL='build@localhost')
     command = ['/usr/bin/bash', 'buildsystem/compile.sh', '-a', 'arm64']
     patterns = ['application/vlc-android/build/outputs/apk/**/*.apk']
 if args.workload == 'tailscale-android':
@@ -61,11 +63,13 @@ if args.workload == 'tailscale-android':
     patterns = ['android/build/outputs/apk/**/*.apk', 'tailscale-debug.apk']
 def apks():
     return [p for pattern in patterns for p in source.glob(pattern)]
+env['PWD'] = str(cwd)
 with (base/'.build.lock').open('a') as lock:
     # ponytail: one build per phone; keep memory contention out of acceptance runs.
     print('Waiting for phone build slot', flush=True)
     fcntl.flock(lock, fcntl.LOCK_EX)
     if args.workload == 'tailscale-android':
+        subprocess.run(['/usr/bin/python3', '/shared/prepare-tailscale-arm.py'], cwd=source, env=env, check=True)
         # gomobile invokes plain go; use the same pinned toolchain as tool/go.
         goroot = subprocess.check_output(['/usr/bin/bash', './tool/go', 'env', 'GOROOT'], cwd=source, env=env, text=True).strip()
         assert Path(goroot, 'bin/go').is_file()
@@ -74,6 +78,11 @@ with (base/'.build.lock').open('a') as lock:
     run.mkdir()
     before = {str(p): p.stat().st_mtime_ns for p in apks()}
     if args.workload == 'organic-maps':
+        # Preserve the failed run's APK and force packaging to produce this run's output.
+        for apk in apks():
+            previous = run/'previous-apks'/apk.relative_to(source)
+            previous.parent.mkdir(parents=True, exist_ok=True)
+            apk.rename(previous)
         checker = cwd/'groovy/permission-checker.gradle'
         old = 'task.aapt2Executable = project.androidComponents.sdkComponents.aapt2.get().executable.getAsFile()'
         new = "task.aapt2Executable = project.findProperty('android.aapt2FromMavenOverride') ? project.file(project.property('android.aapt2FromMavenOverride')) : project.androidComponents.sdkComponents.aapt2.get().executable.getAsFile()"

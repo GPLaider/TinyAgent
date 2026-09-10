@@ -5,7 +5,11 @@ SHA256: `ee39113fad165b1e7b3a8548c2886739c143bcbdbb7f596e4aaf94b3cef7e606`.
 Version: code 3 / 0.1.0-preview.4.
 Development certificate: `a3ef78ae0bfdfc30307e3448e138eca29adf39d966f89af116bbce151abc1ed2`.
 Host build, lint (0 errors, 56 warnings), APK signature, packaged harness/bootstrap/952 GUI files/native components/runtime archives passed.
-Exact candidate device acceptance is pending. Do not substitute older APK results.
+Lyriq2 ZY22HZPLL8: exact candidate installed as an update. Existing 100 listed sessions (plus individually fetched older IDs), backend credential fingerprint and provider connection preserved.
+Actual opencode/big-pickle model response and completed bash tool calls passed (42.657 seconds); this does not verify OpenAI OAuth.
+Real WebView touch injection passed three consecutive rounds: long press, multi-select, bulk delete/undo, swipe delete/undo for sessions and projects; backend sessions preserved.
+Debug dnfast result-contract, already-installed no-op and timeout/actual process exit passed on this exact APK under app UID10151 / untrusted_app / Enforcing.
+Exact candidate screen-off and service lifecycle checks are running. Do not substitute older APK results.
 
 ## Pacman functional builds on the preceding internal APK
 
@@ -19,9 +23,10 @@ Fresh app environment preparation passed. OAuth was not moved from Lyriq1.
 - Termux 3b66f87: build passed, 606.669 seconds; ARM64 APK ea8f8259ab523029f92bf12cf189f879c3b9070806d336dbf98dee42150b798e.
   TinyAgent Stock approval install, bootstrap completion and interactive uname -m -> aarch64 passed.
   Other ABI APKs were built, not run. This is the app build, not the full termux-packages ecosystem.
-- Tailscale: first build failed because gomobile could not find plain go. Runner now uses the same pinned Go as tool/go; retry queued.
-- Organic Maps: ARM64 Clang/CMake configuration passed; native build in progress.
-- VLC and AppFlowy: queued; no successful APK claimed.
+- Tailscale: fixed plain go lookup; next failure was pinned gomobile rejecting Linux arm64 hosts. A separate local module copy now selects linux-arm64; original module cache remains untouched. ARM regression check/build retry queued.
+- Organic Maps: native C++ and APK packaging completed in 2185.293 seconds, but final permission verification invoked x86 aapt2. Its checker now honors the ARM override; full task retry queued, no successful build claimed yet.
+- VLC: first attempt stopped because upstream git am required committer identity. Pinned patches were applied with build-process identity; normal upstream checks remain enabled. Retry queued.
+- AppFlowy: Rust tooling compilation in progress; no successful APK claimed.
 
 Builds share one development root and a serialized build slot. Their times are not fresh dnf5/dnfast provisioning benchmarks.
 max_single_child_rss_kib excludes descendant daemons; it is not a process-tree peak RSS measurement.
@@ -40,3 +45,6 @@ Final-candidate update/data preservation, model/tool smoke, mobile interactions 
 Finish the remaining app builds/debugging, collect installed artifact behavior, and report unsupported toolchains honestly.
 Long Doze, credential-lock behavior, provider/token-refresh matrix, controlled fresh-root dnf5/dnfast comparison and full seven-journey release gate remain open.
 Published Preview3 remains unchanged while this candidate is under test.
+
+The preceding fe690f6e internal APK passed three 600-second screen-off rounds on Lyriq2, including real Fedora commands while off and preserved sessions. This is not credential-lock, prolonged Doze, or Preview4 acceptance.
+The self-build recipe now includes both debug native executables from retained source. Host rebuilding reproduced the FD seed hash c5711e31; the ARM phone build is still queued.

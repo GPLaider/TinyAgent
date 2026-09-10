@@ -12,6 +12,8 @@ snapshot = json.loads((destination/'SOURCE-SNAPSHOT.json').read_text())
 names = set(snapshot['files_sha256'])
 names.update(str(p.relative_to(source)).replace('\\', '/') for p in (source/'benchmarks/package-manager').glob('*') if p.suffix in {'.py', '.sh', '.md', '.json'})
 names.update([
+    'native/fd-gate/probe.c', 'native/fd-gate/executor_fd.c',
+    'native/fd-gate/dnfast_native.h', 'native/fd-gate/LICENSE', 'native/fd-gate/PROVENANCE.json',
     'app/src/main/java/io/github/gplaider/tinyagent/DnfastResult.java',
     'app/src/debug/java/io/github/gplaider/tinyagent/DnfastResultCheck.java',
     'scripts/collect-pacman-build.py', 'scripts/export-private-source.py',

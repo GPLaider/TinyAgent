@@ -16,6 +16,7 @@ python3 scripts/prepare-fedora.py artifacts
 python3 scripts/stage-runtime-assets.py artifacts
 python3 scripts/stage-proot.py
 python3 scripts/collect-proot-sources.py
+python3 scripts/build-dnfast-launcher.py
 
 tools=/opt/tinyagent-build
 archive=$tools/bun-1.3.14-arm64.zip

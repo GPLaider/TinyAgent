@@ -1,0 +1,7 @@
+{
+  "source_commit": "919d4b4977cea6f64c59779fd15e110510cc56ad",
+  "scope": "Independent explicit app-only disposable FD probe; no product, Android execution, cross-app confidentiality or authorization claim",
+  "source_sha256": "0e42f2b3722ad8afd9138eddb6c679045aa33127a66f36af3359e11177749abc",
+  "purpose": "Debug-only FD diagnostic seed; unchanged source retained for Android ARM self-build",
+  "packaged_seed_sha256": "c5711e3187192a8ffcdd802e33f929e4c4d449c7be14cedecf72c08f22081dbc"
+}
