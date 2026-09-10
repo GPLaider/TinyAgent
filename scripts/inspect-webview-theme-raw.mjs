@@ -15,6 +15,11 @@ const call=(method,params)=>new Promise((resolve,reject)=>{
 })
 const evaluate=async expression=>(await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true})).result.value
 const action=process.argv[2]??'theme'
+if(action==='open-session') {
+ const id=process.argv[3]
+ if(!/^ses_[a-zA-Z0-9]+$/.test(id))throw Error('Invalid session ID')
+ await call('Page.navigate',{url:'http://127.0.0.1:4097/'+Buffer.from('/workspace').toString('base64url')+'/session/'+id})
+}
 if(action==='buttons') console.log(await evaluate(`[...document.querySelectorAll('button')].filter(n=>n.checkVisibility()&&getComputedStyle(n).visibility!=='hidden'&&!n.closest('[aria-hidden="true"]')).map(n=>({text:n.textContent,label:n.getAttribute('aria-label')}))`))
 if(action==='session-swipe') {
  const box=await evaluate(`(()=>{const n=document.querySelector('[data-component="home-session-row"]');if(!n)throw Error('No session row');const r=n.getBoundingClientRect();return {x:r.right-70,y:r.y+r.height/2}})()`)

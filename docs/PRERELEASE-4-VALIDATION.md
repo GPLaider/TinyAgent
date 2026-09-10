@@ -33,6 +33,8 @@ max_single_child_rss_kib excludes descendant daemons; it is not a process-tree p
 
 ## Failures retained
 
+Exact Preview4 media acceptance: actual opencode/big-pickle response in session ses_f76a1ea74ffeTD13ykNzGfi26r rendered workspace inline-code links. Native touches opened PNG 보기/저장/공유 and MP4 재생/저장/공유 menus. The PNG decoded visibly; the MP4 showed a decoded frame and playback controls. Android share sheet displayed sample.mp4 (no recipient selected). SAF export to /sdcard/Download/sample.mp4 matched source SHA256 baedfb5d1c1d0830e5500995e327911412e7478041d77d221bf3ff68c0d10d12. Evidence: evidence/preview4-media-acceptance.json and its screenshots. This is one PNG/MP4 sample, not a codec matrix or three rounds.
+
 - First candidate b7eb6d1f failed lint: Path.of requires API 34, while minSdk is 30. Replaced the sole caller with Paths.get. Build/lint passed on ee39113f; the rejected candidate was not installed.
 - Native dependency inventory incorrectly queried zlib-devel as a literal installed package. Changed to rpm --whatprovides; installed provider is zlib-ng-compat-devel.
 - Fedora rustup RPM provides rustup-init. Added explicit noninteractive initialization, then Rust 1.85.0 and aarch64-linux-android target succeeded.
@@ -50,3 +52,7 @@ The preceding fe690f6e internal APK passed three 600-second screen-off rounds on
 The self-build recipe includes both debug native executables from retained source. Host rebuilding reproduced the FD seed hash c5711e31. Both executables also compiled on the ARM phone (evidence/pacman-native-self-build.json); differing NDK versions mean these are not byte-identical host/phone builds. Full self-build session ses_f76fdff87ffenxdzNOkkFDZKu2 failed on a truncated Fedora download (41438183/51427176 bytes). Transport failures now retry up to three times; checksum/signature failures remain fatal. Retry self-check passed, and real phone download verification is running in ses_f76a5ab88ffeIS6vUjhrtEM6fz. Full APK self-build is not yet accepted.
 
 Pin/unpin persistence after reload passed in evidence/preview4-pin-touch.json. The test uses a native Android 220ms swipe; UI-only screen timeout changes are restored afterward. This is separate from screen-off acceptance.
+
+Subsequent self-build progress: ses_f76a5ab88ffeIS6vUjhrtEM6fz completed both verified downloads (Fedora 51427176 bytes; OpenCode 60343887 bytes). Source ac4aec8888c89f3aeff8246c5f50ca9d9d79173f was freshly cloned on Pacman; full self-build ses_f76a39da8ffemjm6QrpEFaNJFB is waiting on the shared build slot. Earlier statements about the download still running describe the previous checkpoint.
+
+AppFlowy native cargo-make stage completed in 4500.60 seconds; the current build is resolving Dart dependencies during code generation. The upstream wrapper suppresses pub output unless --verbose is passed. The retained recipe now invokes the same generator with --verbose; syntax was checked on the phone. The running build was not interrupted or changed. VLC bzip2 installation completed successfully (evidence/pacman-vlc-bzip2-confirmed.json).
