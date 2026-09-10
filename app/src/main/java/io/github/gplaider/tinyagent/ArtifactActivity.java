@@ -80,12 +80,17 @@ public final class ArtifactActivity extends Activity {
             VideoView video=new VideoView(this);
             MediaController controls=new MediaController(this); controls.setAnchorView(video); video.setMediaController(controls);
             var dialog=new AlertDialog.Builder(this).setTitle(file.getName()).setView(video).setPositiveButton("닫기",null).create();
-            dialog.setOnDismissListener(d->video.stopPlayback());
+            dialog.setOnDismissListener(d->{controls.hide();video.stopPlayback();});
             video.setOnErrorListener((player,what,extra)->{dialog.dismiss();
                 new AlertDialog.Builder(this).setTitle("영상 재생 불가").setMessage("이 기기에서 지원하지 않거나 손상된 영상입니다. 저장·공유로 다른 플레이어에서 열 수 있습니다.").setPositiveButton("확인",null).show();return true;});
             dialog.show();
             dialog.getWindow().setLayout(-1,(int)(getResources().getDisplayMetrics().heightPixels*0.75));
-            video.setVideoURI(uri); video.setOnPreparedListener(player->{video.start();controls.show(5000);});
+            video.setOnPreparedListener(player->{
+                // VideoView attaches controls to its parent during preparation; keep them over the video.
+                controls.setAnchorView(video);
+                video.start();controls.show(5000);
+            });
+            video.setVideoURI(uri);
         } catch(Exception e){error(e);}
     }
     private void preview(boolean image) {

@@ -90,10 +90,36 @@ attributed to the lock screen.
 - Stop/recovery and session switching without disturbing the user's build.
 - Provider authentication refresh and additional providers are not tested.
 
-## Source-review follow-up
+## Source-review follow-up (resolved on d5811e1a)
 
-OpenAI currently reports `source=custom`. Settings V2 maps that source to a
-custom-provider badge, which does not describe OAuth authentication. Check
-the actual rendered badge and the backend's available authentication type
-metadata before changing the label. Do not infer authentication type solely
-from provider ID or source, and do not remove OAuth to test reconnect.
+The backend reports `source=custom` for the existing OpenAI connection. Both
+provider settings views now omit a badge for that ambiguous source; an
+explicitly configured custom provider still retains its label. The installed
+`d5811e1accdb174c5a50450c79931374fd1405e1fe5efd627f193f33113d3863`
+candidate displayed OpenAI under connected providers with Luna available and
+without the misleading custom badge. No OAuth removal or reconnect was used.
+
+Evidence: `evidence/lyriq1-provider-ui-audit.json` and
+`evidence/lyriq1-json-provider-update.json`. The update preserved all 25
+preceding session IDs, connected providers and the user's dark theme.
+
+## Current candidate acceptance boundary
+
+On that same candidate, Luna development sessions
+`ses_f766b3658ffeNOjH7Q5wjHqFU9` and `ses_f7665db0effexK8HSgTJRcuP0M`
+completed an intentional failing test, changed the implementation, then
+passed the unchanged three-test suite and Python compilation. Their saved
+transcripts and independently retrieved files are checked by
+`scripts/check-luna-development-evidence.py`.
+
+The third session, `ses_f7662662bffeLJbDM3NWSzN40L`, is **not counted as a
+pass**. A measured 144.179-second Dozing interval retained the app UID's
+partial wake lock and backend process. Credential lock after wake prevents
+the current WebView observer from retrieving the final model result; user
+unlock and comparison of tool timestamps with the interval are still needed.
+See `evidence/lyriq1-luna-screenoff.json`. Process survival alone does not prove
+that model work completed during screen-off or that long Doze recovery works.
+
+The model-generated JSON path also opened the native action menu and readable
+JSON preview on this candidate. This is one observed artifact round, not the
+complete image/video, provider-authentication or three-round release gate.

@@ -8,6 +8,24 @@ Save uses Android's document picker. Share grants read access to one FileProvide
 
 Dependency: `androidx.core:core:1.16.0` (Apache-2.0), AndroidX FileProvider. Its provider is not exported and exposes only `files/linux/workspace/`.
 
+## Pending video-control layout correction
+
+The retained `evidence/preview4-video-preview.png` shows floating playback
+controls overlapping the close-button area. Android 36.1 SDK source confirms
+that `VideoView.attachMediaController()` replaces the supplied anchor with
+the video's parent. The prepared callback now restores the video itself as
+the anchor; dismissing the preview explicitly hides the controller before
+stopping playback. The prepared callback is registered before setting the URI.
+
+Candidate SHA-256:
+`c13ab36ff3efc4ac48248c923db26fc9cbd06cdf70112291c05bcd60914a3cdb`.
+Host assembleDebug, lintDebug and packaged runtime checks passed. This
+candidate is **not installed or device-validated**: Lyriq1 remains credential
+locked with a pending Luna acceptance result. After unlocking, retain that
+result before updating, then verify portrait/landscape video controls, close,
+reopen and Android Back by real touch. Do not count the source change as a
+passed layout or playback regression.
+
 ## 2026-09-09 Lyriq1 checks
 
 - Target: ZY22J58799, app `io.github.gplaider.tinyagent.debug`; update installation preserves app data.
