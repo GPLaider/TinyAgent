@@ -26,7 +26,8 @@ state directory0700. Invalid root IDs are never silently regenerated. Interrupte
 root-ID staging may leave an ignored64byte staging file; the published ID is atomic.
 
 Build using `scripts/build-dnfast-launcher.py` with installed Windows NDK28.0.13004108
-or the verified Linux ARM64 NDK path in `/opt/tinyagent-build/extra-inputs/toolchains.json`.
+or the pinned HomuHomu833 Linux ARM64 NDK29 archive (SHA256 fcc3b0ba65318317899fc296df0c5795d472a0cc3870b6fbf659939c1dde63ca).
+The ARM script downloads and verifies that input when needed; it does not require a prior benchmark setup.
 It stages the debug launcher and FD diagnostic seed; the seed source, license and provenance are retained in `native/fd-gate`.
 On an ARM Linux host, compile and run
 `dnfast-launch-test.c` with C11/O2/Wall/Wextra/Werror. Controls cover exclusive locks,

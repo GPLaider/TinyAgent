@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import time
 import urllib.request
+import http.client
 
 ROOT = Path(__file__).resolve().parents[1]
 ADB = Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe'
@@ -25,11 +26,19 @@ adb('forward', 'tcp:'+str(PORT), 'tcp:4097')
 secret = adb('exec-out', 'run-as', PACKAGE, 'cat', 'no_backup/stock-backend-auth')
 assert len(secret) == 64
 auth = 'Basic '+base64.b64encode(('opencode:'+secret).encode()).decode()
-def request(path, payload=None):
+def request(path, payload=None, timeout=30):
     req = urllib.request.Request('http://127.0.0.1:'+str(PORT)+path,
         data=None if payload is None else json.dumps(payload).encode(),
         headers={'Authorization':auth, 'Content-Type':'application/json', 'x-opencode-directory':'/workspace'})
-    with urllib.request.urlopen(req, timeout=30) as response: return json.load(response)
+    with urllib.request.urlopen(req, timeout=timeout) as response: return json.load(response)
+deadline = time.monotonic() + 90
+while True:
+    try:
+        if request('/global/health', timeout=5)['healthy']: break
+    except (OSError, http.client.HTTPException):
+        pass
+    assert time.monotonic() < deadline, 'Backend did not become ready within 90 seconds'
+    time.sleep(1)
 sessions = [request('/session', {'title':'검증 · 화면 복구 '+str(i)}) for i in range(3)]
 results = []
 try:

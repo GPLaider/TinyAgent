@@ -51,7 +51,8 @@ const screenshot=async name=>{const r=await call('Page.captureScreenshot',{forma
 try {
  await call('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]}).catch(()=>{})
  await evaluate('window.__touchBeforeReload = true')
- await call('Page.reload')
+ if(await evaluate('location.pathname')!=='/')await call('Page.navigate',{url:'http://127.0.0.1:4097/'})
+ else await call('Page.reload')
  await wait(`!window.__touchBeforeReload && document.readyState==='complete' && !!${row(sessions[0].title)}`)
  await evaluate(`(()=>{window.__touchEvents=[];for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','contextmenu','click'])document.addEventListener(type,e=>window.__touchEvents.push({type,button:e.button,pointerType:e.pointerType,x:e.clientX,y:e.clientY,target:e.target.closest('[data-component]')?.getAttribute('data-component'),title:e.target.closest('[data-component="home-session-row"]')?.textContent}),true)})()`)
  const p=await point(row(sessions[0].title))
@@ -80,6 +81,16 @@ try {
  await wait(`!!${row(sessions[0].title)}`)
  const remaining=await api('/session')
  if(!sessions.every(s=>remaining.some(r=>r.id===s.id)))throw Error('Undo did not preserve sessions')
+ for(const pinned of [true,false]) {
+  const p=await point(row(sessions[0].title))
+  await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:p.x+90,y:p.y}]})
+  for(const distance of [20,60,100,140])await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:p.x+90-distance,y:p.y}]})
+  await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+  await tap(`${row(sessions[0].title)}.closest('.home-session-item').querySelector('.home-session-actions button')`)
+  await wait(`!!${row(sessions[0].title)} && ${row(sessions[0].title)}.textContent.includes('📌') === ${pinned}`)
+  await call('Page.reload')
+  await wait(`!!${row(sessions[0].title)} && ${row(sessions[0].title)}.textContent.includes('📌') === ${pinned}`)
+ }
  await tap(`document.querySelector('.home-project-picker > summary')`)
  const project=`[...document.querySelectorAll('[data-component="home-project-row"]')].find(n=>n.textContent.includes('ui-folder-check-0909'))`
  await wait(`!!${project}`)
@@ -102,7 +113,7 @@ try {
  await screenshot('touch-project-undo-lyriq2')
  await tap(button('되돌리기',`document.querySelector('.home-undo-bar')`))
  await wait(`!!${project}`)
- const report={serial,hardware:'ZY22HZPLL8',apkSha256,sessions:sessions.map(s=>s.id),longPress:true,multiSelect:2,bulkUndo:true,swipeWithoutDialog:true,swipeUndo:true,serverSessionsPreserved:true,projectLongPress:true,projectBulkUndo:true,projectSwipeUndo:true,theme:await evaluate(`localStorage.getItem('opencode-color-scheme')`)}
+ const report={serial,hardware:'ZY22HZPLL8',apkSha256,sessions:sessions.map(s=>s.id),longPress:true,multiSelect:2,bulkUndo:true,swipeWithoutDialog:true,swipeUndo:true,pinUnpinPersisted:true,serverSessionsPreserved:true,projectLongPress:true,projectBulkUndo:true,projectSwipeUndo:true,theme:await evaluate(`localStorage.getItem('opencode-color-scheme')`)}
  await writeFile('D:/TinyAgent-work/tinyagent/evidence/touch-undo-lyriq2.json',JSON.stringify(report,null,2))
  console.log(JSON.stringify(report))
 } catch(error) {

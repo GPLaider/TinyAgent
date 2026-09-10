@@ -9,7 +9,7 @@ Lyriq2 ZY22HZPLL8: exact candidate installed as an update. Existing 100 listed s
 Actual opencode/big-pickle model response and completed bash tool calls passed (42.657 seconds); this does not verify OpenAI OAuth.
 Real WebView touch injection passed three consecutive rounds: long press, multi-select, bulk delete/undo, swipe delete/undo for sessions and projects; backend sessions preserved.
 Debug dnfast result-contract, already-installed no-op and timeout/actual process exit passed on this exact APK under app UID10151 / untrusted_app / Enforcing.
-Exact candidate screen-off and service lifecycle checks are running. Do not substitute older APK results.
+Exact candidate passed three consecutive 120-second screen-off rounds with real Fedora commands and restored sessions. Service stop removed backend processes and released the app CPU lock; restart reacquired it. The test now waits for backend health after asynchronous restart before creating sessions.
 
 ## Pacman functional builds on the preceding internal APK
 

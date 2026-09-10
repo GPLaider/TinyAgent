@@ -22,6 +22,9 @@ def main():
         for name, digest in proot['output_sha256'].items():
             assert hashlib.sha256(archive.read('lib/arm64-v8a/' + name)).hexdigest() == digest, name
         print('Packaged PRoot: 4 native component hashes verified')
+        for name in ('libdnfastlaunch.so', 'libfdgate.so'):
+            assert archive.read('lib/arm64-v8a/'+name) == (ROOT/'app/src/debug/jniLibs/arm64-v8a'/name).read_bytes(), name
+        print('Packaged debug native executables: source build bytes verified')
         sources = json.loads((ROOT / 'evidence/native-source-collection.json').read_text())
         notices = [notice for source in sources['sources'] for notice in source['notices']]
         notices.append(sources['additional_license'])
