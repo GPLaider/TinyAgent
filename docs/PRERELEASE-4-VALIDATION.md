@@ -1,5 +1,29 @@
 # Preview 4 validation ledger — in progress
 
+## Current state, 2026-09-10
+
+The records below cover several APKs and earlier attempts; they must not be
+combined into a three-round pass for the newest candidate.
+
+- Lyriq1 now has `TinyAgent-gui-prod-channel.apk`, SHA256
+  `5c9f27b0579e0566606f2017bb4d85f00925f3667e62f21004b48c3b54c150af`.
+  See GUI-PRODUCTION-CHANNEL.md for update preservation and visible evidence.
+- Patched PRoot parent-death and automatic stopped-runtime state recovery:
+  see PROOT-EXITKILL-VALIDATION.md and STARTUP-RECOVERY-VALIDATION.md.
+- Six Pacman builds: four APKs produced (AntennaPod, Termux, Organic Maps,
+  Tailscale); first three installed and shown. Tailscale launch remains pending.
+  Current VLC session `ses_f7602a040ffexZctrjigdpFcaW` is running under app
+  UID10223, with live make/cmake and advancing configure output. No VLC APK yet.
+  AppFlowy and current-source TinyAgent self-build remain incomplete; older
+  killed/queued attempts are not active work.
+- Screen-off testing has been reassigned by the owner to Lyriq2. Lyriq1's
+  latest readback confirmed the isolated shell exited 0, but the interrupted
+  observation does not establish a complete screen-off acceptance interval.
+- These shared-workspace builds do not establish dnfast/dnf5 comparative
+  performance. Fresh controlled provisioning measurements remain pending.
+
+## Earlier Preview 4 candidate evidence
+
 Candidate APK: `TinyAgent-0.1.0-preview.4-arm64.apk`.
 SHA256: `ee39113fad165b1e7b3a8548c2886739c143bcbdbb7f596e4aaf94b3cef7e606`.
 Version: code 3 / 0.1.0-preview.4.
@@ -44,6 +68,20 @@ Exact Preview4 media acceptance: actual opencode/big-pickle response in session 
   Root cause remains unproven. No SELinux or signature verification bypass was used. This is not evidence of a dnfast defect.
 
 ## Remaining release acceptance
+
+Pacman Tailscale build completed: pinned source ee64696ee308f5e72853b8e4af817b49fab860c1,
+make apk including Gradle test and assembleDebug exited 0 in 2283.265 seconds.
+Collected APK is 151005739 bytes, SHA256 ac68c5b0a1b5e9328c8934cc5a265ae47ebe72aec3edf1dc086241065443fd35.
+Evidence: evidence/pacman-tailscale-android-build-1789014833905597292/.
+This is the fourth of six APK builds; Tailscale installation/launch is still pending.
+VLC has acquired the build slot and is compiling native build tools. AppFlowy and
+the separate complete TinyAgent self-build are not counted as passed.
+
+Video UI: b05bc77d and 738a19ff retained controller-placement defects.
+708e8ffc moved video to a normal activity and fixed spatial placement, but its
+close/reopen test found a first-touch close failure while floating controls were
+present. An embedded Button/SeekBar implementation is now under test; no final
+three-round media acceptance is claimed. See evidence/lyriq1-video-activity-708e8ffc.json.
 
 Lyriq1 screen-off observation during third Luna development session ses_f7662662bffeLJbDM3NWSzN40L: approximately 144 seconds with mWakefulness=Dozing and TinyAgent:LocalRuntime partial wake lock held by app UID 10042. App/PRoot/backend processes survived. After wake, deviceLocked=1 and CDP Runtime.evaluate timed out; user credential unlock is required to compare model tool timestamps and final results. This is process/power evidence only, not a completed screen-off model-work or three-round acceptance claim. Evidence: evidence/lyriq1-luna-screenoff.json.
 

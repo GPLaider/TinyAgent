@@ -18,6 +18,7 @@
         android:supportsRtl="true">
         <activity android:name=".InstallerActivity" android:exported="false" />
         <activity android:name=".ArtifactActivity" android:exported="false" android:theme="@style/ArtifactPopover" />
+        <activity android:name=".VideoPreviewActivity" android:exported="false" />
         <provider android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.artifacts" android:exported="false"
             android:grantUriPermissions="true">

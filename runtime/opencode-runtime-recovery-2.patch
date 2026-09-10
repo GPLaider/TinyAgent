@@ -1,0 +1,300 @@
+diff --git a/packages/opencode/script/build.ts b/packages/opencode/script/build.ts
+index ce45f77..eb7f659 100755
+--- a/packages/opencode/script/build.ts
++++ b/packages/opencode/script/build.ts
+@@ -19,6 +19,7 @@ import pkg from "../package.json"
+ const singleFlag = process.argv.includes("--single")
+ const baselineFlag = process.argv.includes("--baseline")
+ const skipInstall = process.argv.includes("--skip-install")
++const targetFlag = process.argv.find((arg) => arg.startsWith("--target="))?.slice("--target=".length)
+ const sourcemapsFlag = process.argv.includes("--sourcemaps")
+ const plugin = createSolidTransformPlugin()
+ const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
+@@ -134,6 +135,15 @@ const targets = singleFlag
+     })
+   : allTargets
+ 
++function targetName(item: (typeof allTargets)[number]) {
++  return [pkg.name, item.os === "win32" ? "windows" : item.os, item.arch,
++    item.avx2 === false ? "baseline" : undefined, item.abi].filter(Boolean).join("-")
++}
++const selectedTargets = targetFlag ? targets.filter((item) => targetName(item) === targetFlag) : targets
++if (!selectedTargets.length) throw new Error(`No build target matches ${targetFlag}`)
++if (process.env.OPENCODE_COMPILE_EXECUTABLE && selectedTargets.length !== 1)
++  throw new Error("A compile executable requires exactly one target")
++
+ await $`rm -rf dist`
+ 
+ const binaries: Record<string, string> = {}
+@@ -142,17 +152,8 @@ if (!skipInstall) {
+   await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
+   await $`bun install --os="*" --cpu="*" @ff-labs/fff-bun@${pkg.dependencies["@ff-labs/fff-bun"]}`
+ }
+-for (const item of targets) {
+-  const name = [
+-    pkg.name,
+-    // changing to win32 flags npm for some reason
+-    item.os === "win32" ? "windows" : item.os,
+-    item.arch,
+-    item.avx2 === false ? "baseline" : undefined,
+-    item.abi === undefined ? undefined : item.abi,
+-  ]
+-    .filter(Boolean)
+-    .join("-")
++for (const item of selectedTargets) {
++  const name = targetName(item)
+   console.log(`building ${name}`)
+   await $`mkdir -p dist/${name}/bin`
+ 
+@@ -175,6 +176,7 @@ for (const item of targets) {
+       autoloadTsconfig: true,
+       autoloadPackageJson: true,
+       target: name.replace(pkg.name, "bun") as any,
++      executablePath: process.env.OPENCODE_COMPILE_EXECUTABLE,
+       outfile: `dist/${name}/bin/opencode`,
+       execArgv: [`--user-agent=opencode/${Script.version}`, "--use-system-ca", "--"],
+       windows: {},
+diff --git a/packages/opencode/src/cli/cmd/serve.ts b/packages/opencode/src/cli/cmd/serve.ts
+index c0f62b3..d98b383 100644
+--- a/packages/opencode/src/cli/cmd/serve.ts
++++ b/packages/opencode/src/cli/cmd/serve.ts
+@@ -16,6 +16,13 @@ export const ServeCommand = effectCmd({
+       console.log("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
+     }
+     const opts = yield* resolveNetworkOptions(args)
++    const recoverPrevious = process.env.TINYAGENT_PREVIOUS_RUNTIME_STOPPED === "1"
++    // Consume the native startup signal; model-launched child servers must not inherit it.
++    delete process.env.TINYAGENT_PREVIOUS_RUNTIME_STOPPED
++    if (recoverPrevious) {
++      const { recoverInterruptedBeforeServe } = yield* Effect.promise(() => import("../../session/startup-recovery"))
++      yield* recoverInterruptedBeforeServe
++    }
+     const server = yield* Effect.promise(() => Server.listen(opts))
+     console.log(`opencode server listening on http://${server.hostname}:${server.port}`)
+ 
+diff --git a/packages/opencode/src/session/prompt.ts b/packages/opencode/src/session/prompt.ts
+index 0f85d44..177f04a 100644
+--- a/packages/opencode/src/session/prompt.ts
++++ b/packages/opencode/src/session/prompt.ts
+@@ -151,7 +151,41 @@ const layer = Layer.effect(
+ 
+     const cancel = Effect.fn("SessionPrompt.cancel")(function* (sessionID: SessionID) {
+       yield* Effect.logInfo("cancel", { "session.id": sessionID })
++      // Capture IDs before cancelling so a later turn cannot be swept into orphan cleanup.
++      // ponytail: scan retained history on explicit cancellation; index pending parts if this becomes costly.
++      const pending = (yield* sessions.messages({ sessionID }).pipe(Effect.orDie))
++        .flatMap((message) => message.parts)
++        .filter((part) => part.type === "tool" && (part.state.status === "running" || part.state.status === "pending"))
+       yield* state.cancel(sessionID)
++      const interrupted = new Set<MessageID>()
++      for (const captured of pending) {
++        const part = yield* sessions.getPart({ sessionID, messageID: captured.messageID, partID: captured.id })
++        if (part?.type !== "tool" || (part.state.status !== "running" && part.state.status !== "pending")) continue
++        const end = Date.now()
++        yield* sessions.updatePart({
++          ...part,
++          state: {
++            ...part.state,
++            status: "error",
++            error: "Tool execution aborted",
++            metadata: { ...("metadata" in part.state ? part.state.metadata : {}), interrupted: true },
++            time: { start: "time" in part.state ? part.state.time.start : end, end },
++          },
++        })
++        interrupted.add(part.messageID)
++      }
++      for (const messageID of interrupted) {
++        const message = yield* MessageV2.get({ sessionID, messageID }).pipe(
++          Effect.provideService(Database.Service, database),
++          Effect.orDie,
++        )
++        if (message.info.role !== "assistant" || message.info.time.completed) continue
++        yield* sessions.updateMessage({
++          ...message.info,
++          time: { ...message.info.time, completed: Date.now() },
++          error: message.info.error ?? { name: "MessageAbortedError", data: { message: "Tool execution aborted" } },
++        })
++      }
+     })
+ 
+     const resolvePromptParts = Effect.fn("SessionPrompt.resolvePromptParts")(function* (template: string) {
+@@ -524,6 +558,7 @@ const layer = Layer.effect(
+           const args = Shell.args(sh, input.command, cwd)
+           let output = ""
+           let aborted = false
++          let exitCode: number | undefined
+ 
+           const finish = Effect.uninterruptible(
+             Effect.gen(function* () {
+@@ -541,7 +576,7 @@ const layer = Layer.effect(
+                   time: { ...part.state.time, end: completed },
+                   input: part.state.input,
+                   title: "",
+-                  metadata: { output },
++                  metadata: { output, exit: exitCode, ...(aborted ? { interrupted: true } : {}) },
+                   output,
+                 }
+                 yield* sessions.updatePart(part)
+@@ -573,7 +608,7 @@ const layer = Layer.effect(
+                   }
+                 }),
+               )
+-              yield* handle.exitCode
++              exitCode = yield* handle.exitCode
+             }).pipe(Effect.scoped, Effect.orDie),
+           ).pipe(Effect.exit)
+ 
+diff --git a/packages/opencode/test/session/prompt.test.ts b/packages/opencode/test/session/prompt.test.ts
+index da6e0f8..9aa0bd8 100644
+--- a/packages/opencode/test/session/prompt.test.ts
++++ b/packages/opencode/test/session/prompt.test.ts
+@@ -500,6 +500,93 @@ noLLMServer.instance(
+   { config: cfg },
+ )
+ 
++it.instance("startup recovery finalizes abandoned work and preserves completed history", () =>
++  Effect.gen(function* () {
++    const { recoverInterruptedBeforeServe } = yield* Effect.promise(() => import("../../src/session/startup-recovery"))
++    yield* useServerConfig(providerCfg)
++    const sessions = yield* Session.Service
++    const chat = yield* sessions.create({ title: "Startup recovery" })
++    const seeded = yield* seed(chat.id, { finish: "stop" })
++    yield* sessions.updateMessage({ ...seeded.assistant, time: { created: 1 } })
++    const completed = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "done", tool: "bash",
++      state: { status: "completed", input: {}, title: "done", metadata: {}, output: "keep", time: { start: 1, end: 2 } },
++    })
++    const running = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "running", tool: "bash",
++      state: { status: "running", input: { command: "make" }, metadata: { output: "partial" }, time: { start: 1 } },
++    })
++    const pending = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "pending", tool: "bash",
++      state: { status: "pending", input: {}, raw: "" },
++    })
++    const other = yield* sessions.create({ title: "Completed history" })
++    yield* seed(other.id, { finish: "stop" })
++    const preserved = yield* sessions.messages({ sessionID: other.id })
++    const thinking = yield* sessions.create({ title: "Abandoned before tool" })
++    const unfinished = yield* seed(thinking.id, { finish: "stop" })
++    yield* sessions.updateMessage({ ...unfinished.assistant, finish: undefined, time: { created: 1 } })
++    yield* recoverInterruptedBeforeServe
++    for (const part of [running, pending]) {
++      const saved = yield* sessions.getPart({ sessionID: chat.id, messageID: part.messageID, partID: part.id })
++      expect(saved?.type === "tool" && saved.state.status).toBe("error")
++      if (saved?.type !== "tool" || saved.state.status !== "error") throw new Error("Not recovered")
++      expect(saved.state.metadata?.interrupted).toBe(true)
++      expect(saved.state.input).toEqual(part.state.input)
++      if (part.id === running.id) expect(saved.state.metadata?.output).toBe("partial")
++    }
++    expect(yield* sessions.getPart({ sessionID: chat.id, messageID: completed.messageID, partID: completed.id })).toEqual(completed)
++    const first = yield* sessions.messages({ sessionID: chat.id })
++    const assistant = first.find(m => m.info.id === seeded.assistant.id)?.info
++    expect(assistant?.role === "assistant" && assistant.error?.name).toBe("MessageAbortedError")
++    expect(assistant?.role === "assistant" && assistant.time.completed).toBeTruthy()
++    expect(yield* sessions.messages({ sessionID: other.id })).toEqual(preserved)
++    const stopped = (yield* sessions.messages({ sessionID: thinking.id })).find(m => m.info.id === unfinished.assistant.id)?.info
++    expect(stopped?.role === "assistant" && stopped.error?.name).toBe("MessageAbortedError")
++    yield* recoverInterruptedBeforeServe
++    expect(yield* sessions.messages({ sessionID: chat.id })).toEqual(first)
++  }),
++)
++
++it.instance("cancel marks persisted orphan tools interrupted without a live runner", () =>
++  Effect.gen(function* () {
++    yield* useServerConfig(providerCfg)
++    const prompt = yield* SessionPrompt.Service
++    const sessions = yield* Session.Service
++    const chat = yield* sessions.create({ title: "Orphan recovery" })
++    const seeded = yield* seed(chat.id, { finish: "stop" })
++    yield* sessions.updateMessage({ ...seeded.assistant, time: { created: 1 } })
++    const completed = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "finished-shell", tool: "bash",
++      state: { status: "completed", input: { command: "pwd" }, title: "pwd",
++        metadata: {}, output: "/workspace", time: { start: 1, end: 2 } },
++    })
++    const part = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "orphan-shell", tool: "bash",
++      state: { status: "running", input: { command: "make" }, title: "make",
++        metadata: { output: "retained build output" }, time: { start: 1 } },
++    })
++    yield* prompt.cancel(chat.id)
++    const saved = yield* sessions.getPart({ sessionID: chat.id, messageID: part.messageID, partID: part.id })
++    expect(saved?.type).toBe("tool")
++    if (saved?.type !== "tool") throw new Error("Tool part missing")
++    expect(saved.state.status).toBe("error")
++    expect(saved.state.input).toEqual({ command: "make" })
++    if (saved.state.status !== "error") throw new Error("Orphan was not interrupted")
++    expect(saved.state.metadata?.interrupted).toBe(true)
++    expect(saved.state.metadata?.output).toBe("retained build output")
++    expect(yield* sessions.getPart({ sessionID: chat.id, messageID: completed.messageID, partID: completed.id })).toEqual(completed)
++    const message = (yield* sessions.messages({ sessionID: chat.id })).find(m => m.info.id === seeded.assistant.id)
++    expect(message?.info.role === "assistant" && message.info.time.completed).toBeTruthy()
++    expect(message?.info.role === "assistant" && message.info.error?.name).toBe("MessageAbortedError")
++  }),
++)
++
+ it.instance("loop exits without an LLM request for interrupted orphan tool calls", () =>
+   Effect.gen(function* () {
+     const { llm } = yield* useServerConfig(providerCfg)
+@@ -1561,6 +1648,17 @@ it.instance("shell rejects with BusyError when loop running", () =>
+   }),
+ )
+ 
++noLLMServer.instance(
++  "shell records the actual nonzero process exit code",
++  () => Effect.gen(function* () {
++    const { prompt, chat } = yield* boot()
++    const result = yield* prompt.shell({ sessionID: chat.id, agent: "build", command: "exit 7" })
++    const tool = completedTool(result.parts)
++    expect(tool?.state.metadata.exit).toBe(7)
++  }),
++  { config: cfg },
++)
++
+ unixNoLLMServer(
+   "shell captures stdout and stderr in completed tool output",
+   () =>
+--- /dev/null
++++ b/packages/opencode/src/session/startup-recovery.ts
+@@ -0,0 +1,35 @@
++import { Effect } from "effect"
++import { sql } from "drizzle-orm"
++import { Database } from "@opencode-ai/core/database/database"
++
++// Called only before serve listens, after TinyAgent has stopped the previous
++// owned process tree. Never invoke against a live shared database.
++export const recoverInterruptedBeforeServe = Effect.gen(function* () {
++  const { db } = yield* Database.Service
++  const now = Date.now()
++  // No HTTP clients exist yet. One transaction keeps messages and tools consistent.
++  yield* db.transaction((tx) => Effect.gen(function* () {
++    yield* tx.run(sql`UPDATE message SET
++      data = json_set(data, '$.time.completed', ${now}, '$.error',
++        json(COALESCE(json_extract(data, '$.error'),
++          json_object('name', 'MessageAbortedError', 'data',
++            json_object('message', 'Previous runtime stopped before completion'))))),
++      time_updated = ${now}
++      WHERE json_extract(data, '$.role') = 'assistant'
++        AND json_extract(data, '$.time.completed') IS NULL
++        AND (json_extract(data, '$.finish') IS NULL OR id IN (
++          SELECT message_id FROM part WHERE json_extract(data, '$.type') = 'tool'
++            AND json_extract(data, '$.state.status') IN ('pending', 'running')))`)
++    yield* tx.run(sql`UPDATE part SET
++      data = json_set(data,
++        '$.state.status', 'error',
++        '$.state.error', 'Previous runtime stopped before completion',
++        '$.state.metadata', json_set(COALESCE(json_extract(data, '$.state.metadata'), '{}'),
++          '$.interrupted', json('true'), '$.recovery', 'runtime-restarted'),
++        '$.state.time.start', COALESCE(json_extract(data, '$.state.time.start'), ${now}),
++        '$.state.time.end', ${now}),
++      time_updated = ${now}
++      WHERE json_extract(data, '$.type') = 'tool'
++        AND json_extract(data, '$.state.status') IN ('pending', 'running')`)
++  })).pipe(Effect.orDie)
++})

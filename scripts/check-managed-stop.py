@@ -23,7 +23,7 @@ def main():
     out.mkdir(exist_ok=False)
     pid = adb('shell', 'cat', '/data/local/tinyagent/run/backend.state').decode().split()[0]
     assert pid.isdecimal()
-    assert adb('shell', 'readlink', '/proc/' + pid + '/root').decode().strip() == '/data/local/tinyagent/runtime/0.1.0/rootfs'
+    assert adb('shell', 'readlink', '/proc/' + pid + '/root').decode().strip() == '/data/local/tinyagent/runtime/0.1.2/rootfs'
     adb('shell', 'input', 'keyevent', '224')
     assert 'deviceLocked=0' in adb('shell', 'dumpsys', 'trust').decode()
     adb('shell', 'wm', 'dismiss-keyguard')

@@ -1,0 +1,12 @@
+TinyAgent 폰 자체 빌드 사전 확인입니다. 실제 bash 도구로 읽기 전용 검사만 실행하세요.
+현재 작업 디렉터리, uname -m, /etc/fedora-release를 보고하세요.
+아래 경로는 존재 여부만 확인하세요. signing 파일의 내용이나 개인 키, OAuth, 환경 변수 전체를 읽거나 출력하지 마세요.
+/root/.tinyagent/signing/development.properties
+/root/.tinyagent/signing/development.keystore
+/opt/tinyagent-build/jdk-17.0.20.1+1/bin/java
+/opt/tinyagent-build/android-sdk
+/opt/tinyagent-build/sdk-inputs/arm64.tar.xz.unpacked/android-sdk/build-tools/37.0.0/aapt2
+/workspace/tinyagent
+/workspace/opencode-v1.18.29
+존재하는 위 Java와 aapt2 실행 파일의 버전을 실행하여 확인하세요.
+기존 작업이나 설정은 변경하지 말고 ADB나 root를 요청하지 마세요. 결과를 짧게 보고하세요.

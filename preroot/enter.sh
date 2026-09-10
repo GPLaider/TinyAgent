@@ -14,7 +14,7 @@ if grep -q ' shared:' /proc/self/mountinfo; then
 fi
 mount -t proc proc "$root/proc"
 mount --bind /dev "$root/dev"
-if test "$root" = /data/local/tinyagent/runtime/0.1.0/rootfs; then
+if test "$root" = /data/local/tinyagent/runtime/0.1.2/rootfs; then
   base=/data/local/tinyagent
   for directory in data workspaces shared; do
     test -d "$base/$directory"
@@ -33,7 +33,7 @@ if test "$1" = /usr/local/bin/opencode && test "${2:-}" = serve; then
   export OPENCODE_SERVER_PASSWORD="$password"
   # env -i is retained for ordinary commands; only the server receives this secret.
   exec chroot "$root" /usr/bin/env -i -C "$cwd" HOME=/root PATH=/usr/local/bin:/usr/bin TMPDIR=/tmp \
-    OPENCODE_SERVER_PASSWORD="$password" TINYAGENT_EXECUTION_PROVIDER=fedora-preroot \
+    OPENCODE_SERVER_PASSWORD="$password" OPENCODE_DISABLE_CHANNEL_DB=1 TINYAGENT_EXECUTION_PROVIDER=fedora-preroot \
     TINYAGENT_PERMISSION=unrestricted-root OPENCODE_CONFIG_CONTENT='{"permission":"allow"}' "$@"
 fi
 exec chroot "$root" /usr/bin/env -i -C "$cwd" \

@@ -14,7 +14,9 @@ device = sys.argv[2] if len(sys.argv) > 2 else 'lyriq1'
 assert device in ('lyriq1', 'pacman')
 if device == 'pacman': TARGET = '000501423003390'
 hardware = 'ZY22J58799' if device == 'lyriq1' else TARGET
-PACKAGE = 'io.github.gplaider.tinyagent.debug'
+variant = sys.argv[3] if len(sys.argv) > 3 else 'debug'
+assert variant in ('debug', 'release')
+PACKAGE = 'io.github.gplaider.tinyagent' + ('.debug' if variant == 'debug' else '')
 version = sys.argv[1] if len(sys.argv) > 1 else 'v16'
 assert re.fullmatch(r'v\d+', version)
 def adb(*args):
@@ -25,7 +27,14 @@ assert adb('shell', 'getenforce').strip() == 'Enforcing'
 deadline = time.monotonic() + 600
 last = None
 while time.monotonic() < deadline:
-    dumped = adb('shell', 'uiautomator', 'dump', '/data/local/tmp/tinyagent-current-ui.xml')
+    try:
+        dumped = adb('shell', 'uiautomator', 'dump', '/data/local/tmp/tinyagent-current-ui.xml')
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 137:
+            raise
+        print('UI observer was killed (137); retrying observation, not preparation', flush=True)
+        time.sleep(10)
+        continue
     if 'UI hierchary dumped to:' not in dumped:
         print('UI still changing; waiting for a fresh snapshot', flush=True)
         time.sleep(10)
@@ -41,11 +50,12 @@ while time.monotonic() < deadline:
         app = next(r for r in rows if r[3] == PACKAGE)
         processes = [r for r in rows if r[0] == app[0]]
         apk = adb('shell', 'pm', 'path', PACKAGE).strip().removeprefix('package:')
-        report = dict(serial=hardware, status=status, app_uid=int(app[0]), processes=processes,
+        report = dict(serial=hardware, package=PACKAGE, status=status, app_uid=int(app[0]), processes=processes,
                       apk_sha256=adb('shell', 'sha256sum', apk).split()[0],
                       fingerprint=adb('shell', 'getprop', 'ro.build.fingerprint').strip(),
                       scope='UI preparation and app-UID process observation; no app ADB pairing or root')
-        (ROOT/f'evidence/{device}-{version}-ui-setup.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        suffix = '-release' if variant == 'release' else ''
+        (ROOT/f'evidence/{device}-{version}{suffix}-ui-setup.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
         assert status.startswith(('환경 준비 완료', 'Fedora 설치 완료.')), status
         assert int(app[0]) >= 10000
         assert {'libproot.so', 'opencode'} <= {r[3] for r in processes}

@@ -112,13 +112,19 @@ passed the unchanged three-test suite and Python compilation. Their saved
 transcripts and independently retrieved files are checked by
 `scripts/check-luna-development-evidence.py`.
 
-The third session, `ses_f7662662bffeLJbDM3NWSzN40L`, is **not counted as a
-pass**. A measured 144.179-second Dozing interval retained the app UID's
-partial wake lock and backend process. Credential lock after wake prevents
-the current WebView observer from retrieving the final model result; user
-unlock and comparison of tool timestamps with the interval are still needed.
-See `evidence/lyriq1-luna-screenoff.json`. Process survival alone does not prove
-that model work completed during screen-off or that long Doze recovery works.
+The third session, `ses_f7662662bffeLJbDM3NWSzN40L`, also passed after the user
+unlocked the device and the final transcript and files could be retrieved.
+This completes three consecutive model-led Python repair rounds on d5811e1a,
+not the seven-journey release gate. Initial tests failed with exit 1; the
+unchanged three-test suite and compilation passed after the source change.
+
+During its measured 144.179-second Dozing interval, 13 completed tool calls
+fell within the interval with a five-second margin, including successful bash
+commands. Readback measured phone clock offset -1158 ms from the host; the
+comparison assumes no intervening clock step. The partial wake lock and
+backend survived. See `evidence/lyriq1-luna-screenoff.json` and
+`scripts/check-luna-screenoff-evidence.py`. This is short screen-off work
+evidence, not long Doze or network-transition acceptance.
 
 The model-generated JSON path also opened the native action menu and readable
 JSON preview on this candidate. This is one observed artifact round, not the

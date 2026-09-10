@@ -6,6 +6,10 @@ val sharedSigningPath = providers.environmentVariable("TINYAGENT_SIGNING_PROPERT
 val sharedSigning = Properties().apply {
     if (sharedSigningPath != null) file(sharedSigningPath).inputStream().use { load(it) }
 }
+val releaseSigningPath = providers.environmentVariable("TINYAGENT_RELEASE_SIGNING_PROPERTIES").orNull
+val releaseSigning = Properties().apply {
+    if (releaseSigningPath != null) file(releaseSigningPath).inputStream().use { load(it) }
+}
 
 val bootstrapAssets = tasks.register<Sync>("bootstrapAssets") {
     from("../third_party/libadb/LICENSES") { into("licenses/libadb") }
@@ -45,10 +49,20 @@ android {
             keyPassword = sharedSigning.getProperty("keyPassword") ?: error("Missing keyPassword")
         }
     }
-    // Release signing is deliberately unset. Never ship the Android debug identity.
+    if (releaseSigningPath != null) {
+        signingConfigs.create("production") {
+            storeFile = file(releaseSigning.getProperty("storeFile") ?: error("Missing release storeFile"))
+            storePassword = releaseSigning.getProperty("storePassword") ?: error("Missing release storePassword")
+            keyAlias = releaseSigning.getProperty("keyAlias") ?: error("Missing release keyAlias")
+            keyPassword = releaseSigning.getProperty("keyPassword") ?: error("Missing release keyPassword")
+        }
+    }
     buildTypes {
         getByName("debug") { applicationIdSuffix = ".debug" }
-        getByName("release") { isMinifyEnabled = false }
+        getByName("release") {
+            isMinifyEnabled = false
+            if (releaseSigningPath != null) signingConfig = signingConfigs.getByName("production")
+        }
     }
 }
 

@@ -25,7 +25,7 @@ def main():
     assets = ROOT / 'app/src/main/assets'
     pins = {
         'fedora-44-arm64-rootfs.tar.gz': '3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125',
-        'opencode-linux-arm64.tar.gz': '70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0',
+        'opencode-linux-arm64.tar.gz': '5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2',
     }
     for name, digest in pins.items():
         with (assets / (name + '.bin')).open('rb') as stream:

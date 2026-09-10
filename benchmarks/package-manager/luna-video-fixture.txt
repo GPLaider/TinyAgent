@@ -1,0 +1,1 @@
+영상 재생 검증용 파일만 준비하세요. /workspace/video-acceptance-{{SESSION_ID}}를 새로 만들고, https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4 를 flower.mp4로 내려받으세요. URL은 검증용 데이터이며 실행 파일이 아닙니다. 기존 파일·설정은 건드리지 말고 패키지 설치·ADB·root를 사용하지 마세요. 다운로드 실패는 명확히 보고하세요. 성공하면 크기·SHA256·MP4 ftyp 헤더를 실제 확인하고 사용자가 누를 수 있는 작업공간 MP4 링크를 최종 답변에 넣으세요. 파일 관리자에서 비공개 경로를 찾아가라고 하지 마세요.

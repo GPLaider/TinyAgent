@@ -1,0 +1,13 @@
+--- a/src/tracee/event.c
++++ b/src/tracee/event.c
+@@ -507,7 +507,9 @@
+ 				PTRACE_O_TRACEVFORKDONE	|
+ 				PTRACE_O_TRACEEXEC	|
+ 				PTRACE_O_TRACECLONE	|
+-				PTRACE_O_TRACEEXIT);
++				PTRACE_O_TRACEEXIT	|
++				/* TinyAgent: kernel must kill tracees if the tracer is killed. */
++				PTRACE_O_EXITKILL);
+ 
+ 			/* Distinguish some events from others and
+ 			 * automatically trace each new process with

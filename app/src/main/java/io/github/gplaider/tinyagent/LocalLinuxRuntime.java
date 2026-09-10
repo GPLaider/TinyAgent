@@ -17,6 +17,7 @@ final class LocalLinuxRuntime {
     private volatile Process active;
     private final Map<Process, File> pids = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean cancelled;
+    private boolean previousRuntimeStopped;
     private BiConsumer<String, Integer> measured = (label, percent) -> {};
     LocalLinuxRuntime(Context context) {
         this.context = context.getApplicationContext();
@@ -29,6 +30,8 @@ final class LocalLinuxRuntime {
         this.measured = reporter;
         for (File dir : List.of(base, rootfs, workspace, home, new File(base, "shared"), new File(rootfs, "shared"), new File(rootfs, ".l2s"), new File(base, "tmp")))
             Files.createDirectories(dir.toPath());
+        recoverPreviousProcesses(base);
+        previousRuntimeStopped = true;
         try (var input = context.getAssets().open("linux-launch.sh")) {
             Files.copy(input, new File(base, "launch.sh").toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
@@ -36,12 +39,25 @@ final class LocalLinuxRuntime {
         if (!ready.isFile()) {
             progress.accept("앱 내부 Fedora 파일 준비 중…");
             unpack("fedora-44-arm64-rootfs.tar.gz.bin", "3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125", rootfs, "Fedora", 5638);
-            File bin = new File(rootfs, "usr/local/bin");
-            Files.createDirectories(bin.toPath());
-            unpack("opencode-linux-arm64.tar.gz.bin", "70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0", bin, "OpenCode", 1);
             for (String path : List.of("workspace", "shared", "root", "proc", "dev", "tmp"))
                 Files.createDirectories(new File(rootfs, path).toPath());
-            Files.write(ready.toPath(), "fedora=44\nopencode=1.18.29\n".getBytes(StandardCharsets.UTF_8));
+            Files.write(ready.toPath(), "fedora=44\n".getBytes(StandardCharsets.UTF_8));
+        }
+        File bin = new File(rootfs, "usr/local/bin");
+        Files.createDirectories(bin.toPath());
+        String backendHash = "c92991c178f77ec717f64def66c01a6bcb93ea834be1c5a50b7be0649fb9f20e";
+        Path executable = new File(bin, "opencode").toPath();
+        progress.accept("OpenCode 실행 파일 확인 중…");
+        if (!RuntimeExecutable.matches(executable, backendHash)) {
+            Path staging = Files.createTempDirectory(bin.toPath(), ".opencode-update-");
+            try {
+                unpack("opencode-linux-arm64.tar.gz.bin", "5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2", staging.toFile(), "OpenCode 업데이트", 1);
+                if (cancelled) throw new InterruptedException("환경 준비 중단");
+                RuntimeExecutable.replace(staging.resolve("opencode"), executable, backendHash);
+            } finally {
+                Files.deleteIfExists(staging.resolve("opencode"));
+                Files.deleteIfExists(staging);
+            }
         }
         refreshDns();
         // The minimal Fedora image lacks development tools. Also repair earlier installs.
@@ -92,7 +108,7 @@ final class LocalLinuxRuntime {
         String measured = "# TinyAgent measured environment\n\nMeasured: " + java.time.Instant.now()
                 + "\nAndroid device: " + android.os.Build.DEVICE + "\nAndroid version: " + android.os.Build.VERSION.RELEASE
                 + "\nDevice serial: unavailable to ordinary app; do not infer it.\nAndroid UID: " + android.os.Process.myUid()
-                + "\nExecution provider: fedora-local\nRuntime: Termux PRoot 5.1.107.92, Fedora 44, OpenCode 1.18.29"
+                + "\nExecution provider: fedora-local\nRuntime: TinyAgent-patched PRoot 5.1.107.92-tinyagent.1, Fedora 44, OpenCode 1.18.29-tinyagent.2"
                 + "\nPermission: app-sandbox. Guest uid=0 is emulated and is not Android root."
                 + "\nFedora tool: OpenCode bash tool; commands run directly in the guest. Try `cat /etc/fedora-release`, `id`, `pwd`."
                 + "\nAndroid diagnostic tool: read /root/.tinyagent/ANDROID_TOOL.md for this runtime's actual connection. It exposes read-only inspection, not arbitrary shell commands."
@@ -129,8 +145,12 @@ final class LocalLinuxRuntime {
         return new String(Files.readAllBytes(new File(context.getNoBackupFilesDir(), "stock-backend-auth").toPath()), StandardCharsets.US_ASCII);
     }
     Process startBackend() throws Exception {
+        if (!previousRuntimeStopped) throw new IOException("이전 실행환경 종료 확인이 필요합니다.");
         ProcessBuilder builder = guest("/workspace", "/usr/local/bin/opencode", "serve", "--hostname", "127.0.0.1", "--port", "4097");
+        builder.environment().put("TINYAGENT_PREVIOUS_RUNTIME_STOPPED", "1");
         builder.environment().put("OPENCODE_SERVER_PASSWORD", password());
+        // Keep the existing production database when the bundled build channel changes.
+        builder.environment().put("OPENCODE_DISABLE_CHANNEL_DB", "1");
         builder.environment().put("OPENCODE_CONFIG_CONTENT", "{\"instructions\":[\"/root/.tinyagent/AGENTS.md\",\"/root/.tinyagent/STOCK.md\",\"/root/.tinyagent/ADB.md\",\"/root/.tinyagent/ROOT.md\",\"/root/.tinyagent/TINYAGENT_ENVIRONMENT.md\",\"/root/.tinyagent/ANDROID_TOOL.md\"]}");
         File log = new File(base, "backend.log");
         if (log.length() > 1024 * 1024) Files.move(log.toPath(), new File(base, "backend.previous.log").toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -241,13 +261,57 @@ final class LocalLinuxRuntime {
         File file = pids.get(process);
         if (file == null) return;
         try {
-            int pid = Integer.parseInt(new String(Files.readAllBytes(file.toPath()), StandardCharsets.US_ASCII).trim());
+            String record = readText(file.toPath());
+            int pid = Integer.parseInt(record.split("\\R", 2)[0]);
             if (pid <= 1 || android.system.Os.stat("/proc/" + pid).st_uid != android.os.Process.myUid())
                 throw new IOException("프로세스 UID 확인 실패");
+            if (!sameProcess(pid, record)) throw new IOException("프로세스 시작 정보 불일치");
             // PRoot ignores TERM. QUIT invokes its kill_all_tracees handler; KILL alone orphans guests.
             android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT);
         } catch (Exception error) { android.util.Log.e("TinyAgentRuntime", "Owned process stop failed", error); }
     }
-    void forget(Process process) { File file = pids.remove(process); if (file != null) file.delete(); }
+    void forget(Process process) {
+        if (process.isAlive()) return;
+        File file = pids.remove(process); if (file != null) file.delete();
+    }
+    private static String readText(Path file) throws IOException {
+        return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+    }
+    private boolean sameProcess(int pid, String record) throws IOException {
+        Path stat = Paths.get("/proc", Integer.toString(pid), "stat");
+        if (!Files.exists(stat)) return false;
+        try {
+            String current = readText(stat);
+            if (current.substring(current.lastIndexOf(") ") + 2).startsWith("Z ")) return false;
+            return RuntimeProcessIdentity.matches(record, readText(Paths.get("/proc/sys/kernel/random/boot_id")), current);
+        } catch (java.nio.file.NoSuchFileException gone) { return false; }
+    }
+    void recoverPreviousProcesses(File directory) throws Exception {
+        File[] records = directory.listFiles((dir, name) -> name.startsWith("process-") && name.endsWith(".pid"));
+        if (records == null) return;
+        for (File file : records) {
+            String record = readText(file.toPath()).trim();
+            if (record.isEmpty()) { Files.delete(file.toPath()); continue; }
+            int pid = Integer.parseInt(record.split("\\R", 2)[0]);
+            if (pid <= 1) throw new IOException("이전 실행 PID 오류");
+            if (Files.exists(Paths.get("/proc", Integer.toString(pid)))) {
+                if (android.system.Os.stat("/proc/" + pid).st_uid != android.os.Process.myUid()) {
+                    Files.delete(file.toPath()); // The PID now belongs to another UID; never signal it.
+                    continue;
+                }
+                if (record.split("\\R", 3).length != 3)
+                    throw new IOException("이전 버전의 실행이 남아 있습니다. 종료 후 다시 시도하세요.");
+                if (sameProcess(pid, record)) {
+                    if (android.system.Os.stat("/proc/" + pid).st_uid != android.os.Process.myUid())
+                        throw new IOException("이전 실행 UID 불일치");
+                    android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT);
+                    long deadline = android.os.SystemClock.elapsedRealtime() + 5000;
+                    while (sameProcess(pid, record) && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(50);
+                    if (sameProcess(pid, record)) throw new IOException("이전 실행 종료를 확인하지 못했습니다.");
+                }
+            }
+            Files.delete(file.toPath());
+        }
+    }
     private static String hex(byte[] bytes) { StringBuilder result = new StringBuilder(); for (byte b : bytes) result.append(String.format("%02x", b & 255)); return result.toString(); }
 }

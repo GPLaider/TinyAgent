@@ -2,7 +2,7 @@
 set -eu
 test "$(getprop ro.serialno)" = ZY22HZPLL8
 test "$(id -u)" = 0
-root=/data/local/tinyagent/runtime/0.1.0/rootfs
+root=/data/local/tinyagent/runtime/0.1.2/rootfs
 manager=/data/local/tmp/tinyagent-preroot-0.1.0/backend.sh
 case "${1:-}" in
   switch)

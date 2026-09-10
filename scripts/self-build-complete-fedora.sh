@@ -13,6 +13,9 @@ git rev-parse HEAD
 git diff --stat
 python3 scripts/collect_upstream.py
 python3 scripts/prepare-fedora.py artifacts
+# Reuse the installed, hash-verified patched runtime as a prebuilt dependency.
+# The APK/GUI are compiled below; this does not claim a backend source rebuild.
+python3 scripts/package-opencode-runtime.py /usr/local/bin/opencode artifacts/opencode-linux-arm64.tar.gz
 python3 scripts/stage-runtime-assets.py artifacts
 python3 scripts/stage-proot.py
 python3 scripts/collect-proot-sources.py
@@ -47,10 +50,12 @@ cd "$upstream"
 mkdir -p node_modules
 bun install --frozen-lockfile --backend copyfile --cache-dir "$tools/bun-copy-clean-cache" --filter '@opencode-ai/app' --ignore-scripts
 cd packages/app
-node node_modules/vite/bin/vite.js build
+OPENCODE_CHANNEL=prod node node_modules/vite/bin/vite.js build
 cd "$source"
 python3 scripts/stage-web-ui.py "$upstream"
 /usr/bin/bash scripts/build-android-fedora.sh
-python3 scripts/check-packaged-runtime.py
-sha256sum app/build/outputs/apk/debug/app-debug.apk
+variant=${TINYAGENT_BUILD_TYPE:-debug}
+apk=app/build/outputs/apk/$variant/app-$variant.apk
+python3 scripts/check-packaged-runtime.py --variant "$variant" --apk "$apk"
+sha256sum "$apk"
 printf 'TinyAgent APK compiled from source inside phone Fedora. Signing/update acceptance remains separate.\n'

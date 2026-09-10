@@ -19,12 +19,65 @@ const evaluate=async expression=>{
  return result.result.value
 }
 const action=process.argv[2]??'theme'
-if(action==='development-files') {
+if(action==='access-policy-state') {
+ const state=await evaluate(`(async()=>{const r=await fetch('/session/ses_f761a8a35ffevxs65Wf07SNgIr',{headers:{'x-opencode-directory':'/workspace'}});if(!r.ok)throw Error('HTTP '+r.status);return {permission:(await r.json()).permission,mode:document.querySelector('select[aria-label="에이전트 승인 모드"]')?.value}})()`)
+ const effective=state.permission.slice(state.permission.findLastIndex(r=>r.permission==='*'&&r.pattern==='*'))
+ if(effective.length!==1||effective[0].action!=='allow'||state.mode!=='yolo')throw Error('Original QA allow-all policy is not effective')
+ const file='D:/TinyAgent-work/tinyagent/evidence/lyriq1-access-policy-rounds.json'
+ const report=JSON.parse(await readFile(file,'utf8'))
+ if(report.rounds.length!==9||!report.passed)throw Error('Mode changes incomplete')
+ report.restorationAudit={effectivePolicyRestored:true,exactRuleHistoryRestored:false,retainedRules:state.permission.length,reason:'OpenCode PATCH appends rules; final blanket allow matches original QA policy'}
+ await writeFile(file,JSON.stringify(report,null,2))
+ console.log(JSON.stringify(report.restorationAudit))
+}
+if(action==='check-access-policy') {
+ const id='ses_f761a8a35ffevxs65Wf07SNgIr'
+ const url='http://127.0.0.1:4097/'+Buffer.from('/workspace').toString('base64url')+'/session/'+id
+ const get=()=>evaluate(`(async()=>{const r=await fetch('/session/'+${JSON.stringify(id)},{headers:{'x-opencode-directory':'/workspace'}});if(!r.ok)throw Error('Session '+r.status);return r.json()})()`)
+ const original=(await get()).permission??[]
+ const report={sessionID:id,scope:'Dedicated QA session; select change handler, backend readback and reload persistence, not physical touch',rounds:[]}
+ const waitMode=async mode=>{
+  const end=Date.now()+20000
+  while(!await evaluate(`(()=>{const s=document.querySelector('select[aria-label="에이전트 승인 모드"]');return s&&!s.disabled&&s.value===${JSON.stringify(mode)}})()`)) {
+   if(Date.now()>end)throw Error('Mode not reflected: '+mode)
+   await new Promise(resolve=>setTimeout(resolve,300))
+  }
+ }
+ try {
+  await call('Page.navigate',{url})
+  await waitMode('yolo')
+  for(let round=1;round<=3;round++) for(const mode of ['basic','read','yolo']) {
+   await evaluate(`(()=>{const s=document.querySelector('select[aria-label="에이전트 승인 모드"]');if(!s||s.disabled)throw Error('Select unavailable');s.value=${JSON.stringify(mode)};s.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+   await waitMode(mode)
+   const rules=(await get()).permission
+   const rule=name=>rules.filter(r=>r.permission===name&&r.pattern==='*').at(-1)?.action
+   if(rule('*')!==(mode==='read'?'ask':'allow')||rule('external_directory')!==(mode==='yolo'?'allow':'ask')||rule('doom_loop')!==(mode==='yolo'?'allow':'ask'))throw Error('Stored policy mismatch')
+   await call('Page.navigate',{url})
+   await waitMode(mode)
+   report.rounds.push({round,mode,rules,reloaded:true})
+  }
+  report.passed=true
+ } catch(error) {report.error=String(error);throw error}
+ finally {
+  await evaluate(`(async()=>{const r=await fetch('/session/'+${JSON.stringify(id)},{method:'PATCH',headers:{'Content-Type':'application/json','x-opencode-directory':'/workspace'},body:JSON.stringify({permission:${JSON.stringify(original)}})});if(!r.ok)throw Error('Restore '+r.status)})()`)
+  const restored=(await get()).permission
+  const effective=rules=>rules.slice(rules.findLastIndex(r=>r.permission==='*'&&r.pattern==='*'))
+  report.exactRulesRestored=JSON.stringify(restored)===JSON.stringify(original)
+  report.restored=JSON.stringify(effective(restored))===JSON.stringify(effective(original))
+  report.restorationScope='Effective policy restored; OpenCode PATCH appends rules and retains earlier history'
+  await writeFile('D:/TinyAgent-work/tinyagent/evidence/lyriq1-access-policy-rounds.json',JSON.stringify(report,null,2))
+ }
+ if(!report.restored)throw Error('Original policy not restored')
+ console.log(JSON.stringify({passed:report.passed,checks:report.rounds.length,restored:report.restored}))
+}
+if(action==='development-files'||action==='integration-files') {
  const id=process.argv[3]
  if(!/^ses_[a-zA-Z0-9]+$/.test(id))throw Error('Invalid session ID')
  const files={}
- for(const name of ['calculator.py','test_calculator.py','before.log','after.log','result.json']) {
-  const path='/workspace/luna-acceptance-'+id+'/'+name
+ const integration=action==='integration-files'
+ const names=integration ? ['result.json',...[1,2,3].flatMap(r=>['calculator.py','test_calculator.py','before.log','after.log'].map(n=>'round-'+r+'/'+n))] : ['calculator.py','test_calculator.py','before.log','after.log','result.json']
+ for(const name of names) {
+  const path=(integration?'/workspace/.tinyagent-qa/'+id:'/workspace/luna-acceptance-'+id)+'/'+name
   files[name]=await evaluate(`(async()=>{const r=await fetch('/file/content?path='+encodeURIComponent(${JSON.stringify(path)}),{headers:{'x-opencode-directory':'/workspace'}});if(!r.ok)throw Error('File '+r.status);return r.json()})()`)
  }
  await writeFile('D:/TinyAgent-work/tinyagent/evidence/'+id+'-files.json',JSON.stringify(files,null,2))
@@ -69,6 +122,21 @@ if(action==='update-snapshot') {
  }
  await writeFile('D:/TinyAgent-work/tinyagent/evidence/'+name+'-'+phase+'.json',JSON.stringify(report,null,2))
  console.log(JSON.stringify({phase,sessions:report.sessionIds.length,providers:report.providers,theme:report.theme}))
+}
+if(action==='recovery-job-cleanup') {
+ const {id}=JSON.parse(await readFile('D:/TinyAgent-work/tinyagent/evidence/lyriq1-native-stop-session.json','utf8'))
+ if(!/^ses_[a-zA-Z0-9]+$/.test(id))throw Error('Invalid saved probe ID')
+ const result=await evaluate(`(async()=>{const headers={'Content-Type':'application/json','x-opencode-directory':'/workspace'};const r=await fetch('/session/'+${JSON.stringify(id)}+'/message',{headers});if(!r.ok)throw Error('Probe read failed');const messages=await r.json();const tools=messages.flatMap(m=>m.parts).filter(p=>p.type==='tool');if(tools.length!==1||tools[0].state.input.command!=='/usr/bin/sleep 180')throw Error('Not the isolated sleep probe');const response=await fetch('/session/'+${JSON.stringify(id)}+'/abort',{method:'POST',headers,body:'{}'});if(!response.ok)throw Error('Abort failed');return response.json()})()`)
+ console.log(JSON.stringify({id,cleaned:result}))
+}
+if(action==='screen-off-job-start') {
+ const session=await evaluate(`(async()=>{const headers={'Content-Type':'application/json','x-opencode-directory':'/workspace'};if(Object.keys(await (await fetch('/session/status',{headers})).json()).length)throw Error('Other work active');const r=await fetch('/session',{method:'POST',headers,body:JSON.stringify({title:'TinyAgent screen-off runtime probe'})});if(!r.ok)throw Error('Create '+r.status);const session=await r.json();void fetch('/session/'+session.id+'/shell',{method:'POST',headers,body:JSON.stringify({agent:'build',command:'/usr/bin/sleep 65'})}).catch(()=>{});return session})()`)
+ console.log(JSON.stringify({session:session.id}))
+}
+if(action==='recovery-job-start') {
+ const session=await evaluate(`(async()=>{const headers={'Content-Type':'application/json','x-opencode-directory':'/workspace'};const status=await (await fetch('/session/status',{headers})).json();if(Object.keys(status).length)throw Error('Other work active');const r=await fetch('/session',{method:'POST',headers,body:JSON.stringify({title:'TinyAgent native stop recovery probe'})});if(!r.ok)throw Error('Create '+r.status);const session=await r.json();void fetch('/session/'+session.id+'/shell',{method:'POST',headers,body:JSON.stringify({agent:'build',command:'/usr/bin/sleep 180'})}).catch(()=>{});return session})()`)
+ await writeFile('D:/TinyAgent-work/tinyagent/evidence/lyriq1-native-stop-session.json',JSON.stringify({id:session.id,command:'/usr/bin/sleep 180'},null,2))
+ console.log(JSON.stringify({session:session.id}))
 }
 if(action==='luna-probe-start') {
  const task=process.argv[3] ? await readFile(process.argv[3],'utf8') : undefined

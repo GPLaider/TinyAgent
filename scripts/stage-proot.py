@@ -1,7 +1,7 @@
-"""Stage official Termux PRoot components for app-UID feasibility testing.
+"""Stage pinned Termux dependencies and the source-built TinyAgent PRoot.
 
-Repository hashes are checked over HTTPS. Release provenance/source rebuild is
-still a separate gate; this script does not claim repository signature checking.
+Repository hashes are checked over HTTPS or verified local cache. Dependency
+source rebuild and repository signature checking remain separate gates.
 """
 import hashlib
 import io
@@ -47,7 +47,8 @@ def main():
         name = fields['Package']
         relative = fields['Filename']
         assert not relative.startswith('/') and '..' not in relative.split('/')
-        data = fetch(BASE + relative)
+        cached = cache / Path(relative).name
+        data = cached.read_bytes() if cached.is_file() else fetch(BASE + relative)
         assert hashlib.sha256(data).hexdigest() == fields['SHA256']
         (cache / Path(relative).name).write_bytes(data)
         records.append({k: fields[k] for k in ['Package', 'Version', 'Filename', 'SHA256']})
@@ -72,6 +73,28 @@ def main():
     assert {r['Package'] for r in records} == PACKAGES
     assert set(outputs) == {'libproot.so', 'libproot_loader.so', 'libtalloc.so', 'libandroid-shmem.so'}
     assert outputs == pins['output_sha256'], 'Packaged native bytes differ from source pins'
+    # Preserve dependency provenance while promoting the separately source-built tracer.
+    candidate = json.loads((ROOT / 'runtime/proot-exitkill-1.json').read_text())
+    archive_path = ROOT / 'runtime/proot-exitkill-1.tar.gz'
+    assert candidate['archive'] == archive_path.name
+    assert hashlib.sha256(archive_path.read_bytes()).hexdigest() == candidate['archive_sha256']
+    assert candidate['patch_sha256'] == hashlib.sha256((ROOT / 'patches/proot-exitkill.patch').read_bytes()).hexdigest()
+    assert set(candidate['outputs']) == {'libproot.so', 'libproot_loader.so'}
+    for name, digest in candidate['dependencies'].items():
+        assert outputs[name] == digest
+    replacements = {}
+    with tarfile.open(archive_path) as archive:
+        members = archive.getmembers()
+        assert len(members) == 2 and {m.name for m in members} == set(candidate['outputs'])
+        for member in members:
+            assert member.isfile() and member.size < 1024 * 1024
+            data = archive.extractfile(member).read()
+            assert hashlib.sha256(data).hexdigest() == candidate['outputs'][member.name]
+            replacements[member.name] = data
+    for name, data in replacements.items():
+        (dest / name).write_bytes(data)
+        outputs[name] = hashlib.sha256(data).hexdigest()
+    print('Source-built PRoot promoted: ' + json.dumps(outputs, sort_keys=True))
     print(json.dumps(pins, indent=2))
 
 

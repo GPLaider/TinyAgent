@@ -4,5 +4,6 @@
         <activity android:name=".StockProbeActivity" android:exported="true" />
         <activity android:name=".FdRoundTripActivity" android:exported="true" />
         <activity android:name=".DnfastProbeActivity" android:exported="true" />
+        <activity android:name=".RuntimeRecoveryProbeActivity" android:exported="true" />
     </application>
 </manifest>

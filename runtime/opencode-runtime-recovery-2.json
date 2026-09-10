@@ -1,0 +1,16 @@
+{
+  "version": "1.18.29-tinyagent.2",
+  "upstream_commit": "16747470f976aca3d362ad730bcd3fe82ecc2c9a",
+  "architecture": "ELF64 little-endian AArch64",
+  "binary_bytes": 148023440,
+  "binary_sha256": "c92991c178f77ec717f64def66c01a6bcb93ea834be1c5a50b7be0649fb9f20e",
+  "patch_sha256": "2b8092f7fa6aa5e86b0f0a2f59dfb8c2eb2fb06ad0718056f3da6253eb874033",
+  "models_sha256": "17e2596628cc81c869e115727c7f14e84a48eb7799d75f74cd6aa2691c0bbad3",
+  "bun_version": "1.3.14",
+  "bun_arm_archive_sha256": "a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b",
+  "shipped": false,
+  "patch_file": "runtime/opencode-runtime-recovery-2.patch",
+  "scope": "Installed in Lyriq1 test APK f980ef990becc07fd1a36f363d3578b950039ae2b6f7121db0ddbe0e123df2a7. Three native stop/restart rounds and existing OAuth/Luna tool execution passed. Not a published release.",
+  "archive_sha256": "5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2",
+  "archive_bytes": 49796227
+}

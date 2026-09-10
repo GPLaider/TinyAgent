@@ -18,7 +18,7 @@ verify() {
   test "${actual%% *}" = "$2" || fail 'archive SHA256 mismatch'
 }
 base=/data/local/tinyagent
-version=0.1.0
+version=0.1.2
 mkdir -p "$base"
 test "$(realpath "$base")" = "$base" || fail 'installation path is not canonical'
 test "$(stat -c %u "$base")" = 0 || fail 'installation must be root-owned'
@@ -35,7 +35,7 @@ if test -e "$target" || test -L "$target"; then
   test "$(realpath "$target")" = "$target" || fail 'installed version is not canonical'
   test "$(stat -c %u "$target")" = 0 || fail 'installed version is not root-owned'
   test -f "$target/versions" || fail 'installed version metadata is missing'
-  test "$(cat "$target/versions")" = "$(printf 'preroot=%s\nfedora=44\nopencode=1.18.29\n' "$version")" || fail 'installed version metadata differs'
+  test "$(cat "$target/versions")" = "$(printf 'preroot=%s\nfedora=44\nopencode=1.18.29-tinyagent.2\n' "$version")" || fail 'installed version metadata differs'
   test -x "$target/rootfs/usr/local/bin/opencode" || fail 'installed backend is missing'
   printf 'phase=prepared root=%s/rootfs\n' "$target"
   exit 0
@@ -50,7 +50,7 @@ done
 cp "$fedora" "$stage/fedora.tar.gz"
 cp "$opencode" "$stage/opencode.tar.gz"
 verify "$stage/fedora.tar.gz" 3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125
-verify "$stage/opencode.tar.gz" 70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0
+verify "$stage/opencode.tar.gz" 5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2
 printf 'phase=verified\n'
 # Failures retain staging for diagnosis; they never erase data or prior versions.
 mkdir "$stage/rootfs"
@@ -62,7 +62,7 @@ printf 'phase=extracting-opencode\n'
 tar -xzf "$stage/opencode.tar.gz" -C "$stage/rootfs/usr/local/bin"
 test -x "$stage/rootfs/usr/local/bin/opencode" || fail 'OpenCode binary is missing'
 mkdir -p "$stage/rootfs/workspace" "$stage/rootfs/shared"
-printf 'preroot=%s\nfedora=44\nopencode=1.18.29\n' "$version" > "$stage/versions"
+printf 'preroot=%s\nfedora=44\nopencode=1.18.29-tinyagent.2\n' "$version" > "$stage/versions"
 rm "$stage/fedora.tar.gz" "$stage/opencode.tar.gz"
 mv "$stage" "$target"
 printf 'phase=prepared root=%s/rootfs\n' "$target"

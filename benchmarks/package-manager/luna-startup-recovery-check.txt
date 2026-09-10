@@ -1,0 +1,4 @@
+TinyAgent 백엔드 업데이트 후 확인입니다. 실제 bash 도구로 아래 명령을 실행한 뒤 결과를 짧게 보고하세요.
+python3 -c 'import os; print("RECOVERY_FLAG=" + os.environ.get("TINYAGENT_PREVIOUS_RUNTIME_STOPPED", "ABSENT"))'
+그리고 pwd, uname -m, cat /etc/fedora-release도 실제 실행하세요.
+지정한 환경 변수 하나 외에는 환경 변수를 출력하지 마세요. 파일·설정 변경이나 ADB·root 사용은 필요 없습니다.

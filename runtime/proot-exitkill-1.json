@@ -1,0 +1,23 @@
+{
+  "source_sha256": "29385d1ddb619a9c4449ab512bfd55032034b22f724ddf98fc95ff300ea32135",
+  "patch_sha256": "4f5af6494c3b2f1b15bbfd54e4f4913655a1479a60721203ab6dbb33455782ef",
+  "ndk": "28.0.13004108",
+  "compiler_sha256": "72875988e5833d3d508ac8e8d926407380666780967c50050868a94a196bb7a7",
+  "build_script_sha256": "0fd652f2448ff9823b3872a1c7587b869bc463a92f4af0bd7fddcb985848fb06",
+  "objects": 67,
+  "features": [
+    "#define HAVE_PROCESS_VM",
+    "#define HAVE_SECCOMP_FILTER"
+  ],
+  "dependencies": {
+    "libtalloc.so": "34c92182bdbda07e009eaa09afa852c575c566691786ca456b28778222ba0afc",
+    "libandroid-shmem.so": "84475798e07c8174dbbfaec70a827fdb02f19ffa69a589380c13e7507fd0e731"
+  },
+  "outputs": {
+    "libproot.so": "4220f05ce95ccec3be75f5b3f9968ce611d48660be43542416433011bca9729f",
+    "libproot_loader.so": "12d2b63e897fd91a334fce23edea5d2419cae4d5fd2a369f05d03ab75682add0"
+  },
+  "status": "App UID 10042: parent SIGKILL 3/3 and live recovery 3/3; full Fedora integration pending",
+  "archive": "proot-exitkill-1.tar.gz",
+  "archive_sha256": "5024155ddffb78fdc0fbbd230e38d0612baf66f433e287ba89f212f131d02384"
+}

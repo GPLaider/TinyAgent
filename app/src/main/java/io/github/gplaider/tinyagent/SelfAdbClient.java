@@ -184,12 +184,12 @@ final class SelfAdbClient implements AutoCloseable {
         progress.accept("Fedora 검증·설치 중…");
         // Fixed script emits bounded phase records, never provider credentials.
         String report = read(command, new StringBuilder());
-        if (!report.contains("phase=prepared root=/data/local/tinyagent/runtime/0.1.0/rootfs")) {
+        if (!report.contains("phase=prepared root=/data/local/tinyagent/runtime/0.1.2/rootfs")) {
             throw new IOException("설치 완료 상태를 확인하지 못했습니다.");
         }
         progress.accept("Fedora 내부 OpenCode 실행 확인 중…");
         String version = read("/system/bin/sh " + LocalPolicy.shellPath(new File(directory, "preroot.sh").getAbsolutePath())
-                + " /data/local/tinyagent/runtime/0.1.0/rootfs unrestricted-root exec /workspace"
+                + " /data/local/tinyagent/runtime/0.1.2/rootfs unrestricted-root exec /workspace"
                 + " /usr/local/bin/opencode --version", new StringBuilder());
         if (!version.equals("1.18.29")) throw new IOException("설치된 OpenCode 버전 불일치");
         for (String name : names) {

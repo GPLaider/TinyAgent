@@ -1,0 +1,10 @@
+TinyAgent 기본 PRoot 교체 후 실제 Fedora 통합 검증입니다. 모델 설명만 하지 말고 도구를 실행하세요.
+작업은 /workspace/.tinyagent-qa/{{SESSION_ID}} 안에서만 수행합니다. 기존 프로젝트·설정·인증은 변경하지 않습니다. ADB, root, 패키지 설치는 필요 없습니다.
+
+1. pwd, id, uname -m, cat /etc/fedora-release, git --version, python3 --version을 실행해 환경을 기록하세요. Fedora의 id가 0으로 보일 수 있으므로 이것으로 Android root 권한이라고 주장하지 마세요.
+2. 위 전용 폴더 안에서 각자 분리된 round-1, round-2, round-3을 순서대로 검증하세요.
+각 라운드마다 calculator.py에 add(a,b)가 잘못 a-b를 반환하도록 만들고, test_calculator.py에서 add(2,3)==5를 assert하세요.
+실제 테스트를 실행해 실패 출력과 0이 아닌 종료 코드를 before.log에 기록하세요.
+그 뒤 calculator.py를 실제로 a+b로 수정하고 같은 테스트를 다시 실행해 성공 출력과 종료 코드 0을 after.log에 기록하세요.
+3. result.json에 각 라운드의 실제 실패/성공 종료 코드와 파일 경로를 저장하세요. 숫자를 추측하거나 성공 결과를 미리 적지 마세요.
+4. 실제 관찰한 3회 결과를 짧게 보고하세요. 프로세스 강제 종료나 서비스 재시작은 이번 작업에 포함하지 않습니다.

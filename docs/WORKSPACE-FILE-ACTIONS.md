@@ -10,6 +10,22 @@ Dependency: `androidx.core:core:1.16.0` (Apache-2.0), AndroidX FileProvider. Its
 
 ## Pending video-control layout correction
 
+Update: installed d67a2a0d272dbbb68b57600cf6dc5faf1f53a80580d445d9a0744392231c65ce
+uses a normal VideoPreviewActivity with Button/SeekBar controls in the same
+window. Real decoded frames and the control layout are captured in
+evidence/lyriq1-video-inline-d67a2a0d.png. Three close/reopen transitions passed
+scripts/check-video-navigation.py with the exact installed hash, using 120ms
+native touch presses. Evidence: evidence/lyriq1-video-navigation-d67a2a0d.json.
+The earlier attribution of missed close taps solely to MediaController was
+not proven: instantaneous ADB input taps also failed on the embedded controls,
+while 120ms presses succeeded at the same measured coordinates. Floating
+controller placement was a separately observed visual defect.
+Rotation, scrubbing, background resume and the full codec matrix remain pending.
+The update retained 30 preceding sessions, connected providers and dark theme
+(lyriq1-video-inline-before.json / lyriq1-video-inline-after.json).
+
+The chronology below retains the earlier, insufficient fixes.
+
 The retained `evidence/preview4-video-preview.png` shows floating playback
 controls overlapping the close-button area. Android 36.1 SDK source confirms
 that `VideoView.attachMediaController()` replaces the supplied anchor with

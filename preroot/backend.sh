@@ -9,7 +9,7 @@ test "$1" = unrestricted-root || fail 'unsupported permission mode'
 action=$2
 case "$action" in start|status|stop) ;; *) fail 'unknown action';; esac
 base=/data/local/tinyagent
-root="$base/runtime/0.1.0/rootfs"
+root="$base/runtime/0.1.2/rootfs"
 test "$(realpath "$root")" = "$root" || fail 'prepared root must be canonical'
 test -x "$root/usr/local/bin/opencode" || fail 'backend is not prepared'
 for directory in data run; do
