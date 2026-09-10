@@ -30,6 +30,10 @@ new = old[:start]+host_selector.replace(needle, needle+'\t\t\tif runtime.GOOS ==
 (target/'tinyagent-arm.patch').write_text(''.join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), fromfile='a/cmd/gomobile/env.go', tofile='b/cmd/gomobile/env.go')))
 (target/'tinyagent-source.json').write_text(json.dumps(dict(module_version=version, original_env_sha256=hashlib.sha256(old.encode()).hexdigest(), modified_env_sha256=hashlib.sha256(new.encode()).hexdigest())))
 subprocess.run(go+['mod', 'edit', '-replace=golang.org/x/mobile='+str(target)], check=True)
-(target/'cmd/gomobile/tinyagent_arm_test.go').write_text('package main\nimport "testing"\nfunc TestTinyAgentArmNDK(t *testing.T) { if archNDK() != "linux-arm64" { t.Fatal(archNDK()) } }\n')
-subprocess.run(go+['test', 'golang.org/x/mobile/cmd/gomobile', '-run', '^TestTinyAgentArmNDK$', '-count=1'], check=True)
+(target/'cmd/gomobile/tinyagent_arm_test.go').unlink(missing_ok=True)
+(target/'cmd/gomobile/tinyagent_host_test.go').write_text('package main\nimport "testing"\nfunc TestTinyAgentArmNDK(t *testing.T) { if archNDK() != "linux-arm64" { t.Fatal(archNDK()) } }\n')
+result = subprocess.run(go+['test', '-json', 'golang.org/x/mobile/cmd/gomobile', '-run', '^TestTinyAgentArmNDK$', '-count=1'], check=True, capture_output=True, text=True)
+events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
+assert any(e.get('Test') == 'TestTinyAgentArmNDK' and e.get('Action') == 'pass' for e in events), 'Required regression test did not run'
+print('TestTinyAgentArmNDK executed and passed')
 print('Pinned gomobile Linux ARM64 host patch applied; module cache unchanged')

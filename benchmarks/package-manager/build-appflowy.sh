@@ -12,11 +12,13 @@ export CI=true
 export PERL=/usr/bin/perl
 export RUST_COMPILE_TARGET=aarch64-linux-android
 cd /workspace/tinyagent-six-builds/appflowy/frontend
+command -v rsync
 cargo install --locked cargo-make --version 0.37.18
 cargo install --locked cargo-ndk --version 3.5.4
 dart pub global activate protoc_plugin 21.1.2
 cargo make --profile development-android appflowy-core-dev-android
 # Same upstream generator as cargo-make, with its supported progress output enabled.
-/usr/bin/bash ./scripts/code_generation/generate.sh --verbose
+# Propagate errexit into the upstream generator's child Bash scripts as well.
+/usr/bin/env SHELLOPTS=errexit /usr/bin/bash ./scripts/code_generation/generate.sh --verbose
 cd appflowy_flutter
 flutter build apk --debug --target-platform android-arm64
