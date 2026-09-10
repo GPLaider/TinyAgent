@@ -78,6 +78,22 @@ with (base/'.build.lock').open('a') as lock:
     run = base/(args.workload+'-build-'+str(time.time_ns()))
     run.mkdir()
     before = {str(p): p.stat().st_mtime_ns for p in apks()}
+    if args.workload == 'appflowy':
+        # Use the same ARM-host NDK for Gradle/CMake and the Rust native stage.
+        ndk = Path(extra['ndk_home'])
+        assert (ndk/'toolchains/llvm/prebuilt/linux-arm64/bin/clang').is_file()
+        version = next(line.split('=', 1)[1].strip() for line in
+                       (ndk/'source.properties').read_text().splitlines() if line.startswith('Pkg.Revision'))
+        gradle = source/'frontend/appflowy_flutter/android/app/build.gradle'
+        old = '    ndkVersion "24.0.8215888"'
+        new = '    ndkVersion "'+version+'"\n    ndkPath "'+str(ndk)+'"'
+        content = gradle.read_text()
+        assert content.count(old) == 1 or content.count(new) == 1
+        gradle.write_text(content.replace(old, new))
+        local = source/'frontend/appflowy_flutter/android/local.properties'
+        content = local.read_text() if local.exists() else ''
+        if not any(line.startswith('cmake.dir=') for line in content.splitlines()):
+            local.write_text(content+'\ncmake.dir=/usr\n')
     if args.workload == 'organic-maps':
         # Preserve the failed run's APK and force packaging to produce this run's output.
         for apk in apks():

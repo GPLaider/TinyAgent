@@ -4,8 +4,13 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import argparse
 
 source = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--apk', type=Path, required=True, help='Exact verified APK associated with this source snapshot')
+args = parser.parse_args()
+assert args.apk.is_file() and args.apk.suffix == '.apk'
 destination = source.parent/'github-private/TinyAgent'
 assert subprocess.check_output(['git', '-C', str(destination), 'remote', 'get-url', 'origin'], text=True).strip() == 'https://github.com/GPLaider/TinyAgent.git'
 snapshot = json.loads((destination/'SOURCE-SNAPSHOT.json').read_text())
@@ -18,6 +23,8 @@ names.update([
     'app/src/debug/java/io/github/gplaider/tinyagent/DnfastResultCheck.java',
     'scripts/collect-pacman-build.py', 'scripts/export-private-source.py',
     'scripts/verify-source-snapshot.py',
+    'scripts/check-luna-development-evidence.py',
+    'benchmarks/package-manager/luna-development-acceptance.txt',
     'docs/PREVIEW4.md', 'docs/PRERELEASE-4-VALIDATION.md',
 ])
 hashes = {}
@@ -43,6 +50,6 @@ snapshot.update(base_commit=subprocess.check_output(['git', '-C', str(source), '
                 includes_working_tree_changes=True, files_sha256=hashes,
                 original_files_sha256_before_git_normalization=raw_normalized,
                 file_hash_scope='Git archive bytes after repository checkout filters and EOL attributes; original hashes retained for normalized working files',
-                apk_sha256=hashlib.sha256((source.parent/'artifacts/TinyAgent-0.1.0-preview.4-arm64.apk').read_bytes()).hexdigest())
+                apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest())
 (destination/'SOURCE-SNAPSHOT.json').write_text(json.dumps(snapshot, indent=2)+'\n')
 print(json.dumps(dict(files=len(hashes), changed=changed), indent=2))

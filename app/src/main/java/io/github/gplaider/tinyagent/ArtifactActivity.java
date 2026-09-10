@@ -39,7 +39,7 @@ public final class ArtifactActivity extends Activity {
             if (ext.equals("apk")) button(actions,"설치",()->{startActivity(new Intent(this,InstallerActivity.class).putExtra("workspacePath",relative));finish();});
             else if (mime.startsWith("image/")) button(actions,"보기",()->preview(true));
             else if (mime.startsWith("video/")) button(actions,"재생",this::previewVideo);
-            else if (mime.startsWith("text/")) button(actions,"열기",()->preview(false));
+            else if (mime.startsWith("text/") || mime.equals("application/json") || mime.endsWith("+json")) button(actions,"열기",()->preview(false));
             button(actions,"저장",()->{startActivity(new Intent(this,InstallerActivity.class).putExtra("exportPath",relative));finish();});
             button(actions,"공유",this::share);
             var metrics=getWindowManager().getCurrentWindowMetrics();

@@ -439,7 +439,7 @@ index 0000000..63a78dd
 +  .settings-v2-dialog button:focus-visible { outline: 2px solid var(--v2-border-border-focus); outline-offset: 2px; }
 +}
 diff --git a/packages/app/src/components/settings-v2/providers.tsx b/packages/app/src/components/settings-v2/providers.tsx
-index acd73dd..c72a59c 100644
+index acd73dd..40d749f 100644
 --- a/packages/app/src/components/settings-v2/providers.tsx
 +++ b/packages/app/src/components/settings-v2/providers.tsx
 @@ -9,7 +9,6 @@ import { useLanguage } from "@/context/language"
@@ -450,7 +450,26 @@ index acd73dd..c72a59c 100644
  import { SettingsListV2 } from "./parts/list"
  import "./settings-v2.css"
  
-@@ -247,9 +246,7 @@ export const SettingsProvidersV2: Component<{
+@@ -77,7 +76,8 @@ export const SettingsProvidersV2: Component<{
+       if (isConfigCustom(item.id)) return language.t("settings.providers.tag.custom")
+       return language.t("settings.providers.tag.config")
+     }
+-    if (current === "custom") return language.t("settings.providers.tag.custom")
++    // Backend custom loaders include built-in OAuth; this does not mean a user-defined endpoint.
++    if (current === "custom") return
+     return language.t("settings.providers.tag.other")
+   }
+ 
+@@ -170,7 +170,7 @@ export const SettingsProvidersV2: Component<{
+                       />
+                       <div class="settings-v2-provider-main">
+                         <span class="settings-v2-provider-name truncate">{item.name}</span>
+-                        <Tag>{type(item)}</Tag>
++                        <Show when={type(item)}>{(label) => <Tag>{label()}</Tag>}</Show>
+                       </div>
+                     </div>
+                     <Show
+@@ -247,9 +247,7 @@ export const SettingsProvidersV2: Component<{
                    size="normal"
                    variant="neutral"
                    icon="plus"
@@ -1273,10 +1292,10 @@ index 600ff41..51e2357 100644
            <Show when={controller.dock()}>
 diff --git a/packages/app/src/pages/session/composer/tinyagent-access.tsx b/packages/app/src/pages/session/composer/tinyagent-access.tsx
 new file mode 100644
-index 0000000..ee9e0ae
+index 0000000..ef88004
 --- /dev/null
 +++ b/packages/app/src/pages/session/composer/tinyagent-access.tsx
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,113 @@
 +import { createEffect, createSignal, onCleanup, Show } from "solid-js"
 +import { useParams } from "@solidjs/router"
 +import { useSDK } from "@/context/sdk"
@@ -1372,14 +1391,16 @@ index 0000000..ee9e0ae
 +    finally { setBusy(false) }
 +  }
 +  return <Show when={params.id}>
-+    <div data-component="tinyagent-access" class="rounded-lg border border-border-weak-base bg-background-base p-3 mb-2 text-text-base">
-+      <label class="flex items-center justify-between gap-3 text-14-medium">
-+        에이전트 승인
++    <div data-component="tinyagent-access" class="rounded-lg border border-border-weak-base bg-background-base px-3 py-1 mb-2 text-text-base">
++      <div class="flex items-start justify-between gap-2">
++        <details class="min-w-0 flex-1 text-12-regular text-text-weak">
++          <summary class="min-h-11 flex items-center cursor-pointer text-14-medium text-text-base">에이전트 승인 ⓘ</summary>
++          <p class="pb-2">이 세션에 저장됩니다. Android의 Stock·Developer·Root 권한은 바뀌지 않습니다.</p>
++        </details>
 +        <select aria-label="에이전트 승인 모드" value={mode()} disabled={busy()} onChange={e => void change(e.currentTarget.value as Mode)} class="min-h-11 rounded-md bg-background-stronger px-3 text-text-base">
 +          <option value="basic">기본</option><option value="read">읽기 전용</option><option value="yolo">전체 허용 · YOLO</option>
 +        </select>
-+      </label>
-+      <p class="text-12-regular text-text-weak mt-1">이 세션에 저장됩니다. Android의 Stock·Developer·Root 권한은 바뀌지 않습니다.</p>
++      </div>
 +      <Show when={error()}><p role="alert" class="text-13-regular mt-2">{error()}</p></Show>
 +      <Show when={pending()[0]} keyed>{p => <div class="mt-2" role="region" aria-label="승인 대기">
 +        <p role="status" class="text-14-medium">승인 대기 · {pending().length}건 — 허용 또는 거부를 선택하세요.</p>
@@ -1694,3 +1715,26 @@ index 0000000..7f3c3f8
 +  await expect(item).toBeVisible()
 +  await expect(page.getByText("Failed to delete session", { exact: true })).toBeVisible()
 +})
+diff --git a/packages/app/src/components/settings-providers.tsx b/packages/app/src/components/settings-providers.tsx
+index 080e6c5..9921230 100644
+--- a/packages/app/src/components/settings-providers.tsx
++++ b/packages/app/src/components/settings-providers.tsx
+@@ -80,7 +80,8 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) =>
+       if (isConfigCustom(item.id)) return language.t("settings.providers.tag.custom")
+       return language.t("settings.providers.tag.config")
+     }
+-    if (current === "custom") return language.t("settings.providers.tag.custom")
++    // Backend custom loaders include built-in OAuth; this does not mean a user-defined endpoint.
++    if (current === "custom") return
+     return language.t("settings.providers.tag.other")
+   }
+ 
+@@ -172,7 +173,7 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) =>
+                     <div class="flex items-center gap-3 min-w-0">
+                       <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />
+                       <span class="text-14-medium text-text-strong truncate">{item.name}</span>
+-                      <Tag>{type(item)}</Tag>
++                      <Show when={type(item)}>{(label) => <Tag>{label()}</Tag>}</Show>
+                     </div>
+                     <Show
+                       when={canDisconnect(item)}
