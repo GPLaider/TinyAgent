@@ -33,14 +33,14 @@ for name in sorted(names):
         shutil.copyfile(original, target)
         changed.append(name)
     oid = subprocess.check_output(['git', '-C', str(destination), 'hash-object', '-w', '--path='+name, '--stdin'], input=data).decode().strip()
-    canonical = subprocess.check_output(['git', '-C', str(destination), 'cat-file', 'blob', oid])
+    canonical = subprocess.check_output(['git', '-C', str(destination), 'cat-file', '--filters', '--path='+name, oid])
     hashes[name] = hashlib.sha256(canonical).hexdigest()
     if canonical != data:
         raw_normalized[name] = hashlib.sha256(data).hexdigest()
 snapshot.update(base_commit=subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip(),
                 includes_working_tree_changes=True, files_sha256=hashes,
                 original_files_sha256_before_git_normalization=raw_normalized,
-                file_hash_scope='Canonical Git blob bytes after repository attributes; original hashes retained for normalized working files',
+                file_hash_scope='Git archive bytes after repository checkout filters and EOL attributes; original hashes retained for normalized working files',
                 apk_sha256=hashlib.sha256((source.parent/'artifacts/TinyAgent-0.1.0-preview.4-arm64.apk').read_bytes()).hexdigest())
 (destination/'SOURCE-SNAPSHOT.json').write_text(json.dumps(snapshot, indent=2)+'\n')
 print(json.dumps(dict(files=len(hashes), changed=changed), indent=2))

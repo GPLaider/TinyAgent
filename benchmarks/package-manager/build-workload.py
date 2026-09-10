@@ -74,6 +74,12 @@ with (base/'.build.lock').open('a') as lock:
     run.mkdir()
     before = {str(p): p.stat().st_mtime_ns for p in apks()}
     if args.workload == 'organic-maps':
+        checker = cwd/'groovy/permission-checker.gradle'
+        old = 'task.aapt2Executable = project.androidComponents.sdkComponents.aapt2.get().executable.getAsFile()'
+        new = "task.aapt2Executable = project.findProperty('android.aapt2FromMavenOverride') ? project.file(project.property('android.aapt2FromMavenOverride')) : project.androidComponents.sdkComponents.aapt2.get().executable.getAsFile()"
+        content = checker.read_text()
+        assert content.count(old) == 1 or content.count(new) == 1
+        checker.write_text(content.replace(old, new))
         local = cwd/'local.properties'
         content = local.read_text() if local.exists() else ''
         if not any(line.startswith('cmake.dir=') for line in content.splitlines()):
