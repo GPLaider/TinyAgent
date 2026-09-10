@@ -32,6 +32,7 @@ env = dict(os.environ, JAVA_HOME=extra['java21_home'], ANDROID_HOME=config['andr
            ANDROID_SDK_ROOT=config['android_home'], GRADLE_USER_HOME=str(base/'gradle-cache'),
            PATH=extra['java21_home']+'/bin:'+os.environ['PATH'])
 env.update({'ORG_GRADLE_PROJECT_android.aapt2FromMavenOverride': config['aapt2'],
+            'PERL': '/usr/bin/perl',
             'GRADLE_OPTS': '-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2',
             'GOMAXPROCS': '2', 'GOFLAGS': '-p=2', 'ANDROID_NDK_HOME': extra['ndk_home']})
 task = ':app:assembleFreeDebug' if args.workload == 'antennapod' else ':app:assembleDebug'

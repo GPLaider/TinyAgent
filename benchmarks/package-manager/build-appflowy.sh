@@ -9,6 +9,7 @@ export PUB_CACHE=/opt/tinyagent-build/pub-cache
 export PATH="$CARGO_HOME/bin:/opt/tinyagent-build/flutter-3.27.4/bin:$PUB_CACHE/bin:$PATH"
 export FLUTTER_SUPPRESS_ANALYTICS=true
 export CI=true
+export PERL=/usr/bin/perl
 export RUST_COMPILE_TARGET=aarch64-linux-android
 cd /workspace/tinyagent-six-builds/appflowy/frontend
 cargo install --locked cargo-make --version 0.37.18

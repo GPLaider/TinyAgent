@@ -21,8 +21,11 @@ if not target.exists():
         if path.is_file(): path.chmod(0o644)
 old = (original/'cmd/gomobile/env.go').read_text()
 needle = '\t\tcase "arm64":\n'
-assert old.count(needle) == 1
-new = old.replace(needle, needle+'\t\t\tif runtime.GOOS == "linux" {\n\t\t\t\tarch = "arm64"\n\t\t\t\tbreak\n\t\t\t}\n')
+start = old.index('func archNDK() string')
+end = old.index('\ntype ndkToolchain', start)
+host_selector = old[start:end]
+assert host_selector.count(needle) == 1
+new = old[:start]+host_selector.replace(needle, needle+'\t\t\tif runtime.GOOS == "linux" {\n\t\t\t\tarch = "arm64"\n\t\t\t\tbreak\n\t\t\t}\n')+old[end:]
 (target/'cmd/gomobile/env.go').write_text(new)
 (target/'tinyagent-arm.patch').write_text(''.join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), fromfile='a/cmd/gomobile/env.go', tofile='b/cmd/gomobile/env.go')))
 (target/'tinyagent-source.json').write_text(json.dumps(dict(module_version=version, original_env_sha256=hashlib.sha256(old.encode()).hexdigest(), modified_env_sha256=hashlib.sha256(new.encode()).hexdigest())))

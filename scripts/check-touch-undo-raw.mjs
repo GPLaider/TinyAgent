@@ -44,12 +44,34 @@ const point=async expression=>{
   if(stable>=2)return p
   await new Promise(r=>setTimeout(r,80))
  }
- throw Error('Target did not settle')
+ throw Error('Target did not settle: '+expression+' '+JSON.stringify(await evaluate(`(()=>{const n=${expression};const r=n?.getBoundingClientRect();return {rect:r?.toJSON(),row:n?.closest('.home-session-item')?.outerHTML,hit:r&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML}})()`)))
 }
 const tap=async expression=>{const p=await point(expression);await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})}
+const swipe=async(expression,distance)=>{
+ const p=await point(expression)
+ shell('shell','uiautomator','dump','/sdcard/tinyagent-touch-bounds.xml')
+ const xml=shell('shell','cat','/sdcard/tinyagent-touch-bounds.xml')
+ const bounds=xml.match(/<node[^>]*class="android\.webkit\.WebView"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/)
+ if(!bounds)throw Error('Native WebView bounds absent')
+ const [left,top,right]=bounds.slice(1).map(Number), scale=(right-left)/await evaluate('innerWidth')
+ const x=Math.round(left+(p.x+90)*scale), y=Math.round(top+p.y*scale)
+ shell('shell','input','swipe',String(x),String(y),String(Math.round(x-distance*scale)),String(y),'220')
+}
 const screenshot=async name=>{const r=await call('Page.captureScreenshot',{format:'png'});await writeFile('D:/TinyAgent-work/tinyagent/evidence/'+name+'.png',Buffer.from(r.data,'base64'))}
+const previousStay=shell('shell','settings','get','global','stay_on_while_plugged_in')
+const previousTimeout=shell('shell','settings','get','system','screen_off_timeout')
+if(!/^(null|\d+)$/.test(previousStay))throw Error('Unexpected stay-on setting')
+if(!/^\d+$/.test(previousTimeout))throw Error('Unexpected screen timeout')
 try {
+ if(!shell('shell','dumpsys','trust').includes('deviceLocked=0'))throw Error('Unlock the test device first')
+ shell('shell','input','keyevent','224')
+ shell('shell','wm','dismiss-keyguard')
+ shell('shell','am','start','-n','io.github.gplaider.tinyagent.debug/io.github.gplaider.tinyagent.AppActivity')
+ shell('shell','svc','power','stayon','true') // UI-only control; separate screen-off acceptance uses stay-on=0.
+ shell('shell','settings','put','system','screen_off_timeout','600000')
+ await wait(`document.visibilityState==='visible'`)
  await call('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]}).catch(()=>{})
+ await call('Page.addScriptToEvaluateOnNewDocument',{source:`window.__touchEvents=[];for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','contextmenu','click'])document.addEventListener(type,e=>window.__touchEvents.push({type,button:e.button,pointerType:e.pointerType,x:e.clientX,y:e.clientY,target:e.target.closest('[data-component]')?.getAttribute('data-component'),title:e.target.closest('[data-component="home-session-row"]')?.textContent}),true)`})
  await evaluate('window.__touchBeforeReload = true')
  if(await evaluate('location.pathname')!=='/')await call('Page.navigate',{url:'http://127.0.0.1:4097/'})
  else await call('Page.reload')
@@ -71,10 +93,7 @@ try {
  await tap(button('되돌리기',`document.querySelector('.home-undo-bar')`))
  await wait(`!!${row(sessions[0].title)}&&!!${row(sessions[1].title)}`)
  // Swipe one disposable session, assert no modal, then undo it too.
- const start=await point(row(sessions[0].title))
- await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:start.x+90,y:start.y}]})
- for(const distance of [20,60,100,140])await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:start.x+90-distance,y:start.y}]})
- await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+ await swipe(row(sessions[0].title),140)
  await tap(button('삭제',`${row(sessions[0].title)}.closest('.home-session-item')`))
  await wait(`!!document.querySelector('.home-undo-bar')&&!document.querySelector('[role="dialog"]')`)
  await tap(button('되돌리기',`document.querySelector('.home-undo-bar')`))
@@ -82,14 +101,13 @@ try {
  const remaining=await api('/session')
  if(!sessions.every(s=>remaining.some(r=>r.id===s.id)))throw Error('Undo did not preserve sessions')
  for(const pinned of [true,false]) {
-  const p=await point(row(sessions[0].title))
-  await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:p.x+90,y:p.y}]})
-  for(const distance of [20,60,100,140])await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:p.x+90-distance,y:p.y}]})
-  await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+  await swipe(row(sessions[0].title),140)
   await tap(`${row(sessions[0].title)}.closest('.home-session-item').querySelector('.home-session-actions button')`)
   await wait(`!!${row(sessions[0].title)} && ${row(sessions[0].title)}.textContent.includes('📌') === ${pinned}`)
+  await evaluate('window.__touchPinBeforeReload = true')
   await call('Page.reload')
-  await wait(`!!${row(sessions[0].title)} && ${row(sessions[0].title)}.textContent.includes('📌') === ${pinned}`)
+  await wait(`!window.__touchPinBeforeReload && document.readyState==='complete' && !!${row(sessions[0].title)} && ${row(sessions[0].title)}.textContent.includes('📌') === ${pinned}`)
+  await evaluate(`window.__touchEvents=[];for(const type of ['pointerdown','pointermove','pointerup','pointercancel','click'])document.addEventListener(type,e=>window.__touchEvents.push({type,x:e.clientX,y:e.clientY,title:e.target.closest('[data-component="home-session-row"]')?.textContent}),true)`)
  }
  await tap(`document.querySelector('.home-project-picker > summary')`)
  const project=`[...document.querySelectorAll('[data-component="home-project-row"]')].find(n=>n.textContent.includes('ui-folder-check-0909'))`
@@ -104,10 +122,7 @@ try {
  await wait(`!!document.querySelector('.home-undo-bar')`)
  await tap(button('되돌리기',`document.querySelector('.home-undo-bar')`))
  await wait(`!!${project}`)
- const projectSwipe=await point(project)
- await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:projectSwipe.x+40,y:projectSwipe.y}]})
- for(const distance of [15,40,72])await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:projectSwipe.x+40-distance,y:projectSwipe.y}]})
- await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+ await swipe(project,72)
  await tap(button('삭제',`${project}.closest('.home-project-item')`))
  await wait(`!!document.querySelector('.home-undo-bar')&&!document.querySelector('[role="dialog"]')`)
  await screenshot('touch-project-undo-lyriq2')
@@ -117,7 +132,12 @@ try {
  await writeFile('D:/TinyAgent-work/tinyagent/evidence/touch-undo-lyriq2.json',JSON.stringify(report,null,2))
  console.log(JSON.stringify(report))
 } catch(error) {
- await screenshot('touch-preview3-failure')
+ await screenshot('touch-preview3-failure').catch(()=>{})
  console.log(JSON.stringify(await evaluate(`({events:window.__touchEvents,visibility:document.visibilityState,viewport:[innerWidth,innerHeight,devicePixelRatio]})`)))
  throw error
-} finally {await call('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]}).catch(()=>{});ws.close()}
+} finally {
+ await call('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]}).catch(()=>{});ws.close()
+ if(previousStay==='null')shell('shell','settings','delete','global','stay_on_while_plugged_in')
+ else shell('shell','settings','put','global','stay_on_while_plugged_in',previousStay)
+ shell('shell','settings','put','system','screen_off_timeout',previousTimeout)
+}

@@ -24,9 +24,9 @@ Fresh app environment preparation passed. OAuth was not moved from Lyriq1.
   TinyAgent Stock approval install, bootstrap completion and interactive uname -m -> aarch64 passed.
   Other ABI APKs were built, not run. This is the app build, not the full termux-packages ecosystem.
 - Tailscale: fixed plain go lookup; next failure was pinned gomobile rejecting Linux arm64 hosts. A separate local module copy now selects linux-arm64; original module cache remains untouched. ARM regression check/build retry queued.
-- Organic Maps: native C++ and APK packaging completed in 2185.293 seconds, but final permission verification invoked x86 aapt2. Its checker now honors the ARM override; full task retry queued, no successful build claimed yet.
-- VLC: first attempt stopped because upstream git am required committer identity. Pinned patches were applied with build-process identity; normal upstream checks remain enabled. Retry queued.
-- AppFlowy: Rust tooling compilation in progress; no successful APK claimed.
+- Organic Maps 958ddb7: first attempt stopped at the permission checker after 2185.293 seconds because it invoked x86 aapt2. The checker now honors the ARM override without skipping permission validation. Retry passed in 269.969 seconds. APK SHA256 3f4d858109c37f45ace49c6c94ce0e7acb8a52e6292e93e0b82e5f5c45f3a14f, 116583558 bytes. Stock approval installation, installed hash and visible world map passed. Evidence: evidence/pacman-organic-maps-build-1789005962326825763/. GPS/navigation was not tested.
+- VLC: pinned patches passed with process-local Git identity. The next attempt failed because bzip2 was missing; it is now included in native prerequisites. Retry session ses_f76e0ba9effe26QHKFmYGYSggA is queued; no APK success claimed.
+- AppFlowy: initial native build failed because OpenSSL used a PRoot L2S Perl path in a shell command. Explicit PERL=/usr/bin/perl passed the exact OpenSSL Configure reproduction. Retry ses_f76e5fba5ffemXnquE0SlPndOn has progressed into AppFlowy's Rust modules; no successful APK claimed.
 
 Builds share one development root and a serialized build slot. Their times are not fresh dnf5/dnfast provisioning benchmarks.
 max_single_child_rss_kib excludes descendant daemons; it is not a process-tree peak RSS measurement.
@@ -41,10 +41,12 @@ max_single_child_rss_kib excludes descendant daemons; it is not a process-tree p
 
 ## Remaining release acceptance
 
-Final-candidate update/data preservation, model/tool smoke, mobile interactions and three consecutive recovery rounds.
+Final-candidate update/data preservation, free-provider model/tool smoke, touch rounds and 120-second screen-off recovery passed in the scopes above. OpenAI OAuth/Luna acceptance on locked Lyriq1 remains pending.
 Finish the remaining app builds/debugging, collect installed artifact behavior, and report unsupported toolchains honestly.
 Long Doze, credential-lock behavior, provider/token-refresh matrix, controlled fresh-root dnf5/dnfast comparison and full seven-journey release gate remain open.
 Published Preview3 remains unchanged while this candidate is under test.
 
 The preceding fe690f6e internal APK passed three 600-second screen-off rounds on Lyriq2, including real Fedora commands while off and preserved sessions. This is not credential-lock, prolonged Doze, or Preview4 acceptance.
-The self-build recipe now includes both debug native executables from retained source. Host rebuilding reproduced the FD seed hash c5711e31; the ARM phone build is still queued.
+The self-build recipe includes both debug native executables from retained source. Host rebuilding reproduced the FD seed hash c5711e31. Both executables also compiled on the ARM phone (evidence/pacman-native-self-build.json); differing NDK versions mean these are not byte-identical host/phone builds. Full self-build session ses_f76fdff87ffenxdzNOkkFDZKu2 failed on a truncated Fedora download (41438183/51427176 bytes). Transport failures now retry up to three times; checksum/signature failures remain fatal. Retry self-check passed, and real phone download verification is running in ses_f76a5ab88ffeIS6vUjhrtEM6fz. Full APK self-build is not yet accepted.
+
+Pin/unpin persistence after reload passed in evidence/preview4-pin-touch.json. The test uses a native Android 220ms swipe; UI-only screen timeout changes are restored afterward. This is separate from screen-off acceptance.

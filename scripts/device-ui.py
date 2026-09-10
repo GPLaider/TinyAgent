@@ -12,7 +12,7 @@ args = parser.parse_args()
 adb = str(Path.home() / 'AppData/Local/Android/Sdk/platform-tools/adb.exe')
 def run(*command):
     return subprocess.check_output([adb, '-s', args.serial, *command], timeout=30)
-run('shell', 'uiautomator', 'dump', '/sdcard/tinyagent-ui.xml')
+assert b'UI hierchary dumped to:' in run('shell', 'uiautomator', 'dump', '/sdcard/tinyagent-ui.xml'), 'Fresh UI dump failed; do not use a stale tree'
 tree = ET.fromstring(run('shell', 'cat', '/sdcard/tinyagent-ui.xml'))
 if args.tap:
     matches = [n for n in tree.iter('node') if args.tap in (n.get('text'), n.get('content-desc'))]

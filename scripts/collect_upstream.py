@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import re
 import shutil
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,7 +39,23 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+class IncompleteDownload(RuntimeError):
+    pass
+
+
 def download(url: str, name: str, expected: str | None = None, *, refresh: bool = False) -> dict:
+    for attempt in range(3):
+        try:
+            return _download_once(url, name, expected, refresh=refresh)
+        except (IncompleteDownload, urllib.error.URLError, http.client.HTTPException, TimeoutError):
+            if attempt == 2:
+                raise
+            print(f'Transfer interrupted; retry {attempt+2}/3: {name}', flush=True)
+            time.sleep(attempt+1)
+    raise AssertionError('Unreachable')
+
+
+def _download_once(url: str, name: str, expected: str | None = None, *, refresh: bool = False) -> dict:
     target = OUT / name
     if target.exists() and not refresh:
         actual = sha256(target)
@@ -66,7 +84,7 @@ def download(url: str, name: str, expected: str | None = None, *, refresh: bool 
                 print(f"download {name}: {received // 1048576} MiB{percent}", flush=True)
                 last_report = time.monotonic()
         if size and received != size:
-            raise RuntimeError(f"Incomplete download: {name}: {received}/{size}")
+            raise IncompleteDownload(f"Incomplete download: {name}: {received}/{size}")
     actual = sha256(part)
     if expected and actual != expected:
         raise RuntimeError(f"Downloaded artifact checksum mismatch: {name}")
@@ -160,6 +178,18 @@ def main() -> None:
 
 
 def self_check() -> None:
+    from unittest.mock import patch
+    with patch(__name__+'._download_once', side_effect=[IncompleteDownload('truncated'), {'verified': True}]) as transfer, patch(__name__+'.time.sleep'):
+        assert download('https://example.invalid/', 'probe') == {'verified': True}
+        assert transfer.call_count == 2
+    with patch(__name__+'._download_once', side_effect=RuntimeError('checksum mismatch')) as transfer:
+        try:
+            download('https://example.invalid/', 'probe')
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('Integrity failure accepted')
+        assert transfer.call_count == 1
     assert checksum_for("SHA256 (a.tar) = " + "a" * 64, "a.tar") == "a" * 64
     for invalid in ("", "SHA256 (other.tar) = " + "a" * 64, ("SHA256 (a.tar) = " + "a" * 64 + "\n") * 2):
         try:

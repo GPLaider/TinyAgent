@@ -7,10 +7,10 @@ exec 9>"$base/.native-preparation.lock"
 flock -n 9
 trap 'status=$?; printf "native_preparation_exit=%s\n" "$status"' EXIT
 microdnf install -y cmake ninja-build pkgconf-pkg-config autoconf automake libtool \
-  gettext-devel flex bison protobuf-compiler patch zip xz perl diffutils file which \
+  gettext-devel flex bison protobuf-compiler patch zip xz bzip2 perl diffutils file which \
   clang clang-devel openssl-devel zlib-devel rustup
 rpm -q --whatprovides cmake ninja-build pkgconf-pkg-config autoconf automake libtool gettext-devel \
-  flex bison protobuf-compiler patch zip xz perl diffutils file which clang clang-devel \
+  flex bison protobuf-compiler patch zip xz bzip2 perl diffutils file which clang clang-devel \
   openssl-devel zlib-devel rustup > "$base/native-package-versions.txt"
 export RUSTUP_HOME=/opt/tinyagent-build/rustup
 export CARGO_HOME=/opt/tinyagent-build/cargo
