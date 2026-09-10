@@ -3,7 +3,11 @@ import argparse, base64, hashlib, json, subprocess, urllib.request
 from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('phase',choices=['before','after'])
+parser.add_argument('--label', default='preview3')
+parser.add_argument('--expected-apk', default='e097d180038d1ba5b03bdda48440098f11c558861cd4c346a5baae0d82082858')
 args=parser.parse_args()
+assert args.label.replace('-', '').isalnum()
+assert len(args.expected_apk) == 64 and all(c in '0123456789abcdef' for c in args.expected_apk)
 root=Path(__file__).resolve().parents[1]
 adb=Path.home()/'AppData/Local/Android/Sdk/platform-tools/adb.exe'
 serial='100.79.65.42:5555'
@@ -27,12 +31,12 @@ report={'serial':serial,'apk_sha256':run('shell','sha256sum',apk).split()[0],
         'session_ids':ids,'backend_credential_sha256':hashlib.sha256(secret.encode()).hexdigest(),
         'connected_providers':sorted(provider['connected'])}
 if args.phase=='after':
-    old=json.loads((root/'evidence/preview3-update-before.json').read_text())
+    old=json.loads((root/f'evidence/{args.label}-update-before.json').read_text())
     # New sessions can push older IDs outside the server's default list page.
     for identifier in set(old['session_ids'])-set(ids):
         assert get('/session/'+identifier)['id']==identifier,'Saved session lost'
     assert old['backend_credential_sha256']==report['backend_credential_sha256'],'Backend credential changed'
     assert old['connected_providers']==report['connected_providers'],'Provider connection changed'
-    assert report['apk_sha256']=='e097d180038d1ba5b03bdda48440098f11c558861cd4c346a5baae0d82082858'
-(root/f'evidence/preview3-update-{args.phase}.json').write_text(json.dumps(report,indent=2)+'\n')
+    assert report['apk_sha256']==args.expected_apk
+(root/f'evidence/{args.label}-update-{args.phase}.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps({'phase':args.phase,'sessions':len(ids),'providers':report['connected_providers'],'checks_passed':True}))

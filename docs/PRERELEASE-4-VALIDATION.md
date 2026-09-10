@@ -1,10 +1,10 @@
 # Preview 4 validation ledger — in progress
 
 Candidate APK: `TinyAgent-0.1.0-preview.4-arm64.apk`.
-SHA256: `b7eb6d1f860fd3f8a0ab371a710013cc44d3483e0e6a71bd1a57315e80baaf71`.
+SHA256: `ee39113fad165b1e7b3a8548c2886739c143bcbdbb7f596e4aaf94b3cef7e606`.
 Version: code 3 / 0.1.0-preview.4.
 Development certificate: `a3ef78ae0bfdfc30307e3448e138eca29adf39d966f89af116bbce151abc1ed2`.
-Host build, APK signature, packaged harness/bootstrap/952 GUI files/native components/runtime archives passed.
+Host build, lint (0 errors, 56 warnings), APK signature, packaged harness/bootstrap/952 GUI files/native components/runtime archives passed.
 Exact candidate device acceptance is pending. Do not substitute older APK results.
 
 ## Pacman functional builds on the preceding internal APK
@@ -28,6 +28,7 @@ max_single_child_rss_kib excludes descendant daemons; it is not a process-tree p
 
 ## Failures retained
 
+- First candidate b7eb6d1f failed lint: Path.of requires API 34, while minSdk is 30. Replaced the sole caller with Paths.get. Build/lint passed on ee39113f; the rejected candidate was not installed.
 - Native dependency inventory incorrectly queried zlib-devel as a literal installed package. Changed to rpm --whatprovides; installed provider is zlib-ng-compat-devel.
 - Fedora rustup RPM provides rustup-init. Added explicit noninteractive initialization, then Rust 1.85.0 and aarch64-linux-android target succeeded.
 - Earlier dnf5 transaction failed while installing corelist and libtic.so. Identical cached RPMs succeeded on a targeted normal retry.

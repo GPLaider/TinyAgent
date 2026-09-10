@@ -88,7 +88,7 @@ public final class DnfastProbeActivity extends Activity {
                 default -> throw new IOException("Unknown fixed probe action");
             };
             log("action=" + action + " actual_uid=" + android.os.Process.myUid());
-            log("context=" + new String(Files.readAllBytes(Path.of("/proc/self/attr/current")), StandardCharsets.UTF_8).trim());
+            log("context=" + new String(Files.readAllBytes(Paths.get("/proc/self/attr/current")), StandardCharsets.UTF_8).trim());
             File owned = new File(getFilesDir(), "dnfast-product-" + candidate + "-v1").getCanonicalFile();
             runtime = new LocalLinuxRuntime(new ContextWrapper(this) {
                 @Override public File getFilesDir() { return owned; }

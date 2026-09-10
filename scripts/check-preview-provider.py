@@ -1,7 +1,11 @@
 """One bounded request using the connected zero-cost provider; no user conversations touched."""
-import base64,json,subprocess,time,urllib.request
+import argparse,base64,json,subprocess,time,urllib.request
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
+parser=argparse.ArgumentParser()
+parser.add_argument('--label', default='preview3')
+args=parser.parse_args()
+assert args.label.replace('-', '').isalnum()
 adb=Path.home()/'AppData/Local/Android/Sdk/platform-tools/adb.exe'
 serial='100.79.65.42:5555'
 package='io.github.gplaider.tinyagent.debug'
@@ -20,10 +24,12 @@ catalog=request('/provider')
 assert 'opencode' in catalog['connected']
 model=next(p for p in catalog['all'] if p['id']=='opencode')['models']['big-pickle']
 assert model['cost']['input']==model['cost']['output']==0
-session=request('/session',{'title':'Preview3 provider smoke','permission':[
+session=request('/session',{'title':args.label+' provider smoke','permission':[
     {'permission':'bash','pattern':'/usr/bin/pwd','action':'allow'},
     {'permission':'bash','pattern':'pwd','action':'allow'}]})
-report={'serial':serial,'session':session['id'],'model':'opencode/big-pickle','passed':False}
+apk=run('shell','pm','path',package).removeprefix('package:')
+report={'serial':serial,'session':session['id'],'model':'opencode/big-pickle','passed':False,
+        'apk_sha256':run('shell','sha256sum',apk).split()[0]}
 began=time.monotonic()
 try:
     request('/session/'+session['id']+'/prompt_async',{'agent':'build','model':{'providerID':'opencode','modelID':'big-pickle'},
@@ -44,5 +50,5 @@ try:
 finally:
     report['elapsed_seconds']=time.monotonic()-began
     if not report['passed']:request('/session/'+session['id']+'/abort',{})
-    (root/'evidence/preview3-provider-smoke.json').write_text(json.dumps(report,indent=2)+'\n')
+    (root/f'evidence/{args.label}-provider-smoke.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report))
