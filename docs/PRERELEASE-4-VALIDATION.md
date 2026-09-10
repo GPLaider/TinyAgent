@@ -5,9 +5,12 @@
 The records below cover several APKs and earlier attempts; they must not be
 combined into a three-round pass for the newest candidate.
 
-- Lyriq1 now has `TinyAgent-gui-prod-channel.apk`, SHA256
-  `5c9f27b0579e0566606f2017bb4d85f00925f3667e62f21004b48c3b54c150af`.
-  See GUI-PRODUCTION-CHANNEL.md for update preservation and visible evidence.
+- Lyriq1 debug app now has `TinyAgent-installed-runtime-inputs.apk`, SHA256
+  `6dd6715457d7ec2355e0656a206f6bf1ffafd73dc4512bc14670476aa4885d73`.
+  Update preserved all 45 prior session IDs, connected providers and dark theme.
+  Luna verified exact installed-APK runtime inputs and APK write denial under
+  Stock UID10042. See LYRIQ1-CURRENT-SELF-BUILD.md. Its corrected complete
+  self-build is still running; neither APK output nor self-update has passed yet.
 - Patched PRoot parent-death and automatic stopped-runtime state recovery:
   see PROOT-EXITKILL-VALIDATION.md and STARTUP-RECOVERY-VALIDATION.md.
 - Six Pacman builds: four APKs produced (AntennaPod, Termux, Organic Maps,
@@ -21,6 +24,14 @@ combined into a three-round pass for the newest candidate.
   observation does not establish a complete screen-off acceptance interval.
 - These shared-workspace builds do not establish dnfast/dnf5 comparative
   performance. Fresh controlled provisioning measurements remain pending.
+
+Measured successful Pacman build-command durations: AntennaPod 1238.233 s,
+Termux 606.669 s, Tailscale 2283.265 s, Organic Maps retry 269.969 s.
+Organic Maps retry reused 301 of 305 Gradle tasks; its earlier failed run took
+2185.293 s. These are not clean-build timings or complete setup-to-install times.
+Authoritative records are the corresponding evidence/pacman-*-build-*/result.json
+and build.log files. Do not describe the Organic Maps retry as a four-minute
+fresh native build.
 
 ## Earlier Preview 4 candidate evidence
 

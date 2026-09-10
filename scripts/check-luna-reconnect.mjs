@@ -2,11 +2,13 @@ import { writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 const round = process.argv[2]
 if (!/^[1-3]$/.test(round)) throw Error('Round must be 1..3')
+const expectedApk = process.argv[3] ?? '8f39db6fddd6dd6062515e3935f8b9ff5629a3a7e915161a2376fbb22ef94170'
+if (!/^[0-9a-f]{64}$/.test(expectedApk)) throw Error('Expected APK SHA256 required')
 const adb = 'C:/Users/Administrator/AppData/Local/Android/Sdk/platform-tools/adb.exe'
 const shell = (...args) => execFileSync(adb, ['-s', '100.79.134.53:5555', 'shell', ...args], { encoding: 'utf8', timeout: 30000 }).trim()
 if (shell('getprop', 'ro.serialno') !== 'ZY22J58799') throw Error('Wrong device')
 const apk = shell('sha256sum', shell('pm', 'path', 'io.github.gplaider.tinyagent.debug').replace('package:', '')).split(/\s/)[0]
-if (apk !== '8f39db6fddd6dd6062515e3935f8b9ff5629a3a7e915161a2376fbb22ef94170') throw Error('Wrong APK')
+if (apk !== expectedApk) throw Error('Wrong APK')
 const targets = await (await fetch('http://127.0.0.1:19222/json/list')).json()
 const target = targets.find(t => t.type === 'page' && t.url.startsWith('http://127.0.0.1:4097/'))
 if (!target) throw Error('WebView missing')
@@ -37,7 +39,7 @@ const evaluate = async expression => {
 const request = (path, body) => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(path)},{headers:{'x-opencode-directory':'/workspace','Content-Type':'application/json'},${body === undefined ? '' : `method:'POST',body:${JSON.stringify(JSON.stringify(body))},`}});if(!r.ok)throw Error('HTTP '+r.status);return r.status===204?null:r.json()})()`)
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 const report = { apk, round: Number(round), scope: 'Real Luna tool run with WebView-only network emulation; Android/Fedora networking unchanged' }
-const output = `D:/TinyAgent-work/tinyagent/evidence/lyriq1-luna-reconnect-${round}.json`
+const output = `D:/TinyAgent-work/tinyagent/evidence/lyriq1-luna-reconnect-${process.argv[3] ? apk.slice(0,12)+'-' : ''}${round}.json`
 let offline = false
 try {
   const session = await request('/session', { title: `Luna reconnect verification ${round}`, permission: [{ permission: '*', pattern: '*', action: 'allow' }] })

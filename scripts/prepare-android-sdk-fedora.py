@@ -22,20 +22,28 @@ def download(url, target, algorithm, expected, size):
         part = target.with_name(target.name + '.part')
         with urllib.request.urlopen(url, timeout=60) as source, part.open('wb') as output:
             total = 0
+            bucket = -1
             while chunk := source.read(65536):
                 total += len(chunk)
                 assert total <= size
                 output.write(chunk)
+                percent = total * 100 // size
+                if percent // 10 != bucket:
+                    bucket = percent // 10
+                    print(f'Downloading {target.name} {percent}% {total}/{size} bytes', flush=True)
         assert part.stat().st_size == size
         with part.open('rb') as stream: assert hashlib.file_digest(stream, algorithm).hexdigest() == expected
         part.replace(target)
     assert target.stat().st_size == size
+    print('Verifying', target.name, flush=True)
     with target.open('rb') as stream: assert hashlib.file_digest(stream, algorithm).hexdigest() == expected
+    print('Verified', target.name, flush=True)
 
 def unpack(target, dest):
     if dest.exists(): return
     stage = Path(tempfile.mkdtemp(prefix=target.name + '.unpacking-', dir=dest.parent))
     try:
+        print('Extracting', target.name, flush=True)
         if target.name.endswith(('.xz', '.tar.gz')):
             with tarfile.open(target) as archive: archive.extractall(stage, filter='data')
         else:
@@ -45,6 +53,7 @@ def unpack(target, dest):
                     path = Path(archive.extract(entry, stage))
                     if path.is_file(): path.chmod(0o755 if (entry.external_attr >> 16) & 0o111 else 0o644)
         stage.replace(dest)
+        print('Extracted', target.name, flush=True)
     finally:
         if stage.exists(): shutil.rmtree(stage)
 
@@ -72,6 +81,7 @@ def main():
 
 def self_check():
     import io
+    from contextlib import redirect_stdout
     from unittest.mock import patch
     class Interrupted(io.BytesIO):
         def read(self, size=-1):
@@ -85,8 +95,11 @@ def self_check():
             except OSError: pass
             else: raise AssertionError('Interrupted download accepted')
         assert not target.exists()
-        with patch('urllib.request.urlopen', return_value=io.BytesIO(b'ok')):
+        progress = io.StringIO()
+        with patch('urllib.request.urlopen', return_value=io.BytesIO(b'ok')), redirect_stdout(progress):
             download('https://example.invalid/', target, 'sha256', hashlib.sha256(b'ok').hexdigest(), 2)
+        assert 'input.zip 100% 2/2 bytes' in progress.getvalue()
+        assert 'Verified input.zip' in progress.getvalue()
         assert target.read_bytes() == b'ok' and not target.with_name('input.zip.part').exists()
         with zipfile.ZipFile(target, 'w') as archive: archive.writestr('../escape', b'no')
         dest = base / 'unpacked'

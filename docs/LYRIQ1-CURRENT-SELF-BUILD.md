@@ -78,3 +78,29 @@ execution_uid=10042, selected_transport=stock and root_selected=false.
 Transcript: `evidence/ses_f755055eeffeuuWEVjMB3FOHmi-probe.json`.
 This proves the corrected runtime input path, not completion of the next full
 self-build or production-signing acceptance.
+
+## Corrected full build started
+
+Private source commit `7d9c3b2bb606271d357ac8b95f399f65e5d180b8` was pushed.
+Source bundle SHA-256 `f0be2f49d7352f6b762bb008aba10a8e33053f8622e6a493bf345600f6e49759`
+was verified on the phone. New checkout `/workspace/tinyagent-selfbuild-7d9c3b2`
+was detached at that exact commit; the original failed checkout remains.
+Source-only transfer server exited successfully and reverse tcp:18551 was removed.
+
+Session `ses_f754e03a3ffer2RPfa3IATyp3R` started the same
+`/usr/bin/bash scripts/self-build-complete-fedora.sh` with timeout 1800000.
+Live process chain: app8593 -> PRoot8686 -> OpenCode8693 -> bash8947 -> python3 9020,
+all Android UID10042. This build is running; no output APK success yet.
+Observe this session before any retry. The source ZIP
+`TinyAgent-runtime-inputs-source.zip` passed all 319 snapshot file hashes.
+
+The retry passed both runtime archive hashes and PRoot source collection, then
+downloaded the 192,051,660-byte ARM NDK. A read-only shell probe measured its
+partial file at 149,684,224 bytes; the final filename did not exist yet. This is
+download progress, not build completion. Evidence: lyriq1-ndk-transfer-size.json.
+
+The host SDK downloader now prints per-file byte/percentage milestones plus
+verification and extraction phases. Its existing self-check first failed on
+missing progress text, then passed after the change, including interrupted
+download recovery and archive traversal rejection. This source-only follow-up
+is not applied to the running 7d9c3b2 phone checkout or the installed APK.

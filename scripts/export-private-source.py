@@ -61,6 +61,7 @@ names.update([
     'benchmarks/package-manager/luna-media-acceptance.txt',
     'benchmarks/package-manager/luna-video-fixture.txt',
     'docs/PREVIEW4.md', 'docs/PRERELEASE-4-VALIDATION.md',
+    'docs/PREVIEW5.md',
     'docs/SESSION-RECONNECT-VALIDATION.md',
     'docs/ACCESS-POLICY-VALIDATION.md',
     'docs/PACMAN-PHANTOM-PROCESS-FAILURE.md',

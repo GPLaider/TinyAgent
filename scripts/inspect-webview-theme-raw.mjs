@@ -19,6 +19,14 @@ const evaluate=async expression=>{
  return result.result.value
 }
 const action=process.argv[2]??'theme'
+if(action==='build-input-progress') {
+ const id=process.argv[3]
+ if(id&&!/^ses_[a-zA-Z0-9]+$/.test(id))throw Error('Invalid session ID')
+ const command=process.argv[4]==='extract'?'/usr/bin/du -sk /opt/tinyagent-build/extra-inputs/ndk29.tar.xz.un*':'/usr/bin/stat -c %n:%s /opt/tinyagent-build/extra-inputs/ndk29.tar.xz.part /opt/tinyagent-build/extra-inputs/ndk29.tar.xz'
+ const result=await evaluate(`(async()=>{const headers={'Content-Type':'application/json','x-opencode-directory':'/workspace'};let session={id:${JSON.stringify(id??null)}};if(!session.id){const created=await fetch('/session',{method:'POST',headers,body:JSON.stringify({title:'QA: read-only NDK transfer size'})});if(!created.ok)throw Error('Create '+created.status);session=await created.json()}const r=await fetch('/session/'+session.id+'/shell',{method:'POST',headers,body:JSON.stringify({agent:'build',command:${JSON.stringify(command)}})});if(!r.ok)throw Error('Stat '+r.status);return {session:session.id,result:await r.json()}})()`)
+ await writeFile('D:/TinyAgent-work/tinyagent/evidence/lyriq1-ndk-transfer-size.json',JSON.stringify(result,null,2))
+ console.log(JSON.stringify(result))
+}
 if(action==='access-policy-state') {
  const state=await evaluate(`(async()=>{const r=await fetch('/session/ses_f761a8a35ffevxs65Wf07SNgIr',{headers:{'x-opencode-directory':'/workspace'}});if(!r.ok)throw Error('HTTP '+r.status);return {permission:(await r.json()).permission,mode:document.querySelector('select[aria-label="에이전트 승인 모드"]')?.value}})()`)
  const effective=state.permission.slice(state.permission.findLastIndex(r=>r.permission==='*'&&r.pattern==='*'))
