@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--serial', choices=['000501423003390', '100.79.65.42:5555', '100.79.134.53:5555'], default='000501423003390')
 parser.add_argument('--command', default='/usr/bin/cat /etc/fedora-release')
 parser.add_argument('--output', default='stock-backend-shell')
+parser.add_argument('--request-timeout', type=int, default=1800, help='HTTP observation deadline; not command cancellation')
 parser.add_argument('--session', help='Read progress of an existing test session instead of executing a command')
 parser.add_argument('--save-session', action='store_true', help='Save all messages of the explicitly selected test session')
 parser.add_argument('--abort', action='store_true', help='Abort the explicitly selected test session through the real backend')
@@ -23,6 +24,7 @@ parser.add_argument('--permissions', action='store_true', help='Inspect pending 
 parser.add_argument('--approve-diagnostic-once', help='Approve only the exact Fedora identity probe in the specified --session')
 parser.add_argument('--approve-harness-once', action='store_true', help='Approve only pending measured harness reads and the exact identity command, once')
 args = parser.parse_args()
+assert 1 <= args.request_timeout <= 28800
 assert args.output.replace('-', '').isalnum()
 assert all(c not in args.command for c in '\n\r;|&<>`$'), 'Use a staged script for shell grammar'
 SERIAL = args.serial
@@ -40,7 +42,7 @@ def request(path, payload=None):
     req = urllib.request.Request('http://127.0.0.1:' + str(PORT) + path, data=data,
             headers={'Authorization': authorization, 'Content-Type': 'application/json', 'x-opencode-directory': '/workspace'})
     try:
-        with urllib.request.urlopen(req, timeout=1800) as response: return json.load(response)
+        with urllib.request.urlopen(req, timeout=args.request_timeout) as response: return json.load(response)
     except urllib.error.HTTPError as error:
         raise RuntimeError('Local API status=' + str(error.code) + ' ' + error.read(2000).decode()) from None
 

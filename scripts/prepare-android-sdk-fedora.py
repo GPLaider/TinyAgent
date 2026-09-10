@@ -36,7 +36,7 @@ def unpack(target, dest):
     if dest.exists(): return
     stage = Path(tempfile.mkdtemp(prefix=target.name + '.unpacking-', dir=dest.parent))
     try:
-        if target.name.endswith('.xz'):
+        if target.name.endswith(('.xz', '.tar.gz')):
             with tarfile.open(target) as archive: archive.extractall(stage, filter='data')
         else:
             with zipfile.ZipFile(target) as archive:

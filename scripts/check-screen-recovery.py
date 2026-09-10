@@ -15,17 +15,18 @@ parser.add_argument('--off-seconds', type=int, default=15)
 args = parser.parse_args()
 assert 15 <= args.off_seconds <= 600
 SERIAL = '100.79.65.42:5555' if args.lyriq2 else '000501423003390'
+PORT = 14098 if args.lyriq2 else 14097
 PACKAGE = 'io.github.gplaider.tinyagent.debug'
 def adb(*args):
     return subprocess.check_output([str(ADB), '-s', SERIAL, *args], timeout=30).decode().strip()
 assert adb('shell', 'getprop', 'ro.serialno') == ('ZY22HZPLL8' if args.lyriq2 else SERIAL)
 assert 'deviceLocked=0' in adb('shell', 'dumpsys', 'trust')
-adb('forward', 'tcp:14097', 'tcp:4097')
+adb('forward', 'tcp:'+str(PORT), 'tcp:4097')
 secret = adb('exec-out', 'run-as', PACKAGE, 'cat', 'no_backup/stock-backend-auth')
 assert len(secret) == 64
 auth = 'Basic '+base64.b64encode(('opencode:'+secret).encode()).decode()
 def request(path, payload=None):
-    req = urllib.request.Request('http://127.0.0.1:14097'+path,
+    req = urllib.request.Request('http://127.0.0.1:'+str(PORT)+path,
         data=None if payload is None else json.dumps(payload).encode(),
         headers={'Authorization':auth, 'Content-Type':'application/json', 'x-opencode-directory':'/workspace'})
     with urllib.request.urlopen(req, timeout=30) as response: return json.load(response)
@@ -61,6 +62,7 @@ except Exception as error:
 finally:
     adb('shell','input','keyevent','224')
     adb('shell','wm','dismiss-keyguard')
-    adb('forward','--remove','tcp:14097')
+    adb('forward','--remove','tcp:'+str(PORT))
 apk = adb('shell','pm','path',PACKAGE).removeprefix('package:')
-(ROOT/(f'evidence/lyriq2-screen-recovery-{args.off_seconds}s-prerelease.json' if args.lyriq2 else 'evidence/pacman-screen-recovery-v20.json')).write_text(json.dumps(dict(serial=SERIAL, apk_sha256=adb('shell','sha256sum',apk).split()[0], results=results, scope=f'{args.off_seconds}-second screen-off and background cycles, real Fedora command while off; not credential lock, long Doze or UI scroll acceptance'),indent=2)+'\n')
+device = 'lyriq2' if args.lyriq2 else 'pacman'
+(ROOT/f'evidence/{device}-screen-recovery-{args.off_seconds}s-{int(time.time())}.json').write_text(json.dumps(dict(serial=SERIAL, apk_sha256=adb('shell','sha256sum',apk).split()[0], results=results, scope=f'{args.off_seconds}-second screen-off and background cycles, real Fedora command while off; not credential lock, long Doze or UI scroll acceptance'),indent=2)+'\n')

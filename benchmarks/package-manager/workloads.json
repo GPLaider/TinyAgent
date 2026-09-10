@@ -1,0 +1,13 @@
+{
+  "status": "source revisions pinned; ARM-host build recipes not yet validated",
+  "observed_date": "2026-09-09",
+  "initial_assignment": {"ZY22J58799": "dnf5", "ZY22HZPLL8": "dnfast"},
+  "workloads": [
+    {"name": "AntennaPod", "url": "https://github.com/AntennaPod/AntennaPod.git", "commit": "d05a58b47643592e968e9d1ed55736cc822ac8f2", "focus": "Android JVM / Gradle"},
+    {"name": "Tailscale Android", "url": "https://github.com/tailscale/tailscale-android.git", "commit": "ee64696ee308f5e72853b8e4af817b49fab860c1", "focus": "Go / gomobile / Android", "installation_constraint": "Do not replace the active VPN app"},
+    {"name": "Organic Maps", "url": "https://github.com/organicmaps/organicmaps.git", "commit": "958ddb7959701d9f092b428e8dc8b415cc13cc1f", "focus": "C++ / NDK / CMake"},
+    {"name": "VLC Android", "url": "https://code.videolan.org/videolan/vlc-android.git", "commit": "80920b3d15b303b5dac21aa8cf0c60ac498b89ae", "focus": "Multimedia native libraries / Autotools / NDK"},
+    {"name": "AppFlowy", "url": "https://github.com/AppFlowy-IO/AppFlowy.git", "commit": "5cf3a365dec0d59f64bad1ee4bb1050471a39b93", "focus": "Flutter / Rust"},
+    {"name": "Termux", "url": "https://github.com/termux/termux-app.git", "commit": "3b66f8799635a4dba4a206563048ff0e6792c487", "focus": "Android terminal app", "pending": "Pin separate termux-packages inputs before claiming package ecosystem coverage"}
+  ]
+}

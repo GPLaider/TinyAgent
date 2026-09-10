@@ -57,6 +57,11 @@ public final class DnfastProbeActivity extends Activity {
         try {
             String action = getIntent().getStringExtra("action");
             if (action == null) action = "check";
+            if (action.equals("result-contract")) {
+                DnfastResultCheck.run();
+                log("PASS action=result-contract");
+                return;
+            }
             if (action.equals("network")) {
                 nativeNetwork();
                 log("PASS action=network");
@@ -195,24 +200,7 @@ public final class DnfastProbeActivity extends Activity {
     }
 
     private void requireDnfastResult(String action) throws Exception {
-        JSONObject terminal = null;
-        for (String line : report.toString().split("\\n")) {
-            if (!line.startsWith("{")) continue;
-            JSONObject value;
-            try { value = new JSONObject(line); } catch (org.json.JSONException ignored) { continue; }
-            if ("dnfast.cli.v1".equals(value.optString("schema"))) terminal = value;
-        }
-        String command = switch (action) {
-            case "refresh" -> "repo";
-            case "install" -> "apply";
-            case "plan" -> "install";
-            default -> "app-runtime";
-        };
-        String status = action.equals("install") ? "applied" : action.equals("plan") ? "aborted" : "planned";
-        if (terminal == null || terminal.optInt("exit_code", -1) != 0
-                || !command.equals(terminal.optString("command")) || !status.equals(terminal.optString("status"))
-                || terminal.optJSONArray("errors") == null || terminal.getJSONArray("errors").length() != 0)
-            throw new IOException("Missing or unsuccessful dnfast terminal result; PRoot exit alone is not success");
+        DnfastResult.require(action, 0, report.toString());
     }
 
     private void nativeNetwork() throws Exception {
@@ -250,10 +238,11 @@ public final class DnfastProbeActivity extends Activity {
     private void run(ProcessBuilder builder, int timeoutSeconds) throws Exception {
         if (closed) throw new IOException("Activity stopped");
         Process process = runtime.start(builder.redirectErrorStream(true));
+        var readFailure = new java.util.concurrent.atomic.AtomicReference<IOException>();
         Thread drain = new Thread(() -> {
             try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 for (String line; (line = reader.readLine()) != null;) log(line);
-            } catch (IOException error) { android.util.Log.e("DnfastProbe", "output", error); }
+            } catch (IOException error) { readFailure.set(error); }
         });
         drain.start();
         try {
@@ -263,11 +252,18 @@ public final class DnfastProbeActivity extends Activity {
                 throw new java.util.concurrent.TimeoutException("Command timed out; inspect actual transaction before retry");
             }
             drain.join(5000);
+            if (drain.isAlive() || readFailure.get() != null)
+                throw new IOException("Incomplete command output", readFailure.get());
+            if (closed) throw new IOException("Activity stopped; inspect actual transaction state");
             log("exit=" + process.exitValue());
             if (process.exitValue() != 0) throw new IOException("Command exit=" + process.exitValue());
         } finally {
-            if (process.isAlive()) runtime.stop(process);
-            else runtime.forget(process);
+            try {
+                if (process.isAlive()) runtime.stop(process);
+                else runtime.forget(process);
+            } finally {
+                process.getInputStream().close();
+            }
         }
     }
 

@@ -2,8 +2,8 @@
 
 폰 내부 Fedora와 OpenCode를 사용하는 Android 개발 에이전트입니다.
 현재는 실기기 통합 검증 중인 개발 빌드이며 정식 릴리즈가 아닙니다.
-Preview 3은 세션 삭제·고정·다중 선택·실행 취소, 작업 폴더 생성과 파일 액션을 반영합니다.
-[현재 후보 검증 상태](docs/PRERELEASE-3-VALIDATION.md)를 먼저 확인하세요.
+Preview 4 후보는 dnfast 결과 판정 수정과 ARM 실기기 빌드 검증을 반영합니다.
+[현재 후보 검증 상태](docs/PRERELEASE-4-VALIDATION.md)를 먼저 확인하세요.
 [무선 Developer 설정·검증 범위](docs/WIRELESS-DEVELOPER.md)와
 [Stock 준비 수정](docs/STOCK-COMPATIBILITY.md)을 참고하세요.
 

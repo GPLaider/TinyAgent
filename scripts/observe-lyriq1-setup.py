@@ -25,10 +25,14 @@ assert adb('shell', 'getenforce').strip() == 'Enforcing'
 deadline = time.monotonic() + 600
 last = None
 while time.monotonic() < deadline:
-    adb('shell', 'uiautomator', 'dump', '/data/local/tmp/tinyagent-current-ui.xml')
+    dumped = adb('shell', 'uiautomator', 'dump', '/data/local/tmp/tinyagent-current-ui.xml')
+    if 'UI hierchary dumped to:' not in dumped:
+        print('UI still changing; waiting for a fresh snapshot', flush=True)
+        time.sleep(10)
+        continue
     xml = adb('shell', 'cat', '/data/local/tmp/tinyagent-current-ui.xml')
     texts = [n.get('text', '') for n in ET.fromstring(xml).iter('node')]
-    status = next((t for t in texts if t.startswith(('환경 준비 실패', '환경 준비 완료'))), None)
+    status = next((t for t in texts if t.startswith(('환경 준비 실패', '환경 준비 완료', 'Fedora 설치 완료.'))), None)
     if texts != last:
         print(json.dumps(texts, ensure_ascii=False), flush=True)
         last = texts
@@ -42,7 +46,7 @@ while time.monotonic() < deadline:
                       fingerprint=adb('shell', 'getprop', 'ro.build.fingerprint').strip(),
                       scope='UI preparation and app-UID process observation; no app ADB pairing or root')
         (ROOT/f'evidence/{device}-{version}-ui-setup.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-        assert status.startswith('환경 준비 완료'), status
+        assert status.startswith(('환경 준비 완료', 'Fedora 설치 완료.')), status
         assert int(app[0]) >= 10000
         assert {'libproot.so', 'opencode'} <= {r[3] for r in processes}
         print('PASS: UI ready and app-UID PRoot/OpenCode processes', flush=True)
