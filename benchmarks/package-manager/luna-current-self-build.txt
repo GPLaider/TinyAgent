@@ -1,0 +1,9 @@
+TinyAgent 자체 빌드 검증을 실제 이 폰의 Fedora에서 수행하세요. OpenAI OAuth와 기존 세션, 다른 프로젝트는 보존하세요. ADB/root는 사용하지 마세요.
+호스트가 소스 한 파일만 제공하는 임시 loopback 서버를 준비했습니다. 아래 파일을 /workspace/tinyagent-source-a203aa7.bundle 로 다운로드하세요.
+http://127.0.0.1:18551/source.bundle
+SHA256은 570854c82ec5f1314c8d569674f051bf795a7299185510f7d51b584d01a474c7 이어야 합니다. 해시를 검증한 뒤만 진행하세요.
+이 bundle을 /workspace/tinyagent-selfbuild-a203aa7 에 clone 하고 a203aa78886561870bdc4555a70cacf8540e6ad8 커밋을 checkout 하세요. 기존 경로가 있다면 덮어쓰지 말고 상태를 먼저 확인하세요.
+해당 저장소에서 /usr/bin/bash scripts/self-build-complete-fedora.sh 를 실행하세요. 이 스크립트가 개발환경 준비, GUI 빌드, Android APK 빌드 및 패키징 검사를 수행합니다. 긴 빌드 명령에는 bash timeout 1800000ms를 지정하세요. 하나의 빌드만 실행하고, 관측 시간이 끝났다고 중복 빌드를 시작하지 마세요.
+기존 공유 개발 서명은 /root/.tinyagent/signing/development.properties 에 준비돼 있습니다. 개인 키나 properties 내용, OAuth와 환경 변수 전체를 출력하지 마세요. 새 서명 키를 생성하지 마세요.
+실패하면 원인과 정확한 단계·종료 상태를 보고하세요. 실패를 성공으로 우회하거나 테스트·해시·서명 검사를 끄지 마세요. 아직은 소스 수정 없이 첫 실행 증거를 수집합니다.
+성공하면 APK 실제 경로, 파일 크기, SHA256과 빌드 종료 결과를 보고하세요. 설치나 기존 앱 삭제는 수행하지 마세요.

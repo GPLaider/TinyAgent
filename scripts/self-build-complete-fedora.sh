@@ -3,6 +3,7 @@
 set -eu
 test "${TINYAGENT_EXECUTION_PROVIDER:-}" = fedora-local
 test "$(uname -m)" = aarch64
+test -r "${TINYAGENT_APK:-}" || { printf 'Installed APK runtime inputs are unavailable; update TinyAgent before self-building.\n' >&2; exit 1; }
 source=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 test -f "$source/app/build.gradle.kts"
 trap 'status=$?; printf "tinyagent_self_build_exit=%s\n" "$status"' EXIT
@@ -11,12 +12,9 @@ cd "$source"
 /usr/bin/bash scripts/prepare-development.sh
 git rev-parse HEAD
 git diff --stat
-python3 scripts/collect_upstream.py
-python3 scripts/prepare-fedora.py artifacts
-# Reuse the installed, hash-verified patched runtime as a prebuilt dependency.
-# The APK/GUI are compiled below; this does not claim a backend source rebuild.
-python3 scripts/package-opencode-runtime.py /usr/local/bin/opencode artifacts/opencode-linux-arm64.tar.gz
-python3 scripts/stage-runtime-assets.py artifacts
+# Reuse exact shipped inputs. Recompression differs across host zlib builds.
+# The APK/GUI are compiled below; the backend remains a pinned prebuilt dependency.
+python3 scripts/stage-runtime-assets.py artifacts --installed-apk "$TINYAGENT_APK"
 python3 scripts/stage-proot.py
 python3 scripts/collect-proot-sources.py
 python3 scripts/build-dnfast-launcher.py

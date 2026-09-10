@@ -59,6 +59,8 @@ final class LocalLinuxRuntime {
                 Files.deleteIfExists(staging);
             }
         }
+        // The installed APK is immutable to this app UID; expose its exact runtime inputs for self-builds.
+        new File(rootfs, "tinyagent-installed.apk").createNewFile();
         refreshDns();
         // The minimal Fedora image lacks development tools. Also repair earlier installs.
         if (!List.of("git", "python3", "make", "gcc", "unzip").stream()
@@ -116,6 +118,7 @@ final class LocalLinuxRuntime {
                 + "\nPrivate internal exchange: /shared = " + new File(base, "shared")
                 + "\nAll paths above are app-private, NOT browsable in Android Files. Copying to /shared does not export."
                 + "\nUser file export: 작업 환경 > APK 설치 > workspace-relative path > 작업공간 파일 내보내기 > Android save dialog. See AGENTS.md."
+                + "\nSelf-build runtime inputs: TINYAGENT_APK=/tinyagent-installed.apk is this app's installed APK, read-only to the app UID. Reuse its hash-verified runtime archives; do not recompress them or change their pinned hashes."
                 + "\nBackend: " + LocalPolicy.BACKEND_ORIGIN + " owned by RuntimeSetupService."
                 + "\nStop: native Work Environment > diagnostics > stop; signals PRoot to terminate its tracees."
                 + "\nRecovery: reopen the app; an explicitly stopped runtime requires Prepare. Check real session state before repeating writes."
@@ -176,9 +179,10 @@ final class LocalLinuxRuntime {
         var args = new ArrayList<>(List.of("-0", "-l", "--kill-on-exit", "-r", rootfs.toString(),
                 "-b", "/dev", "-b", "/proc", "-b", home + ":/root", "-b", workspace + ":/workspace",
                 "-b", new File(base, "shared") + ":/shared",
+                "-b", context.getApplicationInfo().sourceDir + ":/tinyagent-installed.apk",
                 "-b", new File(rootfs, ".l2s") + ":" + new File(rootfs, ".l2s"), "-w", cwd,
                 "/usr/bin/env", "-u", "LD_LIBRARY_PATH", "HOME=/root", "PATH=/usr/local/bin:/usr/bin", "TMPDIR=/tmp",
-                "TINYAGENT_EXECUTION_PROVIDER=fedora-local", "TINYAGENT_PERMISSION=app-sandbox"));
+                "TINYAGENT_EXECUTION_PROVIDER=fedora-local", "TINYAGENT_PERMISSION=app-sandbox", "TINYAGENT_APK=/tinyagent-installed.apk"));
         args.addAll(List.of(command));
         return process(args);
     }
