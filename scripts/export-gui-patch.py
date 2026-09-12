@@ -28,12 +28,25 @@ generated = {
 }
 untracked = set(git('ls-files', '--others', '--exclude-standard', '--', *scopes).decode().splitlines())
 added = {
+    'packages/app/e2e/regression/mobile-session-actions.spec.ts',
+    'packages/app/e2e/regression/mobile-settings.spec.ts',
+    'packages/app/e2e/regression/prompt-long-model-mobile.spec.ts',
+    'packages/app/e2e/regression/session-access.spec.ts',
+    'packages/app/e2e/regression/session-reconnect.spec.ts',
+    'packages/app/src/components/settings-v2/mobile.css',
+    'packages/app/src/pages/home/home-list-actions.tsx',
+    'packages/app/src/pages/session/composer/tinyagent-access.test.ts',
+    'packages/app/src/pages/session/composer/tinyagent-access.tsx',
     'packages/app/src/pages/session/timeline/timeline-row.test.ts',
     'packages/session-ui/src/components/session-turn-status.ts',
     'packages/session-ui/src/components/session-turn-status.test.ts',
 }
 # Reviewed compiler declarations have tracked TS/TSX sources; they are not runtime inputs.
 assert untracked <= generated | added, 'Untracked GUI files need explicit review before export'
+base_files = set(git('ls-tree', '-r', '--name-only', pin, '--', *scopes).decode().splitlines())
+indexed_files = set(git('ls-files', '--', *scopes).decode().splitlines())
+indexed_added = indexed_files - base_files
+assert indexed_added <= added, 'Indexed GUI additions need explicit review before export: ' + repr(sorted(indexed_added - added))
 for name in untracked & generated:
     stem = name.removesuffix('.d.ts')
     assert git('ls-files', '--', stem + '.ts', stem + '.tsx'), name
@@ -44,14 +57,14 @@ with tempfile.TemporaryDirectory(prefix='tinyagent-gui-patch-') as directory:
     git('read-tree', pin, env=env)
     git('add', '-u', '--', *scopes, env=env)
     git('add', '--', *sorted(added), env=env)
+    current_tree = git('write-tree', env=env).decode().strip()
     patch = git('diff', '--cached', '--binary', pin, '--', *scopes, env=env)
     assert patch
     candidate.write_bytes(patch)
     git('read-tree', pin, env=env)
     git('apply', '--cached', '--check', str(candidate), env=env)
     git('apply', '--cached', str(candidate), env=env)
-    # The patched pinned tree must describe every tracked current GUI source change.
-    git('diff', '--exit-code', '--', *scopes, env=env)
+    assert git('write-tree', env=env).decode().strip() == current_tree
     target = root / 'patches/opencode-mobile-ux.patch'
     target.write_bytes(patch)
 print(json.dumps({'upstream': pin, 'patch_sha256': hashlib.sha256(patch).hexdigest(),

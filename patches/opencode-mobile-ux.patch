@@ -1,5 +1,5 @@
 diff --git a/packages/app/e2e/performance/timeline-stability/tools.spec.ts b/packages/app/e2e/performance/timeline-stability/tools.spec.ts
-index d28fdaa..918893d 100644
+index d28fdaa65..918893dd8 100644
 --- a/packages/app/e2e/performance/timeline-stability/tools.spec.ts
 +++ b/packages/app/e2e/performance/timeline-stability/tools.spec.ts
 @@ -20,6 +20,86 @@ import {
@@ -90,7 +90,7 @@ index d28fdaa..918893d 100644
      page,
    }, testInfo) => {
 diff --git a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
-index 9b74c7d..ecb471e 100644
+index 9b74c7d6b..ecb471ef1 100644
 --- a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
 +++ b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
 @@ -1,7 +1,8 @@
@@ -145,7 +145,7 @@ index 9b74c7d..ecb471e 100644
      await setup(page, [])
      await page.goto("/")
 diff --git a/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts b/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts
-index a86a55c..4538bf2 100644
+index a86a55cff..4538bf259 100644
 --- a/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts
 +++ b/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts
 @@ -1,6 +1,7 @@
@@ -249,7 +249,7 @@ index a86a55c..4538bf2 100644
    }
  }
 diff --git a/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts b/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts
-index 1a52bc8..01a8e41 100644
+index 1a52bc8aa..01a8e4164 100644
 --- a/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts
 +++ b/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts
 @@ -76,7 +76,7 @@ benchmark.describe("performance: review pane", () => {
@@ -330,7 +330,7 @@ index 1a52bc8..01a8e41 100644
  }
  
 diff --git a/packages/app/e2e/performance/timeline/session-timeline-profile.ts b/packages/app/e2e/performance/timeline/session-timeline-profile.ts
-index e168949..e10daa7 100644
+index e1689498c..e10daa76f 100644
 --- a/packages/app/e2e/performance/timeline/session-timeline-profile.ts
 +++ b/packages/app/e2e/performance/timeline/session-timeline-profile.ts
 @@ -25,6 +25,7 @@ export async function startTimelineProfile(page: Page, options: { cpuThrottle: n
@@ -341,8 +341,400 @@ index e168949..e10daa7 100644
                selfMs: self.get(node.id) ?? 0,
              }))
              .filter((node) => node.selfMs > 1)
+diff --git a/packages/app/e2e/regression/mobile-session-actions.spec.ts b/packages/app/e2e/regression/mobile-session-actions.spec.ts
+new file mode 100644
+index 000000000..7f3c3f83b
+--- /dev/null
++++ b/packages/app/e2e/regression/mobile-session-actions.spec.ts
+@@ -0,0 +1,149 @@
++import { expect, test } from "@playwright/test"
++import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
++import { installStressSessionTabs, installTimelineSettings } from "../performance/timeline/timeline-test-helpers"
++import { mockOpenCodeServer } from "../utils/mock-server"
++
++test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
++
++test("swipe reveals pin and delete without opening the session", async ({ page }) => {
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  const row = page.locator('[data-component="home-session-row"]').filter({ hasText: fixture.expected.targetTitle })
++  await expect(row).toBeVisible()
++  const box = (await row.boundingBox())!
++  const touch = await page.context().newCDPSession(page)
++  const x = box.x + box.width - 70
++  const y = box.y + box.height / 2
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
++  for (const distance of [15, 40, 80, 140]) {
++    await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - distance, y }] })
++  }
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  const item = page.locator(".home-session-item").filter({ hasText: fixture.expected.targetTitle })
++  await expect(item.getByRole("button", { name: "Pin", exact: true })).toBeVisible()
++  await expect(item.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
++  await expect(page).toHaveURL("/")
++  await item.getByRole("button", { name: "Pin", exact: true }).click()
++  await expect(page.getByText("Pinned", { exact: true })).toBeVisible()
++  await page.reload()
++  await expect(page.getByText("Pinned", { exact: true })).toBeVisible()
++  await expect(page.locator('[data-component="home-session-row"]').first()).toContainText(fixture.expected.targetTitle)
++  await item.getByRole("button", { name: "More options", exact: true }).click()
++  await item.getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(page.getByRole("dialog")).toHaveCount(0)
++  await expect(row).toHaveCount(0)
++  await page.getByRole("button", { name: "Undo", exact: true }).click()
++  await expect(row).toBeVisible()
++  await item.getByRole("button", { name: "More options", exact: true }).click()
++  const removed = page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes("ses_smoke_target"))
++  await item.getByRole("button", { name: "Delete", exact: true }).click()
++  await removed
++  await expect(row).toHaveCount(0)
++  await expect(page.getByRole("dialog")).toHaveCount(0)
++  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0)
++})
++
++test("long press selects multiple sessions and bulk deletion can be undone", async ({ page }) => {
++  const errors: string[] = []
++  page.on("pageerror", (error) => errors.push(error.message))
++  const deleted: string[] = []
++  page.on("request", (request) => { if (request.method() === "DELETE") deleted.push(request.url()) })
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  const rows = page.locator('[data-component="home-session-row"]')
++  const target = rows.filter({ hasText: fixture.expected.targetTitle })
++  const source = rows.filter({ hasText: fixture.sessions.find((item) => item.id === fixture.sourceID)!.title })
++  await expect(target).toBeVisible()
++  const box = (await target.boundingBox())!
++  const touch = await page.context().newCDPSession(page)
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 90, y: box.y + box.height / 2 }] })
++  await expect(page.getByText("1 selected", { exact: true })).toBeVisible()
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  await expect(target).toHaveAttribute("aria-pressed", "true")
++  await source.tap()
++  await expect(page.getByText("2 selected", { exact: true })).toBeVisible()
++  await page.screenshot({ path: "e2e/test-results/session-multiselect.png" })
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(page.getByRole("dialog")).toContainText("Delete 2 selected items?")
++  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click()
++  await expect(target).toBeVisible()
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(target).toHaveCount(0)
++  await expect(source).toHaveCount(0)
++  await page.screenshot({ path: "e2e/test-results/session-undo.png" })
++  await page.getByRole("button", { name: "Undo", exact: true }).click()
++  await expect(target).toBeVisible()
++  await expect(source).toBeVisible()
++  expect(deleted).toEqual([])
++  expect(errors).toEqual([])
++  await target.focus()
++  await page.keyboard.press("Shift+Space")
++  await source.tap()
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  const committed = Promise.all([fixture.targetID, fixture.sourceID].map((id) =>
++    page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes(id))))
++  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
++  await committed
++  await expect(target).toHaveCount(0)
++  await expect(source).toHaveCount(0)
++})
++
++test("project swipe removal offers undo without a confirmation dialog", async ({ page }) => {
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  await page.locator(".home-project-picker > summary").click()
++  const row = page.locator('[data-component="home-project-row"]')
++  await expect(row).toHaveCount(1)
++  await expect(row).toBeVisible()
++  const box = (await row.boundingBox())!
++  const touch = await page.context().newCDPSession(page)
++  const x = box.x + 100, y = box.y + box.height / 2
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
++  await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - 65, y }] })
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  await page.locator(".home-project-item").getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(row).toHaveCount(0)
++  await expect(page.getByRole("dialog")).toHaveCount(0)
++  await page.getByRole("button", { name: "Undo", exact: true }).click()
++  await expect(row).toBeVisible()
++  const restored = (await row.boundingBox())!
++  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: restored.x + 80, y: restored.y + restored.height / 2 }] })
++  await expect(page.getByText("1 selected", { exact: true })).toBeVisible()
++  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
++  await expect(row).toHaveAttribute("aria-pressed", "true")
++  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
++  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0)
++  await expect(row).toHaveCount(0)
++  // The stress init script deliberately re-seeds projects on every reload.
++  // Check the persisted close flag before that fixture overwrites it.
++  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("opencode.global.dat:server")!).projects.local)).toEqual([])
++})
++
++test("failed deletion restores the session instead of losing it", async ({ page }) => {
++  await mockOpenCodeServer(page, { ...fixture, pageMessages })
++  await page.route("**/session/" + fixture.targetID + "**", async (route) => {
++    if (route.request().method() !== "DELETE") return route.fallback()
++    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Test deletion rejected" }) })
++  })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page, { sessionIDs: [] })
++  await page.goto("/")
++  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
++  const item = page.locator(".home-session-item").filter({ hasText: fixture.expected.targetTitle })
++  await item.getByRole("button", { name: "More options", exact: true }).click()
++  await item.getByRole("button", { name: "Delete", exact: true }).click()
++  await expect(item).toHaveCount(0)
++  await expect(item).toBeVisible()
++  await expect(page.getByText("Failed to delete session", { exact: true })).toBeVisible()
++})
+diff --git a/packages/app/e2e/regression/mobile-settings.spec.ts b/packages/app/e2e/regression/mobile-settings.spec.ts
+new file mode 100644
+index 000000000..e1426045d
+--- /dev/null
++++ b/packages/app/e2e/regression/mobile-settings.spec.ts
+@@ -0,0 +1,56 @@
++import { expect, test } from "@playwright/test"
++import { installTimelineSettings, mockStressTimeline } from "../performance/timeline/timeline-test-helpers"
++
++for (const width of [320, 390]) {
++  test(`settings use one readable panel at ${width}px`, async ({ page }, info) => {
++    await page.setViewportSize({ width, height: 844 })
++    await page.emulateMedia({ colorScheme: "light" })
++    await mockStressTimeline(page)
++    await installTimelineSettings(page)
++    await page.goto("/")
++    await page.keyboard.press("Control+,")
++    const dialog = page.locator(".settings-v2-dialog")
++    await expect(dialog.getByRole("heading", { name: "Settings", exact: true })).toBeVisible()
++    const general = dialog.getByRole("tab", { name: /^General/ })
++    await expect(general).toBeVisible()
++    await expect(dialog.getByRole("tab", { name: /^Shortcuts/ })).toBeHidden()
++    expect((await general.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++    await page.screenshot({ path: info.outputPath("settings-menu.png") })
++    for (const name of ["General", "Providers", "Models", "Servers"]) {
++      await dialog.getByRole("tab", { name: new RegExp(`^${name}`) }).click()
++      await expect(dialog.getByRole("tablist")).toBeHidden()
++      const panel = dialog.locator('[data-slot="tabs-v2-content"]:visible')
++      await expect(panel).toHaveCount(1)
++      expect((await panel.boundingBox())!.width).toBeGreaterThanOrEqual(width - 2)
++      expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
++      if (name === "General") {
++        const language = panel.getByRole("button", { name: "English", exact: true })
++        await expect(language).toBeVisible()
++        expect((await language.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++        expect((await language.boundingBox())!.width).toBeGreaterThanOrEqual(width - 50)
++      }
++      await page.screenshot({ path: info.outputPath(`settings-${name.toLowerCase()}.png`) })
++      if (name === "Providers") {
++        const custom = dialog.locator(".settings-v2-provider-row").filter({ hasText: "Custom provider" })
++        await custom.getByRole("button", { name: "Connect", exact: true }).click()
++        const form = page.locator(".provider-connect-dialog")
++        const endpoint = form.getByRole("textbox", { name: "Base URL", exact: true })
++        await expect(endpoint).toBeVisible()
++        expect((await form.boundingBox())!.width).toBe(width)
++        expect((await form.boundingBox())!.height).toBe(844)
++        expect((await endpoint.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++        await endpoint.fill("https://example.invalid/v1")
++        await expect(endpoint).toHaveValue("https://example.invalid/v1")
++        await expect(page.getByText("Something went wrong", { exact: true })).toHaveCount(0)
++        expect(await form.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
++        await page.screenshot({ path: info.outputPath("settings-custom-provider.png") })
++        await form.getByRole("button", { name: "Navigate back", exact: true }).click()
++        await expect(dialog.getByRole("heading", { name: "Providers", exact: true })).toBeVisible()
++      }
++      await dialog.getByRole("button", { name: "Settings", exact: true }).click()
++      await expect(general).toBeVisible()
++    }
++    await dialog.getByRole("button", { name: "Close", exact: true }).click()
++    await expect(dialog).toHaveCount(0)
++  })
++}
+diff --git a/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts b/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts
+new file mode 100644
+index 000000000..cf4bf612c
+--- /dev/null
++++ b/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts
+@@ -0,0 +1,97 @@
++import { expect, test, type Locator } from "@playwright/test"
++import { base64Encode } from "@opencode-ai/core/util/encode"
++import { mockOpenCodeServer } from "../utils/mock-server"
++import { expectAppVisible } from "../utils/waits"
++
++const directory = "C:/OpenCode/PromptLongModelMobile"
++const projectID = "proj_prompt_long_model_mobile"
++const sessionID = "ses_prompt_long_model_mobile"
++const modelName = "GPT-5.6 Codex Ultra Long Context Experimental Preview"
++
++test.use({ viewport: { width: 390, height: 844 } })
++
++test("keeps the send button visible beside a long model name on mobile", async ({ page }) => {
++  await mockOpenCodeServer(page, {
++    directory,
++    project: {
++      id: projectID,
++      worktree: directory,
++      vcs: "git",
++      name: "prompt-long-model-mobile",
++      time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
++      sandboxes: [],
++    },
++    provider: {
++      all: [
++        {
++          id: "openai",
++          name: "OpenAI",
++          models: {
++            "long-model": {
++              id: "long-model",
++              name: modelName,
++              cost: { input: 1, output: 1 },
++              limit: { context: 200_000 },
++              variants: { high: {}, xhigh: {} },
++            },
++          },
++        },
++      ],
++      connected: ["openai"],
++      default: { providerID: "openai", modelID: "long-model" },
++    },
++    sessions: [
++      {
++        id: sessionID,
++        slug: "prompt-long-model-mobile",
++        projectID,
++        directory,
++        title: "Long model mobile composer",
++        version: "dev",
++        model: { providerID: "openai", modelID: "long-model" },
++        time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
++      },
++    ],
++    pageMessages: () => ({ items: [] }),
++  })
++  await page.addInitScript(() => {
++    localStorage.setItem(
++      "settings.v3",
++      JSON.stringify({ general: { newLayoutDesigns: true, shouldDisplayTabsToast: false } }),
++    )
++  })
++
++  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
++  const composer = page.locator('[data-component="prompt-input-v2"]')
++  const input = composer.locator('[data-component="prompt-input"]')
++  const model = composer.locator('[data-action="prompt-model"]')
++  const send = composer.locator('[data-action="prompt-submit"]')
++  await expectAppVisible(composer)
++  await expect(model).toContainText(modelName)
++  await expect(send).toBeVisible()
++
++  for (const width of [390, 320]) {
++    await page.setViewportSize({ width, height: 844 })
++    await expectPromptControlsToFit(composer, model, send)
++
++    await input.fill("hello")
++    await expect(send).toBeEnabled()
++    await expectPromptControlsToFit(composer, model, send)
++    await send.click({ trial: true })
++    await input.fill("")
++  }
++})
++
++async function expectPromptControlsToFit(composer: Locator, model: Locator, send: Locator) {
++  const geometry = await Promise.all([composer, model, send].map((locator) => locator.boundingBox()))
++  const [composerBox, modelBox, sendBox] = geometry
++  expect(composerBox).not.toBeNull()
++  expect(modelBox).not.toBeNull()
++  expect(sendBox).not.toBeNull()
++  expect(sendBox!.width).toBeGreaterThanOrEqual(28)
++  expect(sendBox!.x + sendBox!.width).toBeLessThanOrEqual(composerBox!.x + composerBox!.width)
++  expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(sendBox!.x)
++  expect(await model.locator("span.truncate").evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
++    true,
++  )
++}
+diff --git a/packages/app/e2e/regression/session-access.spec.ts b/packages/app/e2e/regression/session-access.spec.ts
+new file mode 100644
+index 000000000..c11bd2d94
+--- /dev/null
++++ b/packages/app/e2e/regression/session-access.spec.ts
+@@ -0,0 +1,26 @@
++import { expect, test } from "@playwright/test"
++import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
++import { installStressSessionTabs, installTimelineSettings, stressSessionHref } from "../performance/timeline/timeline-test-helpers"
++import { mockOpenCodeServer } from "../utils/mock-server"
++
++for (const restricted of [false, true]) test(`API-created permission displays ${restricted ? "custom restrictions" : "full access"}`, async ({ page }) => {
++  const changes: string[] = []
++  page.on("request", request => {
++    const path = new URL(request.url()).pathname
++    if ((request.method() === "PATCH" && path.startsWith("/session/")) || path.includes("/reply")) changes.push(request.url())
++  })
++  const permission = [
++    { permission: "*", pattern: "*", action: "allow" },
++    ...(restricted ? [{ permission: "bash", pattern: "rm *", action: "deny" }] : []),
++  ]
++  await mockOpenCodeServer(page, {
++    ...fixture,
++    sessions: fixture.sessions.map(session => ({ ...session, permission })),
++    pageMessages,
++  })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page)
++  await page.goto(stressSessionHref(fixture.targetID))
++  await expect(page.getByRole("combobox", { name: "에이전트 승인 모드" })).toHaveValue(restricted ? "custom" : "yolo")
++  expect(changes).toEqual([])
++})
+diff --git a/packages/app/e2e/regression/session-reconnect.spec.ts b/packages/app/e2e/regression/session-reconnect.spec.ts
+new file mode 100644
+index 000000000..a2c8f4159
+--- /dev/null
++++ b/packages/app/e2e/regression/session-reconnect.spec.ts
+@@ -0,0 +1,34 @@
++import { expect, test } from "@playwright/test"
++import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
++import { installStressSessionTabs, installTimelineSettings, stressSessionHref } from "../performance/timeline/timeline-test-helpers"
++import { mockOpenCodeServer } from "../utils/mock-server"
++
++test("reconnect recovers a final answer missed by the event stream without navigation", async ({ page }) => {
++  let completed = false
++  let connections = 0
++  const id = fixture.targetID
++  const final = "Recovered final answer after disconnected stream"
++  await mockOpenCodeServer(page, {
++    ...fixture,
++    sessionStatus: () => completed ? {} : { [id]: { type: "busy" } },
++    events: () => { connections++; return [] },
++    eventRetry: 250,
++    pageMessages: (sessionID, limit, before) => {
++      const result = pageMessages(sessionID, limit, before)
++      if (!completed || sessionID !== id) return result
++      const items = structuredClone(result.items)
++      const last = items.at(-1)!
++      last.parts = [{ id: "prt_recovered_final", sessionID: id, messageID: last.info.id, type: "text", text: final }]
++      return { ...result, items }
++    },
++  })
++  await installTimelineSettings(page)
++  await installStressSessionTabs(page)
++  await page.goto(stressSessionHref(id))
++  await expect(page.locator('[data-message-id]').last()).toBeVisible()
++  const before = connections
++  completed = true
++  await expect.poll(() => connections).toBeGreaterThan(before)
++  await expect(page.getByText(final, { exact: true })).toBeVisible()
++  await expect(page).toHaveURL(stressSessionHref(id))
++})
 diff --git a/packages/app/e2e/utils/mock-server.ts b/packages/app/e2e/utils/mock-server.ts
-index a581eda..b8ecdf4 100644
+index a581eda8c..b8ecdf43b 100644
 --- a/packages/app/e2e/utils/mock-server.ts
 +++ b/packages/app/e2e/utils/mock-server.ts
 @@ -1,6 +1,6 @@
@@ -365,7 +757,7 @@ index a581eda..b8ecdf4 100644
      if (path === "/provider")
        return json(route, typeof config.provider === "function" ? config.provider() : config.provider)
 diff --git a/packages/app/index.html b/packages/app/index.html
-index d715351..81308b0 100644
+index d71535182..81308b005 100644
 --- a/packages/app/index.html
 +++ b/packages/app/index.html
 @@ -19,10 +19,16 @@
@@ -387,7 +779,7 @@ index d715351..81308b0 100644
    </body>
  </html>
 diff --git a/packages/app/src/components/dialog-connect-provider.tsx b/packages/app/src/components/dialog-connect-provider.tsx
-index 1081310..8e57d33 100644
+index 1081310e5..8e57d336a 100644
 --- a/packages/app/src/components/dialog-connect-provider.tsx
 +++ b/packages/app/src/components/dialog-connect-provider.tsx
 @@ -19,6 +19,7 @@ import {
@@ -590,7 +982,7 @@ index 1081310..8e57d33 100644
                </div>
              </Match>
 diff --git a/packages/app/src/components/dialog-custom-provider.tsx b/packages/app/src/components/dialog-custom-provider.tsx
-index e3c11c3..79c6f80 100644
+index e3c11c335..79c6f8044 100644
 --- a/packages/app/src/components/dialog-custom-provider.tsx
 +++ b/packages/app/src/components/dialog-custom-provider.tsx
 @@ -176,7 +176,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
@@ -603,7 +995,7 @@ index e3c11c3..79c6f80 100644
          <ProviderIcon id="synthetic" class="size-5 shrink-0 icon-strong-base" />
          <div class="text-16-medium text-text-strong">{language.t("provider.custom.title")}</div>
 diff --git a/packages/app/src/components/dialog-select-directory-v2.tsx b/packages/app/src/components/dialog-select-directory-v2.tsx
-index f3376ad..50b9f3d 100644
+index f3376ad35..50b9f3d2d 100644
 --- a/packages/app/src/components/dialog-select-directory-v2.tsx
 +++ b/packages/app/src/components/dialog-select-directory-v2.tsx
 @@ -12,6 +12,7 @@ import type { Path } from "@opencode-ai/sdk/v2/client"
@@ -642,7 +1034,7 @@ index f3376ad..50b9f3d 100644
      }
      return true
 diff --git a/packages/app/src/components/dialog-select-directory.tsx b/packages/app/src/components/dialog-select-directory.tsx
-index fc248d8..f32343a 100644
+index fc248d821..f32343af3 100644
 --- a/packages/app/src/components/dialog-select-directory.tsx
 +++ b/packages/app/src/components/dialog-select-directory.tsx
 @@ -4,7 +4,8 @@ import { FileIcon } from "@opencode-ai/ui/file-icon"
@@ -678,7 +1070,7 @@ index fc248d8..f32343a 100644
          class="px-3"
          search={{ placeholder: language.t("dialog.directory.search.placeholder"), autofocus: true }}
 diff --git a/packages/app/src/components/directory-picker-domain.test.ts b/packages/app/src/components/directory-picker-domain.test.ts
-index aeaaafd..cf69990 100644
+index aeaaafde3..cf6999019 100644
 --- a/packages/app/src/components/directory-picker-domain.test.ts
 +++ b/packages/app/src/components/directory-picker-domain.test.ts
 @@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
@@ -705,7 +1097,7 @@ index aeaaafd..cf69990 100644
    expect(selectedTreePath("/home/luke/repo", "src/", "directory")).toBe("/home/luke/repo/src")
    expect(selectedTreePath("/home/luke/repo", "src/index.ts", "file")).toBe("src/index.ts")
 diff --git a/packages/app/src/components/directory-picker-domain.ts b/packages/app/src/components/directory-picker-domain.ts
-index dfd8ee7..f670141 100644
+index dfd8ee74a..f670141ba 100644
 --- a/packages/app/src/components/directory-picker-domain.ts
 +++ b/packages/app/src/components/directory-picker-domain.ts
 @@ -138,6 +138,14 @@ export function activeTreeNavigation(request: number, current: number) {
@@ -723,8 +1115,38 @@ index dfd8ee7..f670141 100644
  export function createPriorityTaskQueue<T>(concurrency: number) {
    type Job = {
      key: string
+diff --git a/packages/app/src/components/prompt-input-v2.tsx b/packages/app/src/components/prompt-input-v2.tsx
+index 481b7922c..6ea8f92db 100644
+--- a/packages/app/src/components/prompt-input-v2.tsx
++++ b/packages/app/src/components/prompt-input-v2.tsx
+@@ -500,6 +500,7 @@ function PromptInputV2ModelControl(props: {
+   return (
+     <Show when={!props.loading}>
+       <TooltipV2
++        class="min-w-0 max-w-[220px] flex-1 overflow-hidden"
+         placement="top"
+         gutter={4}
+         value={
+@@ -517,7 +518,7 @@ function PromptInputV2ModelControl(props: {
+               data-control-type="dialog"
+               variant="ghost-muted"
+               size="normal"
+-              class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
++              class="w-full min-w-0 justify-start ![font-weight:440] group"
+               classList={{ "animate-in fade-in": shouldAnimate() }}
+               style={{ height: "28px" }}
+               onClick={props.onUnpaidClick}
+@@ -534,7 +535,7 @@ function PromptInputV2ModelControl(props: {
+                 variant="ghost-muted"
+                 size="normal"
+                 style={{ height: "28px" }}
+-                class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
++                class="w-full min-w-0 justify-start ![font-weight:440] group"
+                 classList={{ "animate-in fade-in": shouldAnimate() }}
+                 data-action="prompt-model"
+                 data-control-type="popover"
 diff --git a/packages/app/src/components/prompt-input.tsx b/packages/app/src/components/prompt-input.tsx
-index 41cf7d3..a83a2fb 100644
+index 41cf7d30c..a83a2fb96 100644
 --- a/packages/app/src/components/prompt-input.tsx
 +++ b/packages/app/src/components/prompt-input.tsx
 @@ -1316,6 +1316,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
@@ -758,7 +1180,7 @@ index 41cf7d3..a83a2fb 100644
                    <div
                      data-component="prompt-agent-control"
 diff --git a/packages/app/src/components/settings-providers.tsx b/packages/app/src/components/settings-providers.tsx
-index 080e6c5..9921230 100644
+index 080e6c517..99212301b 100644
 --- a/packages/app/src/components/settings-providers.tsx
 +++ b/packages/app/src/components/settings-providers.tsx
 @@ -80,7 +80,8 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) =>
@@ -781,7 +1203,7 @@ index 080e6c5..9921230 100644
                      <Show
                        when={canDisconnect(item)}
 diff --git a/packages/app/src/components/settings-v2/dialog-settings-v2.tsx b/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
-index 4116f4a..7bc1da9 100644
+index 4116f4a62..7bc1da935 100644
 --- a/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
 +++ b/packages/app/src/components/settings-v2/dialog-settings-v2.tsx
 @@ -1,4 +1,5 @@
@@ -840,7 +1262,7 @@ index 4116f4a..7bc1da9 100644
              <div class="flex flex-col gap-3 w-full">
                <div class="flex flex-col gap-3">
 diff --git a/packages/app/src/components/settings-v2/general.tsx b/packages/app/src/components/settings-v2/general.tsx
-index b41da10..d07bf2a 100644
+index b41da107e..d07bf2aa6 100644
 --- a/packages/app/src/components/settings-v2/general.tsx
 +++ b/packages/app/src/components/settings-v2/general.tsx
 @@ -329,9 +329,14 @@ export const SettingsGeneralV2: Component<{
@@ -860,8 +1282,167 @@ index b41da10..d07bf2a 100644
  
          <SettingsRowV2
            title={language.t("settings.general.row.reasoningSummaries.title")}
+diff --git a/packages/app/src/components/settings-v2/mobile.css b/packages/app/src/components/settings-v2/mobile.css
+new file mode 100644
+index 000000000..63a78dd80
+--- /dev/null
++++ b/packages/app/src/components/settings-v2/mobile.css
+@@ -0,0 +1,153 @@
++/* Phone settings use a menu followed by one full-width panel. Desktop keeps tabs. */
++.settings-mobile-header { display: none; }
++[data-component="dialog-v2"] [data-slot="dialog-container"].provider-connect-container {
++  width: min(calc(100vw - 16px), 640px);
++  height: min(calc(100vh - 16px), 512px);
++}
++
++@media (max-width: 767px) {
++  .settings-v2 [data-slot="tabs-v2-trigger-wrapper"][data-value="shortcuts"] { display: none; }
++  [data-component="dialog-v2"] [data-slot="dialog-container"].provider-connect-container {
++    width: 100%;
++    height: 100dvh;
++    max-height: 100%;
++    border-radius: 0;
++    background: var(--v2-background-bg-base);
++  }
++  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-header"] {
++    min-height: 64px;
++    padding: 8px 16px !important;
++    align-items: center;
++    border-bottom: 1px solid var(--v2-border-border-base);
++  }
++  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-header-title"] {
++    font-size: 20px !important;
++    line-height: 28px;
++    padding-inline: 8px;
++  }
++  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-close-button"] {
++    width: 48px;
++    height: 48px;
++    margin: 0 0 0 auto;
++  }
++  .provider-connect-dialog :is(input, textarea, button) { min-height: 48px; font-size: 16px; }
++  .provider-connect-dialog [data-slot="input-label"] { font-size: 15px; line-height: 24px; }
++  .provider-connect-dialog [data-component="input"] { min-width: 0; }
++  .provider-connect-dialog [data-slot="input-input"] { min-height: 48px; font-size: 16px; }
++  .provider-connect-dialog :is([data-slot="input-description"], [data-slot="input-error"]) {
++    font-size: 14px;
++    line-height: 22px;
++    overflow-wrap: anywhere;
++  }
++  .provider-connect-dialog form [data-row] { display: grid; grid-template-columns: minmax(0, 1fr) 48px; }
++  .provider-connect-dialog form [data-row] > div { grid-column: 1; min-width: 0; }
++  .provider-connect-dialog form [data-row] > button { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
++  .provider-connect-dialog form { font-size: 16px; line-height: 24px; }
++  .provider-connect-dialog .custom-provider-form { max-height: none; min-height: 0; flex: 1; }
++  .provider-connect-dialog [data-slot="dialog-body"] { padding: 16px 8px; }
++  [data-component="dialog-v2"][data-variant="settings"] [data-slot="dialog-container"] {
++    width: 100%;
++    height: 100dvh;
++    max-height: 100%;
++    border-radius: 0;
++  }
++  .settings-mobile-header {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    flex: none;
++    width: 100%;
++    min-height: 64px;
++    padding: 8px 16px;
++    border-bottom: 1px solid var(--v2-border-border-base);
++  }
++  .settings-mobile-header h1 { padding-inline: 8px; font-size: 24px; font-weight: 640; }
++  .settings-mobile-header button {
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    gap: 8px;
++    min-width: 48px;
++    min-height: 48px;
++    font-size: 16px;
++  }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] {
++    height: auto;
++    min-height: 0;
++    flex: 1;
++  }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-list"] {
++    width: 100%;
++    min-width: 0;
++    padding: 16px 24px;
++    background: var(--v2-background-bg-base);
++    overflow-y: auto;
++  }
++  .settings-v2[data-mobile-detail="true"] [data-slot="tabs-v2-list"],
++  .settings-v2[data-mobile-detail="false"] .settings-v2-panel { display: none !important; }
++  .settings-v2 [data-slot="tabs-v2-section-title"] { display: none; }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger-wrapper"] {
++    height: auto;
++    min-height: 56px;
++    border-bottom: 1px solid var(--v2-border-border-base);
++    background: transparent;
++  }
++  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger"] {
++    width: 100%;
++    min-height: 56px;
++    padding: 12px 0;
++    font-size: 16px;
++    background: transparent;
++  }
++  .settings-v2 [data-slot="tabs-v2-trigger"]::after { content: "›"; margin-inline-start: auto; font-size: 24px; }
++  .settings-v2-nav-footer { padding-block: 24px; }
++  .settings-v2-panel { min-width: 0; overscroll-behavior: contain; }
++  .settings-v2-dialog .settings-v2-tab-header { position: static; padding: 24px 24px 20px; background: none; }
++  .settings-v2-dialog .settings-v2-tab-title { font-size: 24px; line-height: 32px; }
++  .settings-v2-dialog .settings-v2-tab-body { padding: 0 24px 32px; gap: 32px; }
++  .settings-v2-dialog [data-component="settings-v2-list"] {
++    padding-inline: 0;
++    border-radius: 0;
++    background: none;
++    box-shadow: none;
++  }
++  .settings-v2-dialog [data-component="settings-v2-row"] { gap: 12px; padding-block: 20px; }
++  .settings-v2-dialog [data-slot="settings-v2-row-copy"] { flex-basis: 100%; gap: 6px; }
++  .settings-v2-dialog [data-slot="settings-v2-row-title"],
++  .settings-v2-dialog .settings-v2-provider-name,
++  .settings-v2-dialog .settings-v2-section-title { font-size: 16px; line-height: 24px; }
++  .settings-v2-dialog [data-slot="settings-v2-row-description"],
++  .settings-v2-dialog .settings-v2-provider-description { font-size: 14px; line-height: 22px; margin: 0; }
++  .settings-v2-dialog [data-slot="settings-v2-row-control"] { width: 100%; justify-content: stretch; }
++  .settings-v2-dialog [data-component="settings-v2-row"]:has([data-component="switch"]) {
++    flex-wrap: nowrap;
++    align-items: flex-start;
++  }
++  .settings-v2-dialog [data-component="settings-v2-row"]:has([data-component="switch"]) [data-slot="settings-v2-row-control"] {
++    width: auto;
++    flex: none;
++    min-width: 48px;
++    min-height: 48px;
++    align-items: center;
++  }
++  .settings-v2-dialog [data-component="select-v2-root"],
++  .settings-v2-dialog [data-slot="settings-v2-row-control"] > div { width: 100% !important; }
++  .settings-v2-dialog [data-component="select-v2"],
++  .settings-v2-dialog [data-slot="text-input-v2-input"],
++  .settings-v2-dialog [data-component="button-v2"] { min-height: 48px; font-size: 16px; }
++  .settings-v2-dialog [data-component="select-v2"] {
++    width: 100%;
++    justify-content: space-between;
++    border: 1px solid var(--v2-border-border-base);
++    border-radius: 8px;
++    padding-inline: 12px;
++  }
++  .settings-v2-dialog [data-slot="select-v2-value-text"] { font-size: 16px; line-height: 24px; }
++  .settings-v2-dialog .settings-v2-provider-row { gap: 12px; }
++  .settings-v2-dialog .settings-v2-provider-lead { flex-basis: 100%; }
++  .settings-v2-dialog .settings-v2-provider-row > [data-component="button-v2"] { width: 100%; }
++  .settings-v2-dialog .settings-v2-provider-empty { font-size: 14px; line-height: 22px; }
++  .settings-v2-dialog .settings-v2-models-group-trigger { min-height: 48px; }
++  .settings-v2-dialog .settings-v2-models [data-slot="settings-v2-row-title"] { white-space: normal; overflow-wrap: anywhere; }
++  .settings-v2-dialog button:focus-visible { outline: 2px solid var(--v2-border-border-focus); outline-offset: 2px; }
++}
 diff --git a/packages/app/src/components/settings-v2/providers.tsx b/packages/app/src/components/settings-v2/providers.tsx
-index acd73dd..40d749f 100644
+index acd73ddbe..40d749fc4 100644
 --- a/packages/app/src/components/settings-v2/providers.tsx
 +++ b/packages/app/src/components/settings-v2/providers.tsx
 @@ -9,7 +9,6 @@ import { useLanguage } from "@/context/language"
@@ -903,7 +1484,7 @@ index acd73dd..40d749f 100644
                    {language.t("common.connect")}
                  </ButtonV2>
 diff --git a/packages/app/src/components/titlebar-tab-nav.css b/packages/app/src/components/titlebar-tab-nav.css
-index 93834b5..288ff1a 100644
+index 93834b5b9..288ff1ae8 100644
 --- a/packages/app/src/components/titlebar-tab-nav.css
 +++ b/packages/app/src/components/titlebar-tab-nav.css
 @@ -39,6 +39,20 @@
@@ -928,7 +1509,7 @@ index 93834b5..288ff1a 100644
    --tab-separator: var(--v2-background-bg-layer-03);
    position: relative;
 diff --git a/packages/app/src/components/titlebar-tab-strip.tsx b/packages/app/src/components/titlebar-tab-strip.tsx
-index 0a4b4da..2ea0f73 100644
+index 0a4b4da12..2ea0f7386 100644
 --- a/packages/app/src/components/titlebar-tab-strip.tsx
 +++ b/packages/app/src/components/titlebar-tab-strip.tsx
 @@ -49,7 +49,7 @@ function SessionTabSlot(props: {
@@ -959,7 +1540,7 @@ index 0a4b4da..2ea0f73 100644
                {(tab) => {
                  const id = tabKey(tab)
 diff --git a/packages/app/src/components/titlebar.tsx b/packages/app/src/components/titlebar.tsx
-index 15d963a..42c4b7f 100644
+index 15d963a13..42c4b7f18 100644
 --- a/packages/app/src/components/titlebar.tsx
 +++ b/packages/app/src/components/titlebar.tsx
 @@ -647,6 +647,7 @@ function TitlebarUpdateIconButton(props: { state: TitlebarUpdatePillState }) {
@@ -971,7 +1552,7 @@ index 15d963a..42c4b7f 100644
      return (
        <button
 diff --git a/packages/app/src/context/file.tsx b/packages/app/src/context/file.tsx
-index fbbef3a..d51ebad 100644
+index fbbef3a2a..d51ebadbc 100644
 --- a/packages/app/src/context/file.tsx
 +++ b/packages/app/src/context/file.tsx
 @@ -1,6 +1,7 @@
@@ -1031,7 +1612,7 @@ index fbbef3a..d51ebad 100644
            setLoaded(file, content)
  
 diff --git a/packages/app/src/context/file/tree-store.ts b/packages/app/src/context/file/tree-store.ts
-index 5769c31..60c75f1 100644
+index 5769c318f..60c75f176 100644
 --- a/packages/app/src/context/file/tree-store.ts
 +++ b/packages/app/src/context/file/tree-store.ts
 @@ -162,6 +162,12 @@ export function createFileTreeStore(options: TreeStoreOptions) {
@@ -1048,7 +1629,7 @@ index 5769c31..60c75f1 100644
      expandDir,
      collapseDir,
 diff --git a/packages/app/src/context/layout.tsx b/packages/app/src/context/layout.tsx
-index 6235f35..6ad9994 100644
+index 6235f35c4..6ad999487 100644
 --- a/packages/app/src/context/layout.tsx
 +++ b/packages/app/src/context/layout.tsx
 @@ -303,6 +303,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
@@ -1069,7 +1650,7 @@ index 6235f35..6ad9994 100644
            setStore("home", "selection", reconcile(selection))
          },
 diff --git a/packages/app/src/context/permission-auto-respond.test.ts b/packages/app/src/context/permission-auto-respond.test.ts
-index 794e03a..2152a75 100644
+index 794e03ae4..2152a7579 100644
 --- a/packages/app/src/context/permission-auto-respond.test.ts
 +++ b/packages/app/src/context/permission-auto-respond.test.ts
 @@ -15,6 +15,21 @@ const permission = (sessionID: string) =>
@@ -1095,7 +1676,7 @@ index 794e03a..2152a75 100644
      const directory = "/tmp/project"
      const sessions = [session({ id: "root" }), session({ id: "child", parentID: "root" })]
 diff --git a/packages/app/src/context/permission-auto-respond.ts b/packages/app/src/context/permission-auto-respond.ts
-index 8fff6d7..d3a1a33 100644
+index 8fff6d70c..d3a1a3397 100644
 --- a/packages/app/src/context/permission-auto-respond.ts
 +++ b/packages/app/src/context/permission-auto-respond.ts
 @@ -15,6 +15,7 @@ function accepted(autoAccept: Record<string, boolean>, sessionID: string, direct
@@ -1116,7 +1697,7 @@ index 8fff6d7..d3a1a33 100644
      .map((id) => accepted(autoAccept, id, directory))
      .find((item): item is boolean => item !== undefined)
 diff --git a/packages/app/src/context/server-sdk.test.ts b/packages/app/src/context/server-sdk.test.ts
-index 57e1cd8..b357dd7 100644
+index 57e1cd86f..b357dd777 100644
 --- a/packages/app/src/context/server-sdk.test.ts
 +++ b/packages/app/src/context/server-sdk.test.ts
 @@ -1,8 +1,17 @@
@@ -1139,7 +1720,7 @@ index 57e1cd8..b357dd7 100644
    test("restarts a stream only after a back-forward cache restore", () => {
      let starts = 0
 diff --git a/packages/app/src/context/server-sdk.tsx b/packages/app/src/context/server-sdk.tsx
-index 7dd2a6e..a4db653 100644
+index 7dd2a6e59..a4db65343 100644
 --- a/packages/app/src/context/server-sdk.tsx
 +++ b/packages/app/src/context/server-sdk.tsx
 @@ -164,6 +164,13 @@ export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: ()
@@ -1203,7 +1784,7 @@ index 7dd2a6e..a4db653 100644
  
    onCleanup(() => {
 diff --git a/packages/app/src/context/server-session.test.ts b/packages/app/src/context/server-session.test.ts
-index 2ebf5f8..14ca31c 100644
+index 2ebf5f88e..14ca31c10 100644
 --- a/packages/app/src/context/server-session.test.ts
 +++ b/packages/app/src/context/server-session.test.ts
 @@ -95,6 +95,26 @@ function messageClient(...responses: Array<MessageResponse | Promise<MessageResp
@@ -1234,7 +1815,7 @@ index 2ebf5f8..14ca31c 100644
    pages: Array<MessageResponse | Promise<MessageResponse>>,
    roots: Array<SingleMessageResponse | Promise<SingleMessageResponse>>,
 diff --git a/packages/app/src/context/server-session.ts b/packages/app/src/context/server-session.ts
-index c5d9868..e961b77 100644
+index c5d98682f..e961b77bc 100644
 --- a/packages/app/src/context/server-session.ts
 +++ b/packages/app/src/context/server-session.ts
 @@ -996,6 +996,16 @@ export function createServerSession(
@@ -1255,7 +1836,7 @@ index c5d9868..e961b77 100644
          remember((event.properties as { info: Session }).info)
          return
 diff --git a/packages/app/src/context/server-sync.test.ts b/packages/app/src/context/server-sync.test.ts
-index 7821a09..1596fa7 100644
+index 7821a09e2..1596fa7e1 100644
 --- a/packages/app/src/context/server-sync.test.ts
 +++ b/packages/app/src/context/server-sync.test.ts
 @@ -10,7 +10,9 @@ import type {
@@ -1307,7 +1888,7 @@ index 7821a09..1596fa7 100644
  })
  
 diff --git a/packages/app/src/context/server-sync.tsx b/packages/app/src/context/server-sync.tsx
-index 13a0b74..e332d2d 100644
+index 13a0b74bc..e332d2d41 100644
 --- a/packages/app/src/context/server-sync.tsx
 +++ b/packages/app/src/context/server-sync.tsx
 @@ -165,15 +165,33 @@ export const loadActiveSessionsQuery = (
@@ -1390,7 +1971,7 @@ index 13a0b74..e332d2d 100644
        applyGlobalEvent({
          event,
 diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
-index 6e5f63f..17cf1b9 100644
+index 6e5f63fd4..17cf1b95a 100644
 --- a/packages/app/src/entry.tsx
 +++ b/packages/app/src/entry.tsx
 @@ -161,6 +161,7 @@ if (root instanceof HTMLElement) {
@@ -1402,7 +1983,7 @@ index 6e5f63f..17cf1b9 100644
        () => (
          <PlatformProvider value={platform}>
 diff --git a/packages/app/src/i18n/en.ts b/packages/app/src/i18n/en.ts
-index 62d4dc1..03936a8 100644
+index 62d4dc1ae..03936a85f 100644
 --- a/packages/app/src/i18n/en.ts
 +++ b/packages/app/src/i18n/en.ts
 @@ -1,6 +1,19 @@
@@ -1426,7 +2007,7 @@ index 62d4dc1..03936a8 100644
    "command.category.suggested": "Suggested",
    "command.category.view": "View",
 diff --git a/packages/app/src/i18n/ko.ts b/packages/app/src/i18n/ko.ts
-index b96fb4c..d4e1feb 100644
+index b96fb4c59..d4e1feb39 100644
 --- a/packages/app/src/i18n/ko.ts
 +++ b/packages/app/src/i18n/ko.ts
 @@ -1,4 +1,17 @@
@@ -1459,7 +2040,7 @@ index b96fb4c..d4e1feb 100644
    "settings.general.row.showFileTree.title": "파일 트리",
    "settings.general.row.showFileTree.description": "세션에 파일 트리 패널 표시",
 diff --git a/packages/app/src/index.css b/packages/app/src/index.css
-index 78a9e10..354168c 100644
+index 78a9e103a..354168cca 100644
 --- a/packages/app/src/index.css
 +++ b/packages/app/src/index.css
 @@ -3,6 +3,80 @@
@@ -1544,7 +2125,7 @@ index 78a9e10..354168c 100644
    font-family: "JetBrainsMono Nerd Font Mono";
    src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
 diff --git a/packages/app/src/pages/home.tsx b/packages/app/src/pages/home.tsx
-index 4fadb8a..27d3788 100644
+index 4fadb8a68..27d378895 100644
 --- a/packages/app/src/pages/home.tsx
 +++ b/packages/app/src/pages/home.tsx
 @@ -1,7 +1,8 @@
@@ -1608,7 +2189,7 @@ index 4fadb8a..27d3788 100644
        </ScrollView>
      </div>
 diff --git a/packages/app/src/pages/home/home-controller.ts b/packages/app/src/pages/home/home-controller.ts
-index 8b67533..ee8251b 100644
+index 8b6753362..ee8251b07 100644
 --- a/packages/app/src/pages/home/home-controller.ts
 +++ b/packages/app/src/pages/home/home-controller.ts
 @@ -35,6 +35,15 @@ export function createHomeController() {
@@ -1627,8 +2208,139 @@ index 8b67533..ee8251b 100644
    createEffect(() => {
      const list = global.servers.list()
      if (list.some((conn) => ServerConnection.key(conn) === selection().server)) return
+diff --git a/packages/app/src/pages/home/home-list-actions.tsx b/packages/app/src/pages/home/home-list-actions.tsx
+new file mode 100644
+index 000000000..ff850611e
+--- /dev/null
++++ b/packages/app/src/pages/home/home-list-actions.tsx
+@@ -0,0 +1,125 @@
++import { createMemo, onCleanup, Show } from "solid-js"
++import { createStore } from "solid-js/store"
++import { Portal } from "solid-js/web"
++import { useDialog } from "@opencode-ai/ui/context/dialog"
++import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
++import { useLanguage } from "@/context/language"
++import { errorMessage } from "@/pages/layout/helpers"
++import { showToast } from "@/utils/toast"
++
++export function createListActions<T>(options: { key: (item: T) => string; remove: (item: T) => Promise<void> }) {
++  const language = useLanguage()
++  const dialog = useDialog()
++  const [state, setState] = createStore({ selected: [] as T[], pending: [] as T[], removing: [] as T[] })
++  let timer: ReturnType<typeof setTimeout> | undefined
++  const contains = (items: T[], item: T) => items.some((entry) => options.key(entry) === options.key(item))
++  const undo = () => { clearTimeout(timer); setState("pending", []) }
++  // Leaving the list during the undo window cancels uncommitted deletion.
++  onCleanup(undo)
++  const queue = (items: T[]) => {
++    clearTimeout(timer)
++    setState("pending", (pending) => [...pending, ...items.filter((item) => !contains(pending, item))])
++    setState("selected", [])
++    timer = setTimeout(() => {
++      const pending = [...state.pending]
++      setState("removing", (items) => [...items, ...pending])
++      setState("pending", [])
++      void Promise.all(pending.map(async (item) => {
++        await options.remove(item).catch((cause) => showToast({
++          title: language.t("session.delete.failed.title"),
++          description: errorMessage(cause, language.t("common.requestFailed")),
++        }))
++        setState("removing", (items) => items.filter((entry) => options.key(entry) !== options.key(item)))
++      }))
++    }, 6000)
++  }
++  const confirm = async () => {
++    const selected = [...state.selected]
++    if (!selected.length) return
++    const { DialogV2, DialogHeader, DialogTitleGroup, DialogFooter } = await import("@opencode-ai/ui/v2/dialog-v2")
++    dialog.show(() => <DialogV2 fit>
++      <DialogHeader><DialogTitleGroup title={language.t("home.list.deleteSelected", { count: selected.length })}
++        description={language.t("home.list.deleteDescription")} /></DialogHeader>
++      <DialogFooter>
++        <ButtonV2 variant="ghost" onClick={() => dialog.close()}>{language.t("common.cancel")}</ButtonV2>
++        <ButtonV2 variant="danger" onClick={() => { queue(selected); dialog.close() }}>{language.t("common.delete")}</ButtonV2>
++      </DialogFooter>
++    </DialogV2>)
++  }
++  return {
++    count: () => state.selected.length,
++    pending: () => state.pending.length,
++    selected: (item: T) => contains(state.selected, item),
++    hidden: (item: T) => contains(state.pending, item) || contains(state.removing, item),
++    toggle: (item: T) => setState("selected", (items) => contains(items, item)
++      ? items.filter((entry) => options.key(entry) !== options.key(item)) : [...items, item]),
++    clear: () => setState("selected", []),
++    reset: () => { undo(); setState("selected", []) },
++    queue: (item: T) => queue([item]),
++    confirm,
++    undo,
++  }
++}
++
++export function ListActionBars(props: { actions: Pick<ReturnType<typeof createListActions>, "count" | "pending" | "clear" | "confirm" | "undo"> }) {
++  const language = useLanguage()
++  return <>
++    <Show when={props.actions.count()}>
++      <div class="home-selection-bar" role="toolbar" aria-label={language.t("home.list.selection")}>
++        <button type="button" onClick={props.actions.clear}>{language.t("common.cancel")}</button>
++        <strong aria-live="polite">{language.t("home.list.selected", { count: props.actions.count() })}</strong>
++        <button type="button" class="home-selection-delete" onClick={props.actions.confirm}>{language.t("common.delete")}</button>
++      </div>
++    </Show>
++    <Show when={props.actions.pending()}>
++      <Portal><div class="home-undo-bar" role="status">
++        <span>{language.t("home.list.removed", { count: props.actions.pending() })}</span>
++        <button type="button" onClick={props.actions.undo}>{language.t("home.list.undo")}</button>
++      </div></Portal>
++    </Show>
++  </>
++}
++
++export function createRowGesture(options: { hold: () => void; selecting: () => boolean; width: number }) {
++  const [state, setState] = createStore({ offset: 0, open: false, dragging: false, pressed: false })
++  const start = { x: 0, y: 0, active: false, moved: false }
++  let timer: ReturnType<typeof setTimeout> | undefined
++  const releaseClickGuard = () => {
++    document.removeEventListener("click", suppressClick, true)
++    document.removeEventListener("pointerdown", releaseClickGuard, true)
++  }
++  const suppressClick = (event: MouseEvent) => { event.preventDefault(); event.stopImmediatePropagation(); releaseClickGuard() }
++  const close = () => setState({ open: false, offset: 0, dragging: false, pressed: false })
++  const cancel = () => { clearTimeout(timer); start.active = false; setState({ dragging: false, pressed: false, offset: state.open ? -options.width : 0 }) }
++  onCleanup(() => { clearTimeout(timer); releaseClickGuard() })
++  return {
++    state, close,
++    reveal: () => setState({ open: true, offset: -options.width }),
++    style: createMemo(() => ({ transform: `translateX(${state.offset}px)`, transition: state.dragging ? "none" : undefined })),
++    down: (event: PointerEvent) => {
++      if (event.button !== 0) return
++      start.x = event.clientX; start.y = event.clientY; start.active = true; start.moved = false
++      setState("pressed", true)
++      timer = setTimeout(() => {
++        start.moved = true; start.active = false; close()
++        // Android can retarget touch-release click after the selection toolbar moves rows.
++        document.addEventListener("click", suppressClick, true)
++        document.addEventListener("pointerdown", releaseClickGuard, true)
++        options.hold()
++      }, 450)
++      ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
++    },
++    move: (event: PointerEvent) => {
++      if (!start.active) return
++      const x = event.clientX - start.x
++      const y = event.clientY - start.y
++      if (Math.hypot(x, y) > 8) { clearTimeout(timer); setState("pressed", false); start.moved = true }
++      if (Math.abs(y) > 10 && Math.abs(y) > Math.abs(x)) { cancel(); return }
++      if (options.selecting() || Math.abs(x) < 8 || Math.abs(x) < Math.abs(y)) return
++      setState({ dragging: true, offset: Math.max(-options.width - 18, Math.min(0, (state.open ? -options.width : 0) + x)) })
++    },
++    up: () => { clearTimeout(timer); start.active = false; const open = state.offset < -40; setState({ open, dragging: false, pressed: false, offset: open ? -options.width : 0 }) },
++    cancel: () => { start.moved = true; cancel() },
++    consumed: () => { if (start.moved) { start.moved = false; return true }; if (state.open) { close(); return true }; return false },
++  }
++}
 diff --git a/packages/app/src/pages/home/home-projects-controller.tsx b/packages/app/src/pages/home/home-projects-controller.tsx
-index 18c58bd..f5316bb 100644
+index 18c58bd29..f5316bb80 100644
 --- a/packages/app/src/pages/home/home-projects-controller.tsx
 +++ b/packages/app/src/pages/home/home-projects-controller.tsx
 @@ -13,6 +13,7 @@ import { showToast } from "@/utils/toast"
@@ -1699,7 +2411,7 @@ index 18c58bd..f5316bb 100644
          home.server.context(conn).projects.move(worktree, index)
        },
 diff --git a/packages/app/src/pages/home/home-projects-view.tsx b/packages/app/src/pages/home/home-projects-view.tsx
-index eebb0d5..9121c38 100644
+index eebb0d574..9121c3817 100644
 --- a/packages/app/src/pages/home/home-projects-view.tsx
 +++ b/packages/app/src/pages/home/home-projects-view.tsx
 @@ -21,6 +21,9 @@ import { ServerHealthIndicator } from "@/components/server/server-row"
@@ -1833,7 +2545,7 @@ index eebb0d5..9121c38 100644
              </MenuV2.Content>
            </MenuV2.Portal>
 diff --git a/packages/app/src/pages/home/home-projects.tsx b/packages/app/src/pages/home/home-projects.tsx
-index ff2abf7..9ed79ae 100644
+index ff2abf7c1..9ed79ae6a 100644
 --- a/packages/app/src/pages/home/home-projects.tsx
 +++ b/packages/app/src/pages/home/home-projects.tsx
 @@ -5,6 +5,7 @@ import type { HomeScrollController } from "./home-scroll-controller"
@@ -1845,7 +2557,7 @@ index ff2abf7..9ed79ae 100644
        servers={props.projects.server.list}
        projects={props.projects.project.list}
 diff --git a/packages/app/src/pages/home/home-scroll-controller.ts b/packages/app/src/pages/home/home-scroll-controller.ts
-index 96b0cf4..8532f3d 100644
+index 96b0cf46d..8532f3d72 100644
 --- a/packages/app/src/pages/home/home-scroll-controller.ts
 +++ b/packages/app/src/pages/home/home-scroll-controller.ts
 @@ -1,12 +1,15 @@
@@ -1898,7 +2610,7 @@ index 96b0cf4..8532f3d 100644
        .map((group) => headerRefs.get(group.id))
        .find((element) => element !== undefined)
 diff --git a/packages/app/src/pages/home/home-sessions-controller.tsx b/packages/app/src/pages/home/home-sessions-controller.tsx
-index f306f20..aad044a 100644
+index f306f208c..aad044ac9 100644
 --- a/packages/app/src/pages/home/home-sessions-controller.tsx
 +++ b/packages/app/src/pages/home/home-sessions-controller.tsx
 @@ -3,8 +3,10 @@ import { preloadMarkdown } from "@opencode-ai/session-ui/markdown-cache"
@@ -2025,7 +2737,7 @@ index f306f20..aad044a 100644
        server: () => home.selection.value().server,
        canCreate: () => !!home.project.newSession(),
 diff --git a/packages/app/src/pages/home/home-sessions-view.tsx b/packages/app/src/pages/home/home-sessions-view.tsx
-index 72f2f37..fe83834 100644
+index 72f2f3761..fe838345e 100644
 --- a/packages/app/src/pages/home/home-sessions-view.tsx
 +++ b/packages/app/src/pages/home/home-sessions-view.tsx
 @@ -1,5 +1,7 @@
@@ -2151,7 +2863,7 @@ index 72f2f37..fe83834 100644
          <div
            class={`
 diff --git a/packages/app/src/pages/home/home-sessions.tsx b/packages/app/src/pages/home/home-sessions.tsx
-index 7bda4dd..e0c39d1 100644
+index 7bda4dd36..e0c39d17b 100644
 --- a/packages/app/src/pages/home/home-sessions.tsx
 +++ b/packages/app/src/pages/home/home-sessions.tsx
 @@ -10,6 +10,7 @@ export function HomeSessions(props: {
@@ -2173,7 +2885,7 @@ index 7bda4dd..e0c39d1 100644
        onSetThumbTrack={props.scroll.viewport.setThumbTrack}
        onSetContent={props.scroll.header.setContent}
 diff --git a/packages/app/src/pages/session/composer/session-composer-region.tsx b/packages/app/src/pages/session/composer/session-composer-region.tsx
-index 600ff41..51e2357 100644
+index 600ff41e3..51e2357dc 100644
 --- a/packages/app/src/pages/session/composer/session-composer-region.tsx
 +++ b/packages/app/src/pages/session/composer/session-composer-region.tsx
 @@ -1,7 +1,7 @@
@@ -2207,8 +2919,168 @@ index 600ff41..51e2357 100644
  
          <Show when={controller.showComposer()}>
            <Show when={controller.dock()}>
+diff --git a/packages/app/src/pages/session/composer/tinyagent-access.test.ts b/packages/app/src/pages/session/composer/tinyagent-access.test.ts
+new file mode 100644
+index 000000000..eb91c7d0c
+--- /dev/null
++++ b/packages/app/src/pages/session/composer/tinyagent-access.test.ts
+@@ -0,0 +1,15 @@
++import { expect, test } from "bun:test"
++import { accessMode, accessRules } from "./tinyagent-access"
++
++test("permission modes honor blanket ordering without escalating custom restrictions", () => {
++  const allow = { permission: "*", pattern: "*", action: "allow" } as const
++  const deny = { permission: "bash", pattern: "rm *", action: "deny" } as const
++  expect(accessMode([])).toBe("basic")
++  for (const mode of ["basic", "read", "yolo"] as const) expect(accessMode(accessRules(mode))).toBe(mode)
++  expect(accessMode([allow])).toBe("yolo")
++  expect(accessMode([deny, allow])).toBe("yolo")
++  expect(accessMode([allow, deny])).toBe("custom")
++  expect(accessMode([deny])).toBe("custom")
++  expect(accessMode([...accessRules("yolo"), { permission: "doom_loop", pattern: "*", action: "ask" }])).toBe("custom")
++  expect(accessMode([{ permission: "*", pattern: "*", action: "deny" }])).toBe("custom")
++})
+diff --git a/packages/app/src/pages/session/composer/tinyagent-access.tsx b/packages/app/src/pages/session/composer/tinyagent-access.tsx
+new file mode 100644
+index 000000000..867396ec4
+--- /dev/null
++++ b/packages/app/src/pages/session/composer/tinyagent-access.tsx
+@@ -0,0 +1,133 @@
++import { createEffect, createSignal, onCleanup, Show } from "solid-js"
++import { useParams } from "@solidjs/router"
++import { useSDK } from "@/context/sdk"
++import { useLanguage } from "@/context/language"
++import { SessionPermissionDock } from "./session-permission-dock"
++import type { PermissionRequest } from "@opencode-ai/sdk/v2"
++
++type Mode = "basic" | "read" | "yolo"
++type Rule = { permission: string; pattern: string; action: "allow" | "ask" | "deny" }
++export function accessRules(mode: Mode): Rule[] {
++  const rule = (permission: string, action: "allow" | "ask", pattern = "*"): Rule => ({ permission, pattern, action })
++  const rules = [rule("*", mode === "read" ? "ask" : "allow"), rule("external_directory", mode === "yolo" ? "allow" : "ask"), rule("doom_loop", mode === "yolo" ? "allow" : "ask")]
++  for (const name of ["read", "glob", "grep", "list"]) rules.push(rule(name, "allow"))
++  // The directory includes signing material; allow only known harness reads via
++  // one-time replies below, never grant broad /root access in the basic modes.
++  return rules
++}
++export function accessMode(rules: Rule[]): Mode | "custom" {
++  if (!rules.length) return "basic"
++  // OpenCode evaluates the last matching rule. A blanket rule supersedes all earlier rules.
++  const index = rules.findLastIndex(rule => rule.permission === "*" && rule.pattern === "*")
++  if (index < 0) return "custom"
++  const remaining = rules.slice(index)
++  if (remaining.every(rule => rule.action === "allow")) return "yolo"
++  if (remaining.some(rule => rule.pattern !== "*")) return "custom"
++  const actual = new Map(remaining.map(rule => [rule.permission, rule.action]))
++  for (const mode of ["basic", "read"] as const) {
++    const expected = accessRules(mode)
++    if (actual.size === expected.length && expected.every(rule => actual.get(rule.permission) === rule.action)) return mode
++  }
++  return "custom"
++}
++const safeReads = new Set(["AGENTS.md", "STOCK.md", "ADB.md", "ROOT.md", "TINYAGENT_ENVIRONMENT.md", "ANDROID_TOOL.md"].map(x => "/root/.tinyagent/" + x))
++for (const x of ["prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py"]) safeReads.add("/root/.tinyagent/bootstrap/" + x)
++safeReads.add("/etc/os-release")
++safeReads.add("/etc/fedora-release")
++
++export function TinyAgentAccess() {
++  const params = useParams()
++  const sdk = useSDK()
++  const language = useLanguage()
++  const [mode, setMode] = createSignal<Mode | "custom">()
++  const [pending, setPending] = createSignal<PermissionRequest[]>([])
++  const [busy, setBusy] = createSignal(false)
++  const [error, setError] = createSignal("")
++  let policyVersion = 0
++  let refresh = async () => {}
++  async function request(path: string, method = "GET", body?: unknown) {
++    const response = await fetch(path, { method, headers: { "Content-Type": "application/json", "x-opencode-directory": sdk().directory }, body: body === undefined ? undefined : JSON.stringify(body) })
++    if (!response.ok) throw new Error(`권한 설정 요청 실패 (${response.status})`)
++    return response.json()
++  }
++  createEffect(() => {
++    const id = params.id
++    sdk().directory
++    setPending([])
++    setMode(undefined)
++    if (!id) return
++    let disposed = false, loading = false
++    refresh = async () => {
++      if (loading || disposed) return
++      loading = true
++      const version = policyVersion
++      try {
++        const [session, requests] = await Promise.all([request(`/session/${id}`), request("/permission")])
++        if (disposed || version !== policyVersion) return
++        const rules: Rule[] = session.permission ?? []
++        setMode(accessMode(rules))
++        const selected: PermissionRequest[] = requests.filter((r: PermissionRequest) => r.sessionID === id)
++        setPending(selected)
++        setError("")
++        // Reconcile initial events and reconnects using the backend's actual queue.
++        // Only verify bundled, read-only environment requests automatically.
++        for (const p of selected) {
++          if (disposed || busy() || version !== policyVersion) break
++          const path = p.metadata?.filepath
++          if (mode() === "yolo") {
++            await request(`/permission/${p.id}/reply`, "POST", { reply: "once" })
++          } else if (p.permission === "external_directory" && typeof path === "string" && safeReads.has(path)) {
++            const messages = await request(`/session/${id}/message`)
++            const read = messages.flatMap((m: { parts: any[] }) => m.parts).some((part: any) => part.tool === "read" && part.callID === p.tool?.callID && part.state?.input?.filePath === path)
++            if (!disposed && !busy() && version === policyVersion && read) await request(`/permission/${p.id}/reply`, "POST", { reply: "once" })
++          }
++        }
++      } catch (e) { if (!disposed) setError(e instanceof Error ? e.message : "권한 상태 확인 실패") }
++      finally { loading = false }
++    }
++    void refresh()
++    const timer = setInterval(() => void refresh(), 2000)
++    onCleanup(() => { disposed = true; clearInterval(timer) })
++  })
++  async function change(value: Mode) {
++    const id = params.id
++    if (!id || busy()) return
++    policyVersion++
++    setBusy(true)
++    try {
++      await request(`/session/${id}`, "PATCH", { permission: accessRules(value) })
++      if (params.id !== id) return
++      setMode(value)
++      await refresh()
++    } catch (e) { setError(e instanceof Error ? e.message : "권한 설정 실패") }
++    finally { setBusy(false) }
++  }
++  async function decide(reply: "once" | "always" | "reject") {
++    const p = pending()[0]
++    if (!p || busy()) return
++    setBusy(true)
++    try { await request(`/permission/${p.id}/reply`, "POST", { reply }); await refresh() }
++    catch (e) { setError(e instanceof Error ? e.message : "승인 응답 실패") }
++    finally { setBusy(false) }
++  }
++  return <Show when={params.id}>
++    <div data-component="tinyagent-access" class="rounded-lg border border-border-weak-base bg-background-base px-3 py-1 mb-2 text-text-base">
++      <div class="flex items-start justify-between gap-2">
++        <details class="min-w-0 flex-1 text-12-regular text-text-weak">
++          <summary class="min-h-11 flex items-center cursor-pointer text-14-medium text-text-base">에이전트 승인 ⓘ</summary>
++          <p class="pb-2">이 세션에 저장됩니다. Android의 Stock·Developer·Root 권한은 바뀌지 않습니다.</p>
++        </details>
++        <select aria-label="에이전트 승인 모드" value={mode() ?? ""} disabled={busy() || mode() === undefined} onChange={e => void change(e.currentTarget.value as Mode)} class="min-h-11 rounded-md bg-background-stronger px-3 text-text-base">
++          <Show when={mode() === undefined}><option value="" disabled>{language.t("common.loading")}</option></Show>
++          <option value="basic">기본</option><option value="read">읽기 전용</option><option value="yolo">전체 허용 · YOLO</option>
++          <Show when={mode() === "custom"}><option value="custom" disabled>{language.t("settings.providers.tag.custom")}</option></Show>
++        </select>
++      </div>
++      <Show when={error()}><p role="alert" class="text-13-regular mt-2">{error()}</p></Show>
++      <Show when={pending()[0]} keyed>{p => <div class="mt-2" role="region" aria-label="승인 대기">
++        <p role="status" class="text-14-medium">승인 대기 · {pending().length}건 — 허용 또는 거부를 선택하세요.</p>
++        <SessionPermissionDock request={p} responding={busy()} onDecide={reply => void decide(reply)} />
++      </div>}</Show>
++    </div>
++  </Show>
++}
 diff --git a/packages/app/src/pages/session/timeline/message-timeline.tsx b/packages/app/src/pages/session/timeline/message-timeline.tsx
-index e083882..a0dcf95 100644
+index e08388255..a0dcf9533 100644
 --- a/packages/app/src/pages/session/timeline/message-timeline.tsx
 +++ b/packages/app/src/pages/session/timeline/message-timeline.tsx
 @@ -40,6 +40,7 @@ import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@opencod
@@ -2266,7 +3138,7 @@ index e083882..a0dcf95 100644
                />
 diff --git a/packages/app/src/pages/session/timeline/timeline-row.test.ts b/packages/app/src/pages/session/timeline/timeline-row.test.ts
 new file mode 100644
-index 0000000..0aa9238
+index 000000000..0aa92380c
 --- /dev/null
 +++ b/packages/app/src/pages/session/timeline/timeline-row.test.ts
 @@ -0,0 +1,29 @@
@@ -2300,7 +3172,7 @@ index 0000000..0aa9238
 +  expect(Row.equals(part(), part("m", "p", true))).toBe(false)
 +})
 diff --git a/packages/app/src/pages/session/timeline/timeline-row.ts b/packages/app/src/pages/session/timeline/timeline-row.ts
-index 3905254..2bc6ee5 100644
+index 3905254b2..2bc6ee578 100644
 --- a/packages/app/src/pages/session/timeline/timeline-row.ts
 +++ b/packages/app/src/pages/session/timeline/timeline-row.ts
 @@ -75,6 +75,31 @@ export namespace TimelineRow {
@@ -2337,7 +3209,7 @@ index 3905254..2bc6ee5 100644
    }
  }
 diff --git a/packages/app/src/utils/server-compat.test.ts b/packages/app/src/utils/server-compat.test.ts
-index 52e5ec6..abaeecc 100644
+index 52e5ec6e3..abaeecc31 100644
 --- a/packages/app/src/utils/server-compat.test.ts
 +++ b/packages/app/src/utils/server-compat.test.ts
 @@ -4,13 +4,15 @@ import { createCompatibleApi } from "./server-compat"
@@ -2395,7 +3267,7 @@ index 52e5ec6..abaeecc 100644
      const { api, requests } = setup("v1")
  
 diff --git a/packages/app/src/utils/server-compat.ts b/packages/app/src/utils/server-compat.ts
-index 1df1338..d9dafec 100644
+index 1df1338b7..d9dafec0e 100644
 --- a/packages/app/src/utils/server-compat.ts
 +++ b/packages/app/src/utils/server-compat.ts
 @@ -378,7 +378,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
@@ -2421,7 +3293,7 @@ index 1df1338..d9dafec 100644
        },
        oauth: {
 diff --git a/packages/session-ui/package.json b/packages/session-ui/package.json
-index 0c1c656..f7dde99 100644
+index 0c1c656bb..f7dde99e5 100644
 --- a/packages/session-ui/package.json
 +++ b/packages/session-ui/package.json
 @@ -7,6 +7,7 @@
@@ -2433,7 +3305,7 @@ index 0c1c656..f7dde99 100644
      "./message-part-text": "./src/components/message-part-text.ts",
      "./markdown-stream": "./src/components/markdown-stream.ts",
 diff --git a/packages/session-ui/src/components/markdown.tsx b/packages/session-ui/src/components/markdown.tsx
-index 95894ba..9df5585 100644
+index 95894ba27..9df558591 100644
 --- a/packages/session-ui/src/components/markdown.tsx
 +++ b/packages/session-ui/src/components/markdown.tsx
 @@ -103,6 +103,15 @@ const copyButtonState = new WeakMap<HTMLElement, CopyButtonState>()
@@ -2453,7 +3325,7 @@ index 95894ba..9df5585 100644
    if (!urlPattern.test(href)) return
    try {
 diff --git a/packages/session-ui/src/components/message-part.tsx b/packages/session-ui/src/components/message-part.tsx
-index d2a00b9..e5b6260 100644
+index d2a00b9d4..e5b626086 100644
 --- a/packages/session-ui/src/components/message-part.tsx
 +++ b/packages/session-ui/src/components/message-part.tsx
 @@ -32,6 +32,7 @@ import {
@@ -2492,7 +3364,7 @@ index d2a00b9..e5b6260 100644
            </div>
 diff --git a/packages/session-ui/src/components/session-turn-status.test.ts b/packages/session-ui/src/components/session-turn-status.test.ts
 new file mode 100644
-index 0000000..e6fae6d
+index 000000000..e6fae6da0
 --- /dev/null
 +++ b/packages/session-ui/src/components/session-turn-status.test.ts
 @@ -0,0 +1,28 @@
@@ -2526,7 +3398,7 @@ index 0000000..e6fae6d
 +})
 diff --git a/packages/session-ui/src/components/session-turn-status.ts b/packages/session-ui/src/components/session-turn-status.ts
 new file mode 100644
-index 0000000..64e60c4
+index 000000000..64e60c45e
 --- /dev/null
 +++ b/packages/session-ui/src/components/session-turn-status.ts
 @@ -0,0 +1,29 @@
@@ -2560,7 +3432,7 @@ index 0000000..64e60c4
 +  return "ui.sessionTurn.status.thinking"
 +}
 diff --git a/packages/session-ui/src/components/session-turn.css b/packages/session-ui/src/components/session-turn.css
-index 2c9aeb9..6da14d5 100644
+index 2c9aeb998..6da14d5c7 100644
 --- a/packages/session-ui/src/components/session-turn.css
 +++ b/packages/session-ui/src/components/session-turn.css
 @@ -45,6 +45,7 @@
@@ -2591,7 +3463,7 @@ index 2c9aeb9..6da14d5 100644
      flex: 1 1 auto;
      min-width: 0;
 diff --git a/packages/session-ui/src/components/session-turn.tsx b/packages/session-ui/src/components/session-turn.tsx
-index ce5f0b5..3fabdf7 100644
+index ce5f0b545..3fabdf7b6 100644
 --- a/packages/session-ui/src/components/session-turn.tsx
 +++ b/packages/session-ui/src/components/session-turn.tsx
 @@ -26,6 +26,7 @@ import { TextReveal } from "@opencode-ai/ui/text-reveal"
@@ -2627,7 +3499,7 @@ index ce5f0b5..3fabdf7 100644
                        text={reasoningHeading()}
                        class="session-turn-thinking-heading"
 diff --git a/packages/session-ui/src/v2/components/prompt-input/index.tsx b/packages/session-ui/src/v2/components/prompt-input/index.tsx
-index ff4ff0f..b0f97e0 100644
+index ff4ff0f1d..b0f97e048 100644
 --- a/packages/session-ui/src/v2/components/prompt-input/index.tsx
 +++ b/packages/session-ui/src/v2/components/prompt-input/index.tsx
 @@ -153,6 +153,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
@@ -2672,7 +3544,7 @@ index ff4ff0f..b0f97e0 100644
    flush()
    if (
 diff --git a/packages/ui/src/components/dock-surface.css b/packages/ui/src/components/dock-surface.css
-index 91fe502..63ba46c 100644
+index 91fe50226..63ba46ce7 100644
 --- a/packages/ui/src/components/dock-surface.css
 +++ b/packages/ui/src/components/dock-surface.css
 @@ -35,3 +35,22 @@
@@ -2699,7 +3571,7 @@ index 91fe502..63ba46c 100644
 +  [data-component="prompt-model-control"] [data-action] { width: 100%; }
 +}
 diff --git a/packages/ui/src/components/icon-button.css b/packages/ui/src/components/icon-button.css
-index 7a47270..24183c6 100644
+index 7a47270fe..24183c6c6 100644
 --- a/packages/ui/src/components/icon-button.css
 +++ b/packages/ui/src/components/icon-button.css
 @@ -179,3 +179,19 @@
