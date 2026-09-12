@@ -1,5 +1,42 @@
 # Production signing and candidate status
 
+## Linux signing identity adopted on 2026-09-12
+
+The owner explicitly requested a new signing key for primarily Linux-hosted
+builds. The new RSA-4096 certificate SHA-256 is
+`655e9ec3091f8f8426bf321f0e7fb3aa64dd72ab87b667476767c34b3f73e0bf`.
+Alias: `tinyagent-release`. Private material is outside the repository at
+`~/.config/tinyagent/signing/release-2026-09-12/` on the current Linux host.
+The directory is mode 0700; `release.p12` and `release.properties` are 0600.
+Set `TINYAGENT_RELEASE_SIGNING_PROPERTIES` to the host-local properties file.
+Reuse this identity on other build hosts; do not generate one per machine.
+
+First signed UI-fix candidate, source commit `d26efeb`:
+
+- APK SHA-256: `664b7279e831cecaa479707b16434e1910d55c0d417a1f59a24d9ea1391e8298`.
+- Size: 145216286 bytes; package `io.github.gplaider.tinyagent`, versionCode 5,
+  versionName `0.0.1-alpha.1`.
+- APK v2 signature verified against the new certificate, 16 KiB alignment and
+  packaged runtime/native/harness/952 GUI asset checks passed.
+- assembleRelease and lintRelease passed; lint has 58 warnings and no errors.
+- Device installation and execution have not been tested for this candidate.
+
+This independent key has no signing lineage from the previous Windows key.
+This APK therefore cannot replace an installed old-key production APK as an
+ordinary in-place update. Uninstalling the old app can erase its private data.
+No device installation, data deletion, cloud upload or release publication was
+performed when creating this candidate. Keep the old Windows key for old-key
+release maintenance and possible migration work.
+
+For portable backup, store the password-encrypted PKCS12 file and public
+certificate/metadata in private cloud storage; keep its randomly generated
+password in a separate password manager. Keep an independent offline copy and
+recovery access for the password manager. `release.properties` includes plaintext
+passwords and a machine-specific path: recreate it locally rather than uploading
+it alongside the keystore. Cloud backup and restore testing are still pending.
+
+## Historical Windows production identity and releases
+
 Production package: `io.github.gplaider.tinyagent`.
 Development package remains `io.github.gplaider.tinyagent.debug` with its existing
 signer and data. Changing from that package is not an in-place update or an
