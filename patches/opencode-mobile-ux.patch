@@ -560,10 +560,10 @@ index 000000000..e1426045d
 +}
 diff --git a/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts b/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts
 new file mode 100644
-index 000000000..cf4bf612c
+index 000000000..9e37ec16e
 --- /dev/null
 +++ b/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,169 @@
 +import { expect, test, type Locator } from "@playwright/test"
 +import { base64Encode } from "@opencode-ai/core/util/encode"
 +import { mockOpenCodeServer } from "../utils/mock-server"
@@ -574,79 +574,151 @@ index 000000000..cf4bf612c
 +const sessionID = "ses_prompt_long_model_mobile"
 +const modelName = "GPT-5.6 Codex Ultra Long Context Experimental Preview"
 +
-+test.use({ viewport: { width: 390, height: 844 } })
++for (const width of [320, 390, 1280]) {
++  test.describe(`model picker at ${width}px`, () => {
++    test.use({ viewport: { width, height: 844 }, hasTouch: width < 768 })
 +
-+test("keeps the send button visible beside a long model name on mobile", async ({ page }) => {
-+  await mockOpenCodeServer(page, {
-+    directory,
-+    project: {
-+      id: projectID,
-+      worktree: directory,
-+      vcs: "git",
-+      name: "prompt-long-model-mobile",
-+      time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
-+      sandboxes: [],
-+    },
-+    provider: {
-+      all: [
-+        {
-+          id: "openai",
-+          name: "OpenAI",
-+          models: {
-+            "long-model": {
-+              id: "long-model",
-+              name: modelName,
-+              cost: { input: 1, output: 1 },
-+              limit: { context: 200_000 },
-+              variants: { high: {}, xhigh: {} },
-+            },
-+          },
-+        },
-+      ],
-+      connected: ["openai"],
-+      default: { providerID: "openai", modelID: "long-model" },
-+    },
-+    sessions: [
-+      {
-+        id: sessionID,
-+        slug: "prompt-long-model-mobile",
-+        projectID,
++    test("opens a readable model picker without covering the send button", async ({ page }, testInfo) => {
++      const errors: string[] = []
++      page.on("pageerror", (error) => errors.push(error.message))
++      page.on("console", (message) => {
++        // The mock intentionally returns 404 for the V2 probe before selecting the V1 protocol.
++        if (message.location().url.endsWith("/api/health") && message.text().includes("404")) return
++        if (message.type() === "error") errors.push(`${message.text()} ${message.location().url}`)
++      })
++      await mockOpenCodeServer(page, {
 +        directory,
-+        title: "Long model mobile composer",
-+        version: "dev",
-+        model: { providerID: "openai", modelID: "long-model" },
-+        time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
-+      },
-+    ],
-+    pageMessages: () => ({ items: [] }),
++        project: {
++          id: projectID,
++          worktree: directory,
++          vcs: "git",
++          name: "prompt-long-model-mobile",
++          time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
++          sandboxes: [],
++        },
++        provider: {
++          all: [
++            {
++              id: "openai",
++              name: "OpenAI",
++              models: {
++                "long-model": {
++                  id: "long-model",
++                  name: modelName,
++                  cost: { input: 1, output: 1 },
++                  limit: { context: 200_000 },
++                  variants: { high: {}, xhigh: {} },
++                },
++                "compact-model": {
++                  id: "compact-model",
++                  name: "Compact Model",
++                  cost: { input: 1, output: 1 },
++                  limit: { context: 200_000 },
++                  variants: { high: {}, xhigh: {} },
++                },
++              },
++            },
++          ],
++          connected: ["openai"],
++          default: { providerID: "openai", modelID: "long-model" },
++        },
++        sessions: [
++          {
++            id: sessionID,
++            slug: "prompt-long-model-mobile",
++            projectID,
++            directory,
++            title: "Long model mobile composer",
++            version: "dev",
++            model: { providerID: "openai", modelID: "long-model" },
++            time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
++          },
++        ],
++        pageMessages: () => ({ items: [] }),
++      })
++      await page.addInitScript(() => {
++        localStorage.setItem(
++          "settings.v3",
++          JSON.stringify({ general: { newLayoutDesigns: true, shouldDisplayTabsToast: false } }),
++        )
++      })
++
++      await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
++      await expect(page).toHaveURL(new RegExp(`/session/${sessionID}$`))
++      await expect(page).toHaveTitle(/OpenCode/)
++      await expect(page.locator("vite-error-overlay")).toHaveCount(0)
++      const composer = page.locator('[data-component="prompt-input-v2"]')
++      const input = composer.locator('[data-component="prompt-input"]')
++      const model = composer.locator('[data-action="prompt-model"]')
++      const send = composer.locator('[data-action="prompt-submit"]')
++      await expectAppVisible(composer)
++      await expect(model).toContainText(modelName)
++      await expect(send).toBeVisible()
++
++      await expectPromptControlsToFit(composer, model, send)
++
++      await input.fill("hello")
++      await expect(send).toBeEnabled()
++      await expectPromptControlsToFit(composer, model, send)
++      await send.click({ trial: true })
++      await page.mouse.move(0, 0)
++      const open = () => (width < 768 ? model.tap() : model.click())
++      await open()
++      const popup = page.locator('[data-slot="model-selector-popup"]')
++      const search = popup.getByRole("textbox")
++      await expect(popup).toBeVisible()
++      await expect(popup).toHaveCSS("opacity", "1")
++      await expect(popup).toHaveCSS("background-color", "rgb(250, 250, 250)")
++      const option = popup.locator('[data-option-key="openai:long-model"]')
++      await expect(option).toHaveAttribute("aria-checked", "true")
++      if (width < 768) {
++        await expect(search).not.toBeFocused()
++        await expect(popup.locator('[data-slot="model-selector-current-name"]')).toHaveText(modelName)
++        const box = (await popup.boundingBox())!
++        const trigger = (await model.boundingBox())!
++        expect(box.x).toBeGreaterThanOrEqual(8)
++        expect(box.x + box.width).toBeLessThanOrEqual(width - 8)
++        expect(box.y + box.height).toBeLessThanOrEqual(trigger.y)
++        expect(trigger.width).toBeGreaterThanOrEqual(44)
++        expect(trigger.height).toBeGreaterThanOrEqual(44)
++        expect((await option.boundingBox())!.height).toBeGreaterThanOrEqual(48)
++        expect(
++          await option.locator('[data-slot="model-selector-name"]').evaluate((el) => el.scrollWidth <= el.clientWidth),
++        ).toBe(true)
++      } else {
++        await expect(search).toBeFocused()
++      }
++      await page.screenshot({ path: testInfo.outputPath(`model-bubble-${width}.png`), animations: "disabled" })
++      const compact = popup.locator('[data-option-key="openai:compact-model"]')
++      if (width < 768) await compact.tap()
++      else await compact.click()
++      await expect(popup).toHaveCount(0)
++      await expect(model).toContainText("Compact Model")
++      await expect(input).toHaveText("hello")
++      await expect(send).toBeEnabled()
++
++      await open()
++      await search.fill("Ultra Long")
++      await expect(compact).toHaveCount(0)
++      if (width < 768) await option.tap()
++      else await option.click()
++      await expect(model).toContainText(modelName)
++      await expect(popup).toHaveCount(0)
++      await open()
++      await page.keyboard.press("Escape")
++      await expect(popup).toHaveCount(0)
++      await expect(input).toHaveText("hello")
++      await open()
++      await expect(popup).toBeVisible()
++      const title = page.getByRole("heading", { name: "Long model mobile composer", exact: true })
++      if (width < 768) await title.tap()
++      else await title.click()
++      await expect(popup).toHaveCount(0)
++      await expect(input).toHaveText("hello")
++      expect(errors).toEqual([])
++    })
 +  })
-+  await page.addInitScript(() => {
-+    localStorage.setItem(
-+      "settings.v3",
-+      JSON.stringify({ general: { newLayoutDesigns: true, shouldDisplayTabsToast: false } }),
-+    )
-+  })
-+
-+  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
-+  const composer = page.locator('[data-component="prompt-input-v2"]')
-+  const input = composer.locator('[data-component="prompt-input"]')
-+  const model = composer.locator('[data-action="prompt-model"]')
-+  const send = composer.locator('[data-action="prompt-submit"]')
-+  await expectAppVisible(composer)
-+  await expect(model).toContainText(modelName)
-+  await expect(send).toBeVisible()
-+
-+  for (const width of [390, 320]) {
-+    await page.setViewportSize({ width, height: 844 })
-+    await expectPromptControlsToFit(composer, model, send)
-+
-+    await input.fill("hello")
-+    await expect(send).toBeEnabled()
-+    await expectPromptControlsToFit(composer, model, send)
-+    await send.click({ trial: true })
-+    await input.fill("")
-+  }
-+})
++}
 +
 +async function expectPromptControlsToFit(composer: Locator, model: Locator, send: Locator) {
 +  const geometry = await Promise.all([composer, model, send].map((locator) => locator.boundingBox()))
@@ -1069,6 +1141,114 @@ index fc248d821..f32343af3 100644
        <List
          class="px-3"
          search={{ placeholder: language.t("dialog.directory.search.placeholder"), autofocus: true }}
+diff --git a/packages/app/src/components/dialog-select-model.tsx b/packages/app/src/components/dialog-select-model.tsx
+index 587a36a66..ebeffaa3c 100644
+--- a/packages/app/src/components/dialog-select-model.tsx
++++ b/packages/app/src/components/dialog-select-model.tsx
+@@ -1,4 +1,6 @@
+ import { Popover as Kobalte } from "@kobalte/core/popover"
++import { Arrow } from "@kobalte/core/dropdown-menu"
++import { createMediaQuery } from "@solid-primitives/media"
+ import { Component, ComponentProps, createEffect, createMemo, For, JSX, Show } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { useLocal } from "@/context/local"
+@@ -301,10 +303,15 @@ function ModelSelectorPopoverV2View(props: {
+   onClose: () => void
+ }) {
+   const language = useLanguage()
++  const touch = createMediaQuery("(pointer: coarse)")
+   const [store, setStore] = createStore({ open: false, search: "", active: "" })
+   let searchRef: HTMLInputElement | undefined
+   let contentRef: HTMLDivElement | undefined
+   const dismiss = createMenuDismissController(() => contentRef)
++  const focusSearch = () => {
++    if (!touch()) searchRef?.focus()
++  }
++  const selectedModel = createMemo(() => props.models("").find((item) => modelKey(item) === props.current()))
+ 
+   const models = createMemo(() => props.models(store.search))
+   const groups = createMemo(() => props.groups(models()))
+@@ -323,7 +330,7 @@ function ModelSelectorPopoverV2View(props: {
+       setStore({ open: true, active: initialActive() })
+       setTimeout(() =>
+         requestAnimationFrame(() => {
+-          searchRef?.focus()
++          focusSearch()
+           activeItem()?.scrollIntoView({ block: "nearest" })
+         }),
+       )
+@@ -378,18 +385,37 @@ function ModelSelectorPopoverV2View(props: {
+       <MenuV2.Portal>
+         <MenuV2.Content
+           ref={(element: HTMLDivElement) => (contentRef = element)}
++          data-slot="model-selector-popup"
+           class="w-[284px] overflow-hidden rounded-md border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none"
++          onOpenAutoFocus={(event) => {
++            if (!touch()) return
++            event.preventDefault()
++            contentRef?.focus()
++          }}
+           onPointerDownOutside={dismiss.preventTriggerRestore}
+           onFocusOutside={dismiss.preventTriggerRestore}
+           onCloseAutoFocus={dismiss.onCloseAutoFocus}
+         >
++          <Arrow class="model-selector-arrow" size={20} />
++          <Show when={selectedModel()}>
++            {(selected) => (
++              <div class="model-selector-current">
++                <span>{selected().provider.name}</span>
++                <strong data-slot="model-selector-current-name">{selected().name}</strong>
++              </div>
++            )}
++          </Show>
+           <div class="flex flex-col p-0.5">
+-            <div class="flex h-7 items-center gap-2 rounded-sm pl-3 pr-2.5 text-v2-icon-icon-muted">
++            <div
++              data-slot="model-selector-search"
++              class="flex h-7 items-center gap-2 rounded-sm pl-3 pr-2.5 text-v2-icon-icon-muted"
++            >
+               <Icon name="magnifying-glass" size="small" class="shrink-0" />
+               <input
+                 ref={(el) => (searchRef = el)}
+                 value={store.search}
+                 placeholder={language.t("dialog.model.search.placeholder")}
++                aria-label={language.t("dialog.model.search.placeholder")}
+                 class="h-7 min-w-0 flex-1 border-0 bg-transparent text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+                 spellcheck={false}
+                 autocorrect="off"
+@@ -458,6 +484,7 @@ function ModelSelectorPopoverV2View(props: {
+                           {(item) => (
+                             <TooltipV2
+                               class="w-full"
++                              inactive={touch()}
+                               placement="right-start"
+                               gutter={6}
+                               openDelay={0}
+@@ -478,11 +505,13 @@ function ModelSelectorPopoverV2View(props: {
+                                 classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === modelKey(item) }}
+                                 onMouseEnter={() => {
+                                   setStore("active", modelKey(item))
+-                                  setTimeout(() => searchRef?.focus())
++                                  setTimeout(focusSearch)
+                                 }}
+                                 onSelect={() => selectModel(item)}
+                               >
+-                                <span class="min-w-0 truncate leading-5">{item.name}</span>
++                                <span data-slot="model-selector-name" class="min-w-0 truncate leading-5">
++                                  {item.name}
++                                </span>
+                                 <Show when={isFree(item.provider.id, item.cost)}>
+                                   <TagV2 class="shrink-0">{language.t("model.tag.free")}</TagV2>
+                                 </Show>
+@@ -507,7 +536,7 @@ function ModelSelectorPopoverV2View(props: {
+               classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === manageKey }}
+               onMouseEnter={() => {
+                 setStore("active", manageKey)
+-                setTimeout(() => searchRef?.focus())
++                setTimeout(focusSearch)
+               }}
+               onSelect={manage}
+             >
 diff --git a/packages/app/src/components/directory-picker-domain.test.ts b/packages/app/src/components/directory-picker-domain.test.ts
 index aeaaafde3..cf6999019 100644
 --- a/packages/app/src/components/directory-picker-domain.test.ts
@@ -1116,18 +1296,31 @@ index dfd8ee74a..f670141ba 100644
    type Job = {
      key: string
 diff --git a/packages/app/src/components/prompt-input-v2.tsx b/packages/app/src/components/prompt-input-v2.tsx
-index 481b7922c..6ea8f92db 100644
+index 481b7922c..77adc7a97 100644
 --- a/packages/app/src/components/prompt-input-v2.tsx
 +++ b/packages/app/src/components/prompt-input-v2.tsx
+@@ -492,7 +492,7 @@ function PromptInputV2ModelControl(props: {
+         )}
+       </Show>
+       <span class="truncate leading-4">{props.modelName}</span>
+-      <span class="-ml-0.5 -mr-1 flex shrink-0">
++      <span data-slot="prompt-model-chevron" class="-ml-0.5 -mr-1 flex shrink-0">
+         <Icon name="chevron-down" />
+       </span>
+     </>
 @@ -500,6 +500,7 @@ function PromptInputV2ModelControl(props: {
    return (
      <Show when={!props.loading}>
        <TooltipV2
-+        class="min-w-0 max-w-[220px] flex-1 overflow-hidden"
++        class="prompt-model-control min-w-0 max-w-[220px] flex-1 overflow-hidden"
          placement="top"
          gutter={4}
          value={
-@@ -517,7 +518,7 @@ function PromptInputV2ModelControl(props: {
+@@ -514,10 +515,11 @@ function PromptInputV2ModelControl(props: {
+           fallback={
+             <ButtonV2
+               data-action="prompt-model"
++              aria-label={`${props.title}: ${props.modelName}`}
                data-control-type="dialog"
                variant="ghost-muted"
                size="normal"
@@ -1136,7 +1329,7 @@ index 481b7922c..6ea8f92db 100644
                classList={{ "animate-in fade-in": shouldAnimate() }}
                style={{ height: "28px" }}
                onClick={props.onUnpaidClick}
-@@ -534,7 +535,7 @@ function PromptInputV2ModelControl(props: {
+@@ -534,9 +536,10 @@ function PromptInputV2ModelControl(props: {
                  variant="ghost-muted"
                  size="normal"
                  style={{ height: "28px" }}
@@ -1144,7 +1337,10 @@ index 481b7922c..6ea8f92db 100644
 +                class="w-full min-w-0 justify-start ![font-weight:440] group"
                  classList={{ "animate-in fade-in": shouldAnimate() }}
                  data-action="prompt-model"
++                aria-label={`${props.title}: ${props.modelName}`}
                  data-control-type="popover"
+               >
+                 {content()}
 diff --git a/packages/app/src/components/prompt-input.tsx b/packages/app/src/components/prompt-input.tsx
 index 41cf7d30c..a83a2fb96 100644
 --- a/packages/app/src/components/prompt-input.tsx
@@ -2040,14 +2236,15 @@ index b96fb4c59..d4e1feb39 100644
    "settings.general.row.showFileTree.title": "파일 트리",
    "settings.general.row.showFileTree.description": "세션에 파일 트리 패널 표시",
 diff --git a/packages/app/src/index.css b/packages/app/src/index.css
-index 78a9e103a..354168cca 100644
+index 78a9e103a..6f0cdee25 100644
 --- a/packages/app/src/index.css
 +++ b/packages/app/src/index.css
-@@ -3,6 +3,80 @@
+@@ -3,6 +3,101 @@
  @import "@opencode-ai/ui/v2/styles/tailwind.css";
  @import "tw-animate-css";
  
 +.home-project-picker > summary { display: none; }
++.model-selector-arrow, .model-selector-current { display: none; }
 +.home-session-item, .home-project-item { overflow: hidden; }
 +.home-project-actions { width: 72px !important; }
 +.home-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; margin-bottom: 8px; border-radius: 14px; background: var(--v2-background-bg-layer-02); }
@@ -2077,6 +2274,26 @@ index 78a9e103a..354168cca 100644
 +  .home-project-picker > aside { display: flex; }
 +}
 +@media (max-width: 767px) {
++  .prompt-model-control { min-width: 44px; }
++  [data-action="prompt-model"] { min-height: 44px; padding-inline: 8px !important; }
++  [data-slot="prompt-model-chevron"] { display: none; }
++  [data-slot="model-selector-popup"] {
++    width: min(360px, calc(100vw - 24px));
++    max-height: min(480px, calc(100dvh - 24px), var(--kb-popper-content-available-height, 480px));
++    overflow: visible;
++    border-radius: 16px;
++  }
++  .model-selector-arrow { display: block; color: var(--v2-background-bg-layer-01); }
++  .model-selector-current { display: flex; flex: none; flex-direction: column; gap: 4px; padding: 16px 16px 12px; }
++  .model-selector-current > span { font-size: 12px; color: var(--v2-text-text-muted); }
++  .model-selector-current > strong { font-size: 15px; line-height: 22px; color: var(--v2-text-text-base); overflow-wrap: anywhere; }
++  [data-slot="model-selector-search"] { height: 48px; }
++  [data-slot="model-selector-search"] input { height: 44px; font-size: 16px; }
++  [data-slot="model-selector-search"] button { width: 44px; height: 44px; }
++  [data-slot="model-selector-scroll"] { flex: 1; max-height: 280px; }
++  [data-slot="model-selector-popup"] [data-component="menu-v2-item"] { min-height: 48px; height: auto; padding: 10px 14px; }
++  [data-slot="model-selector-popup"] [data-slot="menu-v2-item-content"] { font-size: 15px; }
++  [data-slot="model-selector-name"] { white-space: normal; overflow-wrap: anywhere; }
 +  [data-component="mobile-home"] {
 +    margin: 0;
 +    border-radius: 0;
