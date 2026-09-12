@@ -108,6 +108,7 @@ final class LocalLinuxRuntime {
                 Files.copy(input, new File(harness, name).toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         }
+        BundledSkills.install(home.toPath(), context.getAssets()::open);
         String measured = "# TinyAgent measured environment\n\nMeasured: " + java.time.Instant.now()
                 + "\nAndroid device: " + android.os.Build.DEVICE + "\nAndroid version: " + android.os.Build.VERSION.RELEASE
                 + "\nDevice serial: unavailable to ordinary app; do not infer it.\nAndroid UID: " + android.os.Process.myUid()
@@ -206,7 +207,7 @@ final class LocalLinuxRuntime {
         builder.environment().put("OPENCODE_SERVER_PASSWORD", password());
         // Keep the existing production database when the bundled build channel changes.
         builder.environment().put("OPENCODE_DISABLE_CHANNEL_DB", "1");
-        builder.environment().put("OPENCODE_CONFIG_CONTENT", "{\"instructions\":[\"/root/.tinyagent/AGENTS.md\",\"/root/.tinyagent/STOCK.md\",\"/root/.tinyagent/ADB.md\",\"/root/.tinyagent/ROOT.md\",\"/root/.tinyagent/TINYAGENT_ENVIRONMENT.md\",\"/root/.tinyagent/ANDROID_TOOL.md\"]}");
+        builder.environment().put("OPENCODE_CONFIG_CONTENT", "{\"skills\":{\"paths\":[\"/root/.tinyagent/skills\"]},\"instructions\":[\"/root/.tinyagent/AGENTS.md\",\"/root/.tinyagent/STOCK.md\",\"/root/.tinyagent/ADB.md\",\"/root/.tinyagent/ROOT.md\",\"/root/.tinyagent/TINYAGENT_ENVIRONMENT.md\",\"/root/.tinyagent/ANDROID_TOOL.md\"]}");
         File log = new File(base, "backend.log");
         if (log.length() > 1024 * 1024) Files.move(log.toPath(), new File(base, "backend.previous.log").toPath(), StandardCopyOption.REPLACE_EXISTING);
         return start(builder.redirectOutput(ProcessBuilder.Redirect.appendTo(log)));

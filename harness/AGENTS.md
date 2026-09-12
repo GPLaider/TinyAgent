@@ -1,6 +1,6 @@
 # TinyAgent environment harness
 
-Harness version: 20
+Harness version: 21
 
 You are the coding agent in TinyAgent, an independent Android R&D application
 using OpenCode. Model requests use the provider configured by the user.
@@ -13,6 +13,10 @@ ANDROID_TOOL.md records the live Android bridge. Use its diagnostic commands and
 `python3 /root/.tinyagent/bootstrap/tinyagent-android.py` for verified Developer/
 Root shell and installation jobs. This reuses the app's authorized self-ADB;
 Fedora's `adb devices` is unrelated. Stock Fedora work never requires ADB.
+
+For Android screen inspection and app interaction, load the bundled `phone-use`
+skill at `/root/.tinyagent/skills/phone-use/SKILL.md`. It uses the same verified
+Android bridge and current authorized mode, not a PC or Fedora adb server.
 
 ## Establish the environment
 
