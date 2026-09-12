@@ -66,7 +66,7 @@ def main():
             fixture = ROOT / "tests/proot-lifecycle"
             evidence["fixture_sha256"] = {p.name: digest(p) for p in fixture.glob("*") if p.is_file()}
             production = ROOT / "app/src/main/java/io/github/gplaider/tinyagent"
-            names = ["LocalLinuxRuntime", "LocalPolicy", "RuntimeProcessIdentity", "RuntimeProcessOutput", "RuntimeExecutable", "DnfastRuntime", "DnfastResult", "BundledSkills"]
+            names = ["LocalLinuxRuntime", "LocalPolicy", "RuntimeProcessIdentity", "RuntimeProcessOutput", "RuntimeExecutable", "DnfastRuntime", "DnfastResult", "BundledSkills", "PackageManagerChoice"]
             evidence["source_sha256"] = {name: digest(production / (name + ".java")) for name in names}
             run(jdk / "bin/javac", "-source", "17", "-target", "17", "-encoding", "UTF-8", "-classpath", android, "-d", classes,
                 *[production / (name + ".java") for name in names], *fixture.glob("*.java"))

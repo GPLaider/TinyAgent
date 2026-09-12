@@ -51,11 +51,14 @@ memory of a Gradle build and all its daemons; never report it as total build RAM
 
 ### Fedora package management
 
-Use dnfast through `python3 /root/.tinyagent/bootstrap/tinyagent-packages.py`.
-The app starts its verified native launcher and PRoot for each package job; no
+Use the selected package manager through `python3 /root/.tinyagent/bootstrap/tinyagent-packages.py`.
+The app keeps the initial dnfast/dnf5 choice for this Fedora root. Job results
+report the actual manager. With dnfast the app starts its verified native launcher;
+with dnf5 it invokes Fedora's dnf5 directly under PRoot. No
 ADB or Android root authorization is needed. Do not invoke the dnfast ELF from
 the existing shell: that shell lacks the launcher's sealed context descriptors.
-Do not replace this path with microdnf or dnf5 silently.
+Do not bypass this bridge or switch package managers silently. dnfast journal
+recovery/migration commands are not applicable to dnf5 roots.
 
 Package client commands:
 

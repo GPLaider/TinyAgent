@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Submit dnfast work through the app-owned launcher, without an ADB dependency."""
+"""Submit work to the root's selected package manager through the app, without ADB."""
 import argparse
 import http.client
 import json

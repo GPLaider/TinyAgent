@@ -30,8 +30,8 @@ android {
         applicationId = "io.github.gplaider.tinyagent"
         minSdk = 30
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.0.1-alpha.2-rc.1"
+        versionCode = 7
+        versionName = "0.0.1-alpha.3"
         manifestPlaceholders["appLabel"] = "TinyAgent"
     }
     compileOptions {
@@ -66,7 +66,7 @@ android {
             isMinifyEnabled = false
             if (tinyagentPreview) {
                 applicationIdSuffix = ".preview"
-                manifestPlaceholders["appLabel"] = "TinyAgent Preview"
+                manifestPlaceholders["appLabel"] = "TinyAgent"
             }
             if (releaseSigningPath != null) signingConfig = signingConfigs.getByName("production")
         }
