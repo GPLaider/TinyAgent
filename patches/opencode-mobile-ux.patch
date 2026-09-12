@@ -735,14 +735,15 @@ index 000000000..9e37ec16e
 +}
 diff --git a/packages/app/e2e/regression/session-access.spec.ts b/packages/app/e2e/regression/session-access.spec.ts
 new file mode 100644
-index 000000000..c11bd2d94
+index 000000000..a16a2106f
 --- /dev/null
 +++ b/packages/app/e2e/regression/session-access.spec.ts
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,96 @@
 +import { expect, test } from "@playwright/test"
 +import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
 +import { installStressSessionTabs, installTimelineSettings, stressSessionHref } from "../performance/timeline/timeline-test-helpers"
 +import { mockOpenCodeServer } from "../utils/mock-server"
++import { base64Encode } from "@opencode-ai/core/util/encode"
 +
 +for (const restricted of [false, true]) test(`API-created permission displays ${restricted ? "custom restrictions" : "full access"}`, async ({ page }) => {
 +  const changes: string[] = []
@@ -765,6 +766,75 @@ index 000000000..c11bd2d94
 +  await expect(page.getByRole("combobox", { name: "에이전트 승인 모드" })).toHaveValue(restricted ? "custom" : "yolo")
 +  expect(changes).toEqual([])
 +})
++
++for (const [width, theme] of [[320, "light"], [390, "light"], [1280, "light"], [390, "dark"]] as const) {
++  test.describe(`compact access strip ${width}px ${theme}`, () => {
++    test.use({ viewport: { width, height: 844 }, hasTouch: width < 768, colorScheme: theme })
++
++    test("keeps permissions readable without a second composer box", async ({ page }, testInfo) => {
++      const errors: string[] = []
++      const changes: unknown[] = []
++      page.on("pageerror", error => errors.push(error.message))
++      page.on("console", message => {
++        // V1 mock protocol negotiation intentionally returns 404 for this V2 probe.
++        if (message.location().url.endsWith("/api/health") && message.text().includes("404")) return
++        if (message.type() === "error") errors.push(`${message.text()} ${message.location().url}`)
++      })
++      const session = { ...fixture.sessions.find(item => item.id === fixture.targetID)!, permission: [] as unknown[] }
++      await mockOpenCodeServer(page, { ...fixture, sessions: [session], pageMessages: () => ({ items: [] }) })
++      await page.route(new RegExp(`/session/${session.id}$`), async route => {
++        if (route.request().method() !== "PATCH") return route.fallback()
++        const body = route.request().postDataJSON()
++        changes.push(body)
++        session.permission = body.permission
++        await route.fulfill({ json: session })
++      })
++      await page.addInitScript((theme) => {
++        localStorage.setItem("opencode-color-scheme", theme)
++        localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true, shouldDisplayTabsToast: false } }))
++      }, theme)
++      await page.goto(`/${base64Encode(fixture.directory)}/session/${session.id}`)
++      await expect(page).toHaveURL(new RegExp(`/session/${session.id}$`))
++      await expect(page).toHaveTitle(/OpenCode/)
++      await expect(page.locator("html")).toHaveAttribute("data-color-scheme", theme)
++      await expect(page.locator("vite-error-overlay")).toHaveCount(0)
++      const strip = page.locator('[data-component="tinyagent-access"]')
++      const select = strip.getByRole("combobox", { name: "에이전트 승인 모드" })
++      const input = page.locator('[data-component="prompt-input-v2"] [data-component="prompt-input"]')
++      await expect(select).toHaveValue("basic")
++      await expect(select).toBeEnabled()
++      expect(changes).toEqual([])
++      await expect(strip).toHaveCSS("border-top-width", "0px")
++      await expect(strip).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
++      await expect(strip).toHaveCSS("margin-bottom", "0px")
++      expect((await strip.boundingBox())!.height).toBeLessThanOrEqual(44)
++      const box = (await select.boundingBox())!
++      expect(box.height).toBeGreaterThanOrEqual(44)
++      expect(box.x + box.width).toBeLessThanOrEqual(width - 8)
++      await input.fill("Keep this draft")
++
++      const colors = new Set<string>()
++      for (const [index, mode] of ["read", "basic", "yolo"].entries()) {
++        await select.selectOption(mode)
++        await expect.poll(() => changes.length).toBe(index + 1)
++        await expect(select).toBeEnabled()
++        await expect(select).toHaveValue(mode)
++        await expect(input).toHaveText("Keep this draft")
++        const color = await select.evaluate(el => getComputedStyle(el).color)
++        colors.add(color)
++        await expect(select.locator(`option[value="${mode}"]`)).toHaveCSS("color", color)
++        await page.screenshot({ path: testInfo.outputPath(`access-${width}-${theme}-${mode}.png`), animations: "disabled" })
++      }
++      expect(colors.size).toBe(3)
++      await strip.locator("summary").click()
++      await expect(strip.locator("details")).toHaveAttribute("open", "")
++      await expect(strip.getByText("이 세션에 저장됩니다. Android의 Stock·Developer·Root 권한은 바뀌지 않습니다.")).toBeVisible()
++      await strip.locator("summary").click()
++      await expect(strip.locator("details")).not.toHaveAttribute("open", "")
++      expect(errors).toEqual([])
++    })
++  })
++}
 diff --git a/packages/app/e2e/regression/session-reconnect.spec.ts b/packages/app/e2e/regression/session-reconnect.spec.ts
 new file mode 100644
 index 000000000..a2c8f4159
@@ -2236,15 +2306,41 @@ index b96fb4c59..d4e1feb39 100644
    "settings.general.row.showFileTree.title": "파일 트리",
    "settings.general.row.showFileTree.description": "세션에 파일 트리 패널 표시",
 diff --git a/packages/app/src/index.css b/packages/app/src/index.css
-index 78a9e103a..6f0cdee25 100644
+index 78a9e103a..a8f668e26 100644
 --- a/packages/app/src/index.css
 +++ b/packages/app/src/index.css
-@@ -3,6 +3,101 @@
+@@ -3,6 +3,127 @@
  @import "@opencode-ai/ui/v2/styles/tailwind.css";
  @import "tw-animate-css";
  
 +.home-project-picker > summary { display: none; }
 +.model-selector-arrow, .model-selector-current { display: none; }
++[data-component="tinyagent-access"] {
++  border: 0;
++  border-radius: 0;
++  background: transparent;
++  padding: 0 4px;
++  margin-bottom: 0;
++}
++[data-component="tinyagent-access"] summary { font-size: 12px; color: var(--v2-text-text-muted); }
++[data-component="tinyagent-access"] select {
++  min-width: 0;
++  max-width: 60%;
++  min-height: 44px;
++  border: 0;
++  background: transparent;
++  padding-inline: 8px;
++  font-size: 13px;
++  font-weight: 530;
++  color: var(--v2-text-text-base);
++}
++[data-component="tinyagent-access"] select:has(option[value="basic"]:checked),
++[data-component="tinyagent-access"] option[value="basic"] { color: var(--v2-state-fg-info); }
++[data-component="tinyagent-access"] select:has(option[value="yolo"]:checked),
++[data-component="tinyagent-access"] option[value="yolo"] { color: var(--v2-state-fg-danger); }
++[data-component="tinyagent-access"] option { color: var(--v2-text-text-base); background: var(--v2-background-bg-layer-01); }
++[data-component="tinyagent-access"] select:focus-visible { outline: 2px solid var(--v2-border-border-focus); outline-offset: -4px; }
++[data-component="tinyagent-access"] select:disabled { opacity: .6; }
 +.home-session-item, .home-project-item { overflow: hidden; }
 +.home-project-actions { width: 72px !important; }
 +.home-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; margin-bottom: 8px; border-radius: 14px; background: var(--v2-background-bg-layer-02); }
