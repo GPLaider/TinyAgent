@@ -901,6 +901,104 @@ index 000000000..a2c8f4159
 +  await expect(page.getByText(final, { exact: true })).toBeVisible()
 +  await expect(page).toHaveURL(stressSessionHref(id))
 +})
+diff --git a/packages/app/e2e/regression/session-work-status.spec.ts b/packages/app/e2e/regression/session-work-status.spec.ts
+new file mode 100644
+index 000000000..439472d20
+--- /dev/null
++++ b/packages/app/e2e/regression/session-work-status.spec.ts
+@@ -0,0 +1,92 @@
++import { expect, test } from "@playwright/test"
++import { base64Encode } from "@opencode-ai/core/util/encode"
++import { fixture } from "../performance/timeline/session-timeline-stress.fixture"
++import { mockOpenCodeServer } from "../utils/mock-server"
++
++for (const [width, theme] of [[320, "dark"], [390, "light"], [1280, "light"]] as const) {
++  test.describe(`long command progress ${width}px ${theme}`, () => {
++    test.use({ viewport: { width, height: 844 }, colorScheme: theme })
++
++    test("keeps command age and live output visible, then clears on completion", async ({ page }, testInfo) => {
++      const errors: string[] = []
++      page.on("pageerror", error => errors.push(error.message))
++      page.on("console", message => {
++        if (message.location().url.endsWith("/api/health") && message.text().includes("404")) return
++        if (["error", "warning"].includes(message.type())) errors.push(message.text())
++      })
++      const now = Date.now()
++      await page.clock.install({ time: now })
++      const id = fixture.targetID
++      const session = fixture.sessions.find(item => item.id === id)!
++      const started = now - 29 * 60_000
++      let busy = true
++      const part = {
++        id: "prt_work", sessionID: id, messageID: "msg_002", callID: "call_work", type: "tool", tool: "bash",
++        state: { status: "running", title: "OsmAnd APK build", input: { command: "./gradlew assembleDebug", description: "OsmAnd APK build" },
++          time: { start: started }, metadata: { output: "> Task :OsmAnd:compileKotlin\n" } },
++      }
++      const items = [
++        { info: { id: "msg_001", sessionID: id, role: "user", time: { created: started - 1000 }, agent: "build",
++          model: { providerID: "opencode", modelID: "claude-opus-4-6" } },
++          parts: [{ id: "prt_user", sessionID: id, messageID: "msg_001", type: "text", text: "Build the APK" }] },
++        { info: { id: "msg_002", sessionID: id, role: "assistant", parentID: "msg_001", time: { created: started },
++          modelID: "claude-opus-4-6", providerID: "opencode", mode: "build", agent: "build",
++          path: { cwd: fixture.directory, root: fixture.directory }, cost: 0,
++          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } },
++          parts: [{ id: "prt_prose", sessionID: id, messageID: "msg_002", type: "text", text: "Build log context.\n\n".repeat(150) }, part] },
++      ]
++      await mockOpenCodeServer(page, {
++        ...fixture, sessions: [session], pageMessages: () => ({ items }), eventRetry: 250,
++        sessionStatus: () => busy ? { [id]: { type: "busy" } } : {},
++        events: () => [
++          { directory: fixture.directory, payload: { type: "message.part.updated", properties: { part } } },
++          { directory: fixture.directory, payload: { type: "session.status", properties: { sessionID: id, status: { type: busy ? "busy" : "idle" } } } },
++        ],
++      })
++      await page.addInitScript(({ theme, locale }) => {
++        localStorage.setItem("opencode-color-scheme", theme)
++        localStorage.setItem("opencode.global.dat:language", JSON.stringify({ locale }))
++        localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true, shouldDisplayTabsToast: false } }))
++      }, { theme, locale: width < 768 ? "ko" : "en" })
++      const quiet = width < 768 ? "출력 갱신 없이" : "No output update for"
++      await page.goto(`/${base64Encode(fixture.directory)}/session/${id}`)
++      await expect(page).toHaveTitle(/OpenCode/)
++      await expect(page).toHaveURL(new RegExp(`/session/${id}$`))
++      await expect(page.locator("vite-error-overlay")).toHaveCount(0)
++      const status = page.locator('[data-component="session-work-status"]')
++      await expect(status).toBeVisible()
++      await expect(status).toContainText("OsmAnd APK build")
++      await expect(status.locator('[data-slot="work-elapsed"]')).toContainText("29:")
++      await expect(status.locator('[data-slot="work-output"]')).toHaveText("> Task :OsmAnd:compileKotlin")
++      await page.clock.fastForward(31_000)
++      await expect(status.locator('[data-slot="work-wait"]')).toContainText(quiet)
++      // Scrolling old conversation history must not hide the progress or reset its clock.
++      await page.getByText("Build the APK", { exact: true }).scrollIntoViewIfNeeded()
++      await expect(status).toBeInViewport()
++      const box = (await status.boundingBox())!
++      expect(box.x).toBeGreaterThanOrEqual(0)
++      expect(box.x + box.width).toBeLessThanOrEqual(width)
++      expect(box.y + box.height).toBeLessThan(844)
++      await page.screenshot({ path: testInfo.outputPath(`work-${width}-${theme}.png`) })
++
++      part.state.metadata.output = "> Task :OsmAnd:packageDebug\n"
++      await page.clock.runFor(1500)
++      await expect(status.locator('[data-slot="work-output"]')).toHaveText("> Task :OsmAnd:packageDebug")
++      await expect(status.locator('[data-slot="work-wait"]')).not.toContainText(quiet)
++      // Reopening reconstructs elapsed time from the backend, not from page mount.
++      await page.reload()
++      await expect(status.locator('[data-slot="work-elapsed"]')).toContainText("29:")
++      busy = false
++      await page.clock.runFor(1500)
++      await expect(status).toHaveCount(0)
++      // A stale running part from an earlier turn must not leak into the next prompt.
++      items.push({ ...items[0], info: { ...items[0].info, id: "msg_003", time: { created: now } },
++        parts: [{ id: "prt_next_user", sessionID: id, messageID: "msg_003", type: "text", text: "Next task" }] })
++      busy = true
++      await page.reload()
++      await expect(page.getByText("Next task", { exact: true })).toBeVisible()
++      await expect(status).toHaveCount(0)
++      expect(errors).toEqual([])
++    })
++  })
++}
 diff --git a/packages/app/e2e/utils/mock-server.ts b/packages/app/e2e/utils/mock-server.ts
 index a581eda8c..b8ecdf43b 100644
 --- a/packages/app/e2e/utils/mock-server.ts
@@ -2282,13 +2380,19 @@ index 6e5f63fd4..17cf1b95a 100644
        () => (
          <PlatformProvider value={platform}>
 diff --git a/packages/app/src/i18n/en.ts b/packages/app/src/i18n/en.ts
-index 62d4dc1ae..03936a85f 100644
+index 62d4dc1ae..63412c6cc 100644
 --- a/packages/app/src/i18n/en.ts
 +++ b/packages/app/src/i18n/en.ts
-@@ -1,6 +1,19 @@
+@@ -1,6 +1,25 @@
  import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
  
  export const dict = {
++  "session.work.label": "Current command",
++  "session.work.command": "Running command",
++  "session.work.elapsed": "{{duration}} elapsed",
++  "session.work.noOutput": "No output received yet.",
++  "session.work.waiting": "Waiting for the command to finish · Completion time unknown.",
++  "session.work.quiet": "No output update for {{duration}} · Waiting for the command to finish",
 +  "provider.connect.retry": "Try again",
 +  "provider.connect.loadingMethods": "Loading sign-in options…",
 +  "provider.connect.methodsTimeout": "The local backend did not return sign-in options within 20 seconds. Try again.",
@@ -2306,11 +2410,17 @@ index 62d4dc1ae..03936a85f 100644
    "command.category.suggested": "Suggested",
    "command.category.view": "View",
 diff --git a/packages/app/src/i18n/ko.ts b/packages/app/src/i18n/ko.ts
-index b96fb4c59..d4e1feb39 100644
+index b96fb4c59..a53eb69d7 100644
 --- a/packages/app/src/i18n/ko.ts
 +++ b/packages/app/src/i18n/ko.ts
-@@ -1,4 +1,17 @@
+@@ -1,4 +1,23 @@
  export const dict = {
++  "session.work.label": "현재 실행 작업",
++  "session.work.command": "명령 실행 중",
++  "session.work.elapsed": "{{duration}} 경과",
++  "session.work.noOutput": "아직 수신한 출력이 없습니다.",
++  "session.work.waiting": "명령 종료 대기 · 완료 예정 시간은 알 수 없습니다.",
++  "session.work.quiet": "출력 갱신 없이 {{duration}} · 명령 종료 대기",
 +  "provider.connect.retry": "다시 시도",
 +  "provider.connect.loadingMethods": "연결 방법 확인 중…",
 +  "provider.connect.methodsTimeout": "로컬 백엔드가 20초 안에 연결 방법을 응답하지 않았습니다. 다시 시도해 주세요.",
@@ -2327,7 +2437,7 @@ index b96fb4c59..d4e1feb39 100644
    "command.category.suggested": "추천",
    "command.category.view": "보기",
    "command.category.project": "프로젝트",
-@@ -1020,8 +1033,8 @@ export const dict = {
+@@ -1020,8 +1039,8 @@ export const dict = {
    "settings.general.section.advanced": "고급",
    "settings.general.row.shell.title": "터미널 셸",
    "settings.general.row.shell.description":
@@ -3232,19 +3342,20 @@ index 7bda4dd36..e0c39d17b 100644
        onSetThumbTrack={props.scroll.viewport.setThumbTrack}
        onSetContent={props.scroll.header.setContent}
 diff --git a/packages/app/src/pages/session/composer/session-composer-region.tsx b/packages/app/src/pages/session/composer/session-composer-region.tsx
-index 600ff41e3..51e2357dc 100644
+index 600ff41e3..249b69de0 100644
 --- a/packages/app/src/pages/session/composer/session-composer-region.tsx
 +++ b/packages/app/src/pages/session/composer/session-composer-region.tsx
-@@ -1,7 +1,7 @@
+@@ -1,7 +1,8 @@
  import { Show, type JSX } from "solid-js"
  import { useLanguage } from "@/context/language"
  import { useSettings } from "@/context/settings"
 -import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 +import { TinyAgentAccess } from "./tinyagent-access"
++import { SessionWorkStatus } from "./session-work-status"
  import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
  import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
  import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
-@@ -44,20 +44,7 @@ export function SessionComposerRegion(props: {
+@@ -44,20 +45,8 @@ export function SessionComposerRegion(props: {
            )}
          </Show>
  
@@ -3262,10 +3373,108 @@ index 600ff41e3..51e2357dc 100644
 -            </div>
 -          )}
 -        </Show>
++        <SessionWorkStatus />
 +        <TinyAgentAccess />
  
          <Show when={controller.showComposer()}>
            <Show when={controller.dock()}>
+diff --git a/packages/app/src/pages/session/composer/session-work-status.tsx b/packages/app/src/pages/session/composer/session-work-status.tsx
+new file mode 100644
+index 000000000..d334a5176
+--- /dev/null
++++ b/packages/app/src/pages/session/composer/session-work-status.tsx
+@@ -0,0 +1,91 @@
++import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
++import { useParams } from "@solidjs/router"
++import { useSync } from "@/context/sync"
++import { useLanguage } from "@/context/language"
++import { turnOutput } from "@opencode-ai/session-ui/session-turn-status"
++
++function duration(start: number, now: number) {
++  const seconds = Math.max(0, Math.floor((now - start) / 1000))
++  const minutes = Math.floor(seconds / 60)
++  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`
++}
++
++/** Keep long-running commands visible even while their transcript is offscreen. */
++export function SessionWorkStatus() {
++  const params = useParams()
++  const sync = useSync()
++  const language = useLanguage()
++  const [now, setNow] = createSignal(Date.now())
++  const [receivedAt, setReceivedAt] = createSignal(Date.now())
++  const running = createMemo(() => {
++    const id = params.id
++    if (!id || sync().data.session_status[id]?.type !== "busy") return
++    const messages = sync().data.message[id] ?? []
++    const user = messages.findLast(message => message.role === "user")
++    if (!user) return
++    const parts = messages.flatMap(message => message.role === "assistant" && message.parentID === user.id
++      ? sync().data.part[message.id] ?? [] : [])
++    const part = parts.findLast(part => part.type === "tool" && ["bash", "shell"].includes(part.tool)
++      && part.state.status === "running")
++    return part?.type === "tool" && part.state.status === "running" ? part : undefined
++  })
++  const output = createMemo(() => {
++    const part = running()
++    return part ? turnOutput([part]) : undefined
++  })
++  const title = createMemo(() => {
++    const part = running()
++    if (!part || part.state.status !== "running") return ""
++    const value = part.state.input.description || part.state.title
++    return typeof value === "string" && value.trim() ? value.trim() : language.t("session.work.command")
++  })
++  const startedAt = createMemo(() => {
++    const part = running()
++    if (!part || part.state.status !== "running") return
++    const start = part.state.time.start
++    return Number.isFinite(start) && start > 0 ? start : undefined
++  })
++  const active = createMemo(() => !!running())
++  let previousKey: string | undefined
++  let previousOutput: unknown
++  createEffect(() => {
++    // Track receipt of actual output changes, not timer ticks or reconnects of identical data.
++    const part = running()
++    const key = part ? `${part.sessionID}/${part.messageID}/${part.id}` : undefined
++    const raw = part?.state.status === "running" ? part.state.metadata?.output : undefined
++    if (key !== previousKey || raw !== previousOutput) setReceivedAt(Date.now())
++    previousKey = key
++    previousOutput = raw
++  })
++  createEffect(() => {
++    if (!active()) return
++    setNow(Date.now())
++    const timer = setInterval(() => setNow(Date.now()), 1000)
++    onCleanup(() => clearInterval(timer))
++  })
++
++  return (
++    <Show when={running()}>
++      <section data-component="session-work-status"
++        aria-label={language.t("session.work.label")}
++        class="min-w-0 w-full rounded-md border border-border-weak-base bg-background-base px-3 py-2 mb-1 text-12 text-text-weak">
++        <div class="flex min-w-0 items-start gap-2">
++          <span class="min-w-0 flex-1 truncate text-text-strong" title={title()} aria-live="polite">{title()}</span>
++          <Show when={startedAt()}>
++            <span data-slot="work-elapsed" class="shrink-0 tabular-nums">
++              {language.t("session.work.elapsed", { duration: duration(startedAt()!, now()) })}
++            </span>
++          </Show>
++        </div>
++        <p data-slot="work-output" class="truncate font-mono mt-1" title={output()} aria-live="polite">
++          {output() ?? language.t("session.work.noOutput")}
++        </p>
++        <p class="mt-1" data-slot="work-wait">
++          <Show when={output() && now() - receivedAt() >= 30_000} fallback={language.t("session.work.waiting")}>
++            {language.t("session.work.quiet", { duration: duration(receivedAt(), now()) })}
++          </Show>
++        </p>
++      </section>
++    </Show>
++  )
++}
 diff --git a/packages/app/src/pages/session/composer/tinyagent-access.test.ts b/packages/app/src/pages/session/composer/tinyagent-access.test.ts
 new file mode 100644
 index 000000000..eb91c7d0c
