@@ -1,0 +1,1006 @@
+diff --git a/packages/opencode/script/build.ts b/packages/opencode/script/build.ts
+index ce45f77..eb7f659 100755
+--- a/packages/opencode/script/build.ts
++++ b/packages/opencode/script/build.ts
+@@ -19,6 +19,7 @@ import pkg from "../package.json"
+ const singleFlag = process.argv.includes("--single")
+ const baselineFlag = process.argv.includes("--baseline")
+ const skipInstall = process.argv.includes("--skip-install")
++const targetFlag = process.argv.find((arg) => arg.startsWith("--target="))?.slice("--target=".length)
+ const sourcemapsFlag = process.argv.includes("--sourcemaps")
+ const plugin = createSolidTransformPlugin()
+ const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
+@@ -134,6 +135,15 @@ const targets = singleFlag
+     })
+   : allTargets
+ 
++function targetName(item: (typeof allTargets)[number]) {
++  return [pkg.name, item.os === "win32" ? "windows" : item.os, item.arch,
++    item.avx2 === false ? "baseline" : undefined, item.abi].filter(Boolean).join("-")
++}
++const selectedTargets = targetFlag ? targets.filter((item) => targetName(item) === targetFlag) : targets
++if (!selectedTargets.length) throw new Error(`No build target matches ${targetFlag}`)
++if (process.env.OPENCODE_COMPILE_EXECUTABLE && selectedTargets.length !== 1)
++  throw new Error("A compile executable requires exactly one target")
++
+ await $`rm -rf dist`
+ 
+ const binaries: Record<string, string> = {}
+@@ -142,17 +152,8 @@ if (!skipInstall) {
+   await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
+   await $`bun install --os="*" --cpu="*" @ff-labs/fff-bun@${pkg.dependencies["@ff-labs/fff-bun"]}`
+ }
+-for (const item of targets) {
+-  const name = [
+-    pkg.name,
+-    // changing to win32 flags npm for some reason
+-    item.os === "win32" ? "windows" : item.os,
+-    item.arch,
+-    item.avx2 === false ? "baseline" : undefined,
+-    item.abi === undefined ? undefined : item.abi,
+-  ]
+-    .filter(Boolean)
+-    .join("-")
++for (const item of selectedTargets) {
++  const name = targetName(item)
+   console.log(`building ${name}`)
+   await $`mkdir -p dist/${name}/bin`
+ 
+@@ -175,6 +176,7 @@ for (const item of targets) {
+       autoloadTsconfig: true,
+       autoloadPackageJson: true,
+       target: name.replace(pkg.name, "bun") as any,
++      executablePath: process.env.OPENCODE_COMPILE_EXECUTABLE,
+       outfile: `dist/${name}/bin/opencode`,
+       execArgv: [`--user-agent=opencode/${Script.version}`, "--use-system-ca", "--"],
+       windows: {},
+diff --git a/packages/opencode/src/cli/cmd/serve.ts b/packages/opencode/src/cli/cmd/serve.ts
+index c0f62b3..d98b383 100644
+--- a/packages/opencode/src/cli/cmd/serve.ts
++++ b/packages/opencode/src/cli/cmd/serve.ts
+@@ -16,6 +16,13 @@ export const ServeCommand = effectCmd({
+       console.log("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
+     }
+     const opts = yield* resolveNetworkOptions(args)
++    const recoverPrevious = process.env.TINYAGENT_PREVIOUS_RUNTIME_STOPPED === "1"
++    // Consume the native startup signal; model-launched child servers must not inherit it.
++    delete process.env.TINYAGENT_PREVIOUS_RUNTIME_STOPPED
++    if (recoverPrevious) {
++      const { recoverInterruptedBeforeServe } = yield* Effect.promise(() => import("../../session/startup-recovery"))
++      yield* recoverInterruptedBeforeServe
++    }
+     const server = yield* Effect.promise(() => Server.listen(opts))
+     console.log(`opencode server listening on http://${server.hostname}:${server.port}`)
+ 
+diff --git a/packages/opencode/src/config/config.ts b/packages/opencode/src/config/config.ts
+index 9e10b67..79fc30a 100644
+--- a/packages/opencode/src/config/config.ts
++++ b/packages/opencode/src/config/config.ts
+@@ -454,7 +454,7 @@ const layer = Layer.effect(
+               add: [
+                 {
+                   name: "@opencode-ai/plugin",
+-                  version: InstallationLocal ? undefined : InstallationVersion,
++                  version: InstallationLocal ? undefined : InstallationVersion.replace(/-tinyagent\.\d+$/, ""),
+                 },
+               ],
+             })
+diff --git a/packages/opencode/src/server/routes/instance/httpapi/groups/session.ts b/packages/opencode/src/server/routes/instance/httpapi/groups/session.ts
+index 959a303..f75bcc7 100644
+--- a/packages/opencode/src/server/routes/instance/httpapi/groups/session.ts
++++ b/packages/opencode/src/server/routes/instance/httpapi/groups/session.ts
+@@ -27,6 +27,10 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
+ import { ModelV2 } from "@opencode-ai/core/model"
+ 
+ const root = "/session"
++export const StatusQuery = Schema.Struct({
++  ...WorkspaceRoutingQueryFields,
++  scope: Schema.optional(Schema.Literal("server")),
++})
+ export const ListQuery = Schema.Struct({
+   ...WorkspaceRoutingQueryFields,
+   scope: Schema.optional(Schema.Literals(["project"])),
+@@ -119,7 +123,7 @@ export const SessionApi = HttpApi.make("session")
+           }),
+         ),
+         HttpApiEndpoint.get("status", SessionPaths.status, {
+-          query: WorkspaceRoutingQuery,
++          query: StatusQuery,
+           success: described(StatusMap, "Get session status"),
+           error: HttpApiError.BadRequest,
+         }).annotateMerge(
+diff --git a/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts b/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts
+index 6625850..abecc2a 100644
+--- a/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts
++++ b/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts
+@@ -33,6 +33,7 @@ import {
+   PromptPayload,
+   RevertPayload,
+   ShellPayload,
++  StatusQuery,
+   SummarizePayload,
+   UpdatePayload,
+ } from "../groups/session"
+@@ -74,8 +75,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session",
+       })
+     })
+ 
+-    const status = Effect.fn("SessionHttpApi.status")(function* () {
+-      return Object.fromEntries(yield* statusSvc.list())
++    const status = Effect.fn("SessionHttpApi.status")(function* (ctx: { query: typeof StatusQuery.Type }) {
++      return Object.fromEntries(yield* (ctx.query.scope === "server" ? statusSvc.listAll() : statusSvc.list()))
+     })
+ 
+     const requireSession = Effect.fn("SessionHttpApi.requireSession")(function* (sessionID: SessionID) {
+diff --git a/packages/opencode/src/session/processor.ts b/packages/opencode/src/session/processor.ts
+index 9f85309..798a57a 100644
+--- a/packages/opencode/src/session/processor.ts
++++ b/packages/opencode/src/session/processor.ts
+@@ -51,6 +51,7 @@ type Input = {
+   assistantMessage: SessionV1.Assistant
+   sessionID: SessionID
+   model: Provider.Model
++  initialSnapshot?: string
+ }
+ 
+ export interface Interface {
+@@ -99,7 +100,7 @@ const layer = Layer.effect(
+       // Pre-capture snapshot before the LLM stream starts. The AI SDK
+       // may execute tools internally before emitting start-step events,
+       // so capturing inside the event handler can be too late.
+-      const initialSnapshot = yield* snapshot.track()
++      const initialSnapshot = input.initialSnapshot ?? (yield* snapshot.track())
+       const ctx: ProcessorContext = {
+         assistantMessage: input.assistantMessage,
+         sessionID: input.sessionID,
+@@ -113,6 +114,7 @@ const layer = Layer.effect(
+         reasoningMap: {},
+       }
+       let aborted = false
++      let usedTool = false
+ 
+       const parse = (e: unknown) =>
+         MessageV2.fromError(e, {
+@@ -218,6 +220,7 @@ const layer = Layer.effect(
+         name: string
+         providerExecuted?: boolean
+       }) {
++        usedTool = true
+         const existing = yield* readToolCall(input.id)
+         if (existing) {
+           if (!input.providerExecuted || existing.part.metadata?.providerExecuted) return existing
+@@ -433,7 +436,7 @@ const layer = Layer.effect(
+             return
+ 
+           case "step-finish": {
+-            const completedSnapshot = yield* snapshot.track()
++            const completedSnapshot = usedTool ? yield* snapshot.track() : ctx.snapshot
+             yield* Effect.forEach(Object.keys(ctx.reasoningMap), finishReasoning)
+             // Anthropic reports thinking blocks it removed before the model saw the
+             // prompt. Prefix mismatches mean opencode changed history behind a signed
+@@ -469,7 +472,7 @@ const layer = Layer.effect(
+             })
+             yield* session.updateMessage(ctx.assistantMessage)
+             if (ctx.snapshot) {
+-              const patch = yield* snapshot.patch(ctx.snapshot)
++              const patch = yield* snapshot.patch(ctx.snapshot, completedSnapshot)
+               if (patch.files.length) {
+                 yield* session.updatePart({
+                   id: PartID.ascending(),
+diff --git a/packages/opencode/src/session/prompt.ts b/packages/opencode/src/session/prompt.ts
+index 0f85d44..ed14ac8 100644
+--- a/packages/opencode/src/session/prompt.ts
++++ b/packages/opencode/src/session/prompt.ts
+@@ -151,7 +151,41 @@ const layer = Layer.effect(
+ 
+     const cancel = Effect.fn("SessionPrompt.cancel")(function* (sessionID: SessionID) {
+       yield* Effect.logInfo("cancel", { "session.id": sessionID })
++      // Capture IDs before cancelling so a later turn cannot be swept into orphan cleanup.
++      // ponytail: scan retained history on explicit cancellation; index pending parts if this becomes costly.
++      const pending = (yield* sessions.messages({ sessionID }).pipe(Effect.orDie))
++        .flatMap((message) => message.parts)
++        .filter((part) => part.type === "tool" && (part.state.status === "running" || part.state.status === "pending"))
+       yield* state.cancel(sessionID)
++      const interrupted = new Set<MessageID>()
++      for (const captured of pending) {
++        const part = yield* sessions.getPart({ sessionID, messageID: captured.messageID, partID: captured.id })
++        if (part?.type !== "tool" || (part.state.status !== "running" && part.state.status !== "pending")) continue
++        const end = Date.now()
++        yield* sessions.updatePart({
++          ...part,
++          state: {
++            ...part.state,
++            status: "error",
++            error: "Tool execution aborted",
++            metadata: { ...("metadata" in part.state ? part.state.metadata : {}), interrupted: true },
++            time: { start: "time" in part.state ? part.state.time.start : end, end },
++          },
++        })
++        interrupted.add(part.messageID)
++      }
++      for (const messageID of interrupted) {
++        const message = yield* MessageV2.get({ sessionID, messageID }).pipe(
++          Effect.provideService(Database.Service, database),
++          Effect.orDie,
++        )
++        if (message.info.role !== "assistant" || message.info.time.completed) continue
++        yield* sessions.updateMessage({
++          ...message.info,
++          time: { ...message.info.time, completed: Date.now() },
++          error: message.info.error ?? { name: "MessageAbortedError", data: { message: "Tool execution aborted" } },
++        })
++      }
+     })
+ 
+     const resolvePromptParts = Effect.fn("SessionPrompt.resolvePromptParts")(function* (template: string) {
+@@ -524,6 +558,7 @@ const layer = Layer.effect(
+           const args = Shell.args(sh, input.command, cwd)
+           let output = ""
+           let aborted = false
++          let exitCode: number | undefined
+ 
+           const finish = Effect.uninterruptible(
+             Effect.gen(function* () {
+@@ -541,7 +576,7 @@ const layer = Layer.effect(
+                   time: { ...part.state.time, end: completed },
+                   input: part.state.input,
+                   title: "",
+-                  metadata: { output },
++                  metadata: { output, exit: exitCode, ...(aborted ? { interrupted: true } : {}) },
+                   output,
+                 }
+                 yield* sessions.updatePart(part)
+@@ -573,7 +608,7 @@ const layer = Layer.effect(
+                   }
+                 }),
+               )
+-              yield* handle.exitCode
++              exitCode = yield* handle.exitCode
+             }).pipe(Effect.scoped, Effect.orDie),
+           ).pipe(Effect.exit)
+ 
+@@ -1215,6 +1250,10 @@ const layer = Layer.effect(
+               assistantMessage: msg,
+               sessionID,
+               model,
++              initialSnapshot:
++                lastAssistant?.parentID === lastUser.id
++                  ? lastAssistantMsg?.parts.findLast((part) => part.type === "step-finish")?.snapshot
++                  : undefined,
+             })
+             .pipe(Effect.onInterrupt(() => finalizeInterruptedAssistant))
+ 
+diff --git a/packages/opencode/src/session/startup-recovery.ts b/packages/opencode/src/session/startup-recovery.ts
+new file mode 100644
+index 0000000..3cf01dd
+--- /dev/null
++++ b/packages/opencode/src/session/startup-recovery.ts
+@@ -0,0 +1,35 @@
++import { Effect } from "effect"
++import { sql } from "drizzle-orm"
++import { Database } from "@opencode-ai/core/database/database"
++
++// Called only before serve listens, after TinyAgent has stopped the previous
++// owned process tree. Never invoke against a live shared database.
++export const recoverInterruptedBeforeServe = Effect.gen(function* () {
++  const { db } = yield* Database.Service
++  const now = Date.now()
++  // No HTTP clients exist yet. One transaction keeps messages and tools consistent.
++  yield* db.transaction((tx) => Effect.gen(function* () {
++    yield* tx.run(sql`UPDATE message SET
++      data = json_set(data, '$.time.completed', ${now}, '$.error',
++        json(COALESCE(json_extract(data, '$.error'),
++          json_object('name', 'MessageAbortedError', 'data',
++            json_object('message', 'Previous runtime stopped before completion'))))),
++      time_updated = ${now}
++      WHERE json_extract(data, '$.role') = 'assistant'
++        AND json_extract(data, '$.time.completed') IS NULL
++        AND (json_extract(data, '$.finish') IS NULL OR id IN (
++          SELECT message_id FROM part WHERE json_extract(data, '$.type') = 'tool'
++            AND json_extract(data, '$.state.status') IN ('pending', 'running')))`)
++    yield* tx.run(sql`UPDATE part SET
++      data = json_set(data,
++        '$.state.status', 'error',
++        '$.state.error', 'Previous runtime stopped before completion',
++        '$.state.metadata', json_set(COALESCE(json_extract(data, '$.state.metadata'), '{}'),
++          '$.interrupted', json('true'), '$.recovery', 'runtime-restarted'),
++        '$.state.time.start', COALESCE(json_extract(data, '$.state.time.start'), ${now}),
++        '$.state.time.end', ${now}),
++      time_updated = ${now}
++      WHERE json_extract(data, '$.type') = 'tool'
++        AND json_extract(data, '$.state.status') IN ('pending', 'running')`)
++  })).pipe(Effect.orDie)
++})
+diff --git a/packages/opencode/src/session/status.ts b/packages/opencode/src/session/status.ts
+index 11140ac..8607ad5 100644
+--- a/packages/opencode/src/session/status.ts
++++ b/packages/opencode/src/session/status.ts
+@@ -1,7 +1,7 @@
+ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+ import { InstanceState } from "@/effect/instance-state"
+ import { SessionID } from "./schema"
+-import { Effect, Layer, Context } from "effect"
++import { Effect, Layer, Context, ScopedCache } from "effect"
+ import { EventV2Bridge } from "@/event-v2-bridge"
+ import { SessionStatusEvent } from "@opencode-ai/schema/session-status-event"
+ 
+@@ -13,6 +13,7 @@ export const Event = SessionStatusEvent
+ export interface Interface {
+   readonly get: (sessionID: SessionID) => Effect.Effect<Info>
+   readonly list: () => Effect.Effect<Map<SessionID, Info>>
++  readonly listAll: () => Effect.Effect<Map<SessionID, Info>>
+   readonly set: (sessionID: SessionID, status: Info) => Effect.Effect<void>
+ }
+ 
+@@ -36,6 +37,11 @@ const layer = Layer.effect(
+       return new Map(yield* InstanceState.get(state))
+     })
+ 
++    const listAll = Effect.fn("SessionStatus.listAll")(function* () {
++      const instances = yield* ScopedCache.values(state.cache)
++      return new Map(instances.flatMap((entries) => [...entries]))
++    })
++
+     const set = Effect.fn("SessionStatus.set")(function* (sessionID: SessionID, status: Info) {
+       const data = yield* InstanceState.get(state)
+       yield* events.publish(Event.Status, { sessionID, status })
+@@ -47,7 +53,7 @@ const layer = Layer.effect(
+       data.set(sessionID, status)
+     })
+ 
+-    return Service.of({ get, list, set })
++    return Service.of({ get, list, listAll, set })
+   }),
+ )
+ 
+diff --git a/packages/opencode/src/session/summary.ts b/packages/opencode/src/session/summary.ts
+index 6484730..cff66b5 100644
+--- a/packages/opencode/src/session/summary.ts
++++ b/packages/opencode/src/session/summary.ts
+@@ -1,11 +1,14 @@
+ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+-import { Effect, Layer, Context, Schema } from "effect"
++import { Duration, Effect, Layer, Context, Schema } from "effect"
+ import { SessionV1 } from "@opencode-ai/core/v1/session"
+ import { EventV2Bridge } from "@/event-v2-bridge"
+ import { Snapshot } from "@/snapshot"
+ import { Session } from "./session"
+ import { SessionID, MessageID } from "./schema"
+ import { Config } from "@/config/config"
++import { Database } from "@opencode-ai/core/database/database"
++import { MessageV2 } from "./message-v2"
++import { NotFoundError } from "@/storage/storage"
+ 
+ function unquoteGitPath(input: string) {
+   if (!input.startsWith('"')) return input
+@@ -78,6 +81,7 @@ const layer = Layer.effect(
+     const snapshot = yield* Snapshot.Service
+     const events = yield* EventV2Bridge.Service
+     const config = yield* Config.Service
++    const database = yield* Database.Service
+ 
+     const computeDiff = Effect.fn("SessionSummary.computeDiff")(function* (input: { messages: SessionV1.WithParts[] }) {
+       let from: string | undefined
+@@ -113,7 +117,13 @@ const layer = Layer.effect(
+       })
+       yield* events.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: [] })
+       if ((yield* config.get()).snapshot === false) return
+-      const all = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)
++      const [elapsed, all] = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie, Effect.timed)
++      yield* Effect.logInfo("summary messages loaded", {
++        sessionID: input.sessionID,
++        messageID: input.messageID,
++        elapsedMs: Duration.toMillis(elapsed),
++        messages: all.length,
++      })
+       if (!all.length) return
+ 
+       const messages = all.filter(
+@@ -128,8 +138,11 @@ const layer = Layer.effect(
+ 
+     const diff = Effect.fn("SessionSummary.diff")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
+       if (!input.messageID) return []
+-      const message = (yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)).find(
+-        (item) => item.info.id === input.messageID,
++      // Validate the session as before, but do not decode unrelated tool output.
++      yield* sessions.get(input.sessionID).pipe(Effect.orDie)
++      const message = yield* MessageV2.get({ sessionID: input.sessionID, messageID: input.messageID }).pipe(
++        Effect.provideService(Database.Service, database),
++        Effect.catchIf(NotFoundError.isInstance, () => Effect.succeed(undefined)),
+       )
+       if (!message || message.info.role !== "user") return []
+       const diffs = message.info.summary?.diffs ?? []
+@@ -154,7 +167,7 @@ export type DiffInput = Schema.Schema.Type<typeof DiffInput>
+ export const node = LayerNode.make({
+   service: Service,
+   layer: layer,
+-  deps: [Session.node, Snapshot.node, EventV2Bridge.node, Config.node],
++  deps: [Session.node, Snapshot.node, EventV2Bridge.node, Config.node, Database.node],
+ })
+ 
+ export * as SessionSummary from "./summary"
+diff --git a/packages/opencode/src/snapshot/index.ts b/packages/opencode/src/snapshot/index.ts
+index 4da9bc3..da9a12e 100644
+--- a/packages/opencode/src/snapshot/index.ts
++++ b/packages/opencode/src/snapshot/index.ts
+@@ -37,7 +37,7 @@ export interface Interface {
+   readonly init: () => Effect.Effect<void>
+   readonly cleanup: () => Effect.Effect<void>
+   readonly track: () => Effect.Effect<string | undefined>
+-  readonly patch: (hash: string) => Effect.Effect<Patch>
++  readonly patch: (hash: string, completed?: string) => Effect.Effect<Patch>
+   readonly restore: (snapshot: string) => Effect.Effect<void>
+   readonly revert: (patches: Patch[]) => Effect.Effect<void>
+   readonly diff: (hash: string) => Effect.Effect<string>
+@@ -80,10 +80,16 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+ 
+         const git = Effect.fnUntraced(
+           function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string>; stdin?: string }) {
+-            const result = yield* appProcess.run(
++            const [elapsed, result] = yield* appProcess.run(
+               ChildProcess.make("git", cmd, { cwd: opts?.cwd, env: opts?.env, extendEnv: true }),
+               { stdin: opts?.stdin },
+-            )
++            ).pipe(Effect.timed)
++            const operation = cmd.find((item) => ["diff-files", "ls-files", "check-ignore", "add", "write-tree"].includes(item))
++            if (operation) yield* Effect.logInfo("snapshot git completed", {
++              operation,
++              elapsedMs: Duration.toMillis(elapsed),
++              exitCode: result.exitCode,
++            })
+             return {
+               code: ChildProcessSpawner.ExitCode(result.exitCode),
+               text: result.stdout.toString("utf8"),
+@@ -163,6 +169,9 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+         const read = (file: string) => fs.readFileString(file).pipe(Effect.catch(() => Effect.succeed("")))
+         const remove = (file: string) => fs.remove(file).pipe(Effect.catch(() => Effect.void))
+         const locked = <A, E, R>(fx: Effect.Effect<A, E, R>) => lock(state.gitdir).withPermits(1)(fx)
++        // Immutable diff reads must not block index updates. GC acquires both locks
++        // in this order so it cannot prune objects while a diff is reading them.
++        const reading = <A, E, R>(fx: Effect.Effect<A, E, R>) => lock(state.gitdir + ":diff").withPermits(1)(fx)
+ 
+         const enabled = Effect.fnUntraced(function* () {
+           if (state.vcs !== "git") return false
+@@ -179,17 +188,15 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+           return file
+         })
+ 
+-        const sync = Effect.fnUntraced(function* (list: string[] = []) {
++        const sync = Effect.fnUntraced(function* () {
+           const file = yield* excludes()
+           const target = path.join(state.gitdir, "info", "exclude")
+-          const text = [
+-            file ? (yield* read(file)).trimEnd() : "",
+-            ...list.map((item) => `/${item.replaceAll("\\", "/")}`),
+-          ]
+-            .filter(Boolean)
+-            .join("\n")
++          const text = file ? (yield* read(file)).trimEnd() : ""
++          const content = text ? `${text}\n` : ""
++          // Git's untracked cache depends on exclude-file metadata, not just content.
++          if ((yield* exists(target)) && (yield* read(target)) === content) return
+           yield* fs.ensureDir(path.join(state.gitdir, "info")).pipe(Effect.orDie)
+-          yield* fs.writeFileString(target, text ? `${text}\n` : "").pipe(Effect.orDie)
++          yield* fs.writeFileString(target, content).pipe(Effect.orDie)
+         })
+ 
+         // Reuse the hashes for the git storage between the original repo and snapshot
+@@ -292,7 +299,15 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+             )).filter((item): item is string => Boolean(item)),
+           )
+           const block = new Set(untracked.filter((item) => large.has(item)))
+-          yield* sync(Array.from(block))
++          // Oversized paths are already omitted from the explicit staging list.
++          // Writing them into excludes here and clearing them on the next scan
++          // invalidates Git's untracked cache on every turn.
++          yield* Effect.logInfo("snapshot candidates", {
++            tracked: tracked.length,
++            untracked: untracked.length,
++            ignored: ignored.size,
++            oversized: block.size,
++          })
+           // Stage only the allowed candidate paths so snapshot updates stay scoped.
+           yield* stage(allow.filter((item) => !block.has(item)))
+         })
+@@ -312,7 +327,7 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+               }
+               yield* Effect.logInfo("cleanup", { prune })
+             }),
+-          )
++          ).pipe(reading)
+         })
+ 
+         const track = Effect.fnUntraced(function* () {
+@@ -346,12 +361,26 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+           )
+         })
+ 
+-        const patch = Effect.fnUntraced(function* (hash: string) {
+-          return yield* locked(
++        const patch = Effect.fnUntraced(function* (hash: string, completed?: string) {
++          // step-finish already tracked the workspace. Compare those immutable
++          // trees instead of scanning/staging it twice or including later writes.
++          return yield* (completed ? reading : locked)(
+             Effect.gen(function* () {
+-              yield* add()
++              if (!completed) yield* add()
+               const result = yield* git(
+-                [...quote, ...args(["diff", "--cached", "--no-ext-diff", "--name-only", hash, "--", "."])],
++                [
++                  ...quote,
++                  ...args([
++                    "diff",
++                    ...(completed ? [] : ["--cached"]),
++                    "--no-ext-diff",
++                    "--name-only",
++                    hash,
++                    ...(completed ? [completed] : []),
++                    "--",
++                    ".",
++                  ]),
++                ],
+                 {
+                   cwd: state.directory,
+                 },
+@@ -544,7 +573,7 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+         })
+ 
+         const diffFull = Effect.fnUntraced(function* (from: string, to: string) {
+-          return yield* locked(
++          return yield* reading(
+             Effect.gen(function* () {
+               type Row = {
+                 file: string
+@@ -777,10 +806,14 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+         return yield* InstanceState.useEffect(state, (s) => s.cleanup())
+       }),
+       track: Effect.fn("Snapshot.track")(function* () {
+-        return yield* InstanceState.useEffect(state, (s) => s.track())
++        const [elapsed, result] = yield* InstanceState.useEffect(state, (s) => s.track()).pipe(Effect.timed)
++        yield* Effect.logInfo("snapshot operation completed", { operation: "track", elapsedMs: Duration.toMillis(elapsed) })
++        return result
+       }),
+-      patch: Effect.fn("Snapshot.patch")(function* (hash: string) {
+-        return yield* InstanceState.useEffect(state, (s) => s.patch(hash))
++      patch: Effect.fn("Snapshot.patch")(function* (hash: string, completed?: string) {
++        const [elapsed, result] = yield* InstanceState.useEffect(state, (s) => s.patch(hash, completed)).pipe(Effect.timed)
++        yield* Effect.logInfo("snapshot operation completed", { operation: "patch", elapsedMs: Duration.toMillis(elapsed), files: result.files.length })
++        return result
+       }),
+       restore: Effect.fn("Snapshot.restore")(function* (snapshot: string) {
+         return yield* InstanceState.useEffect(state, (s) => s.restore(snapshot))
+@@ -792,7 +825,9 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
+         return yield* InstanceState.useEffect(state, (s) => s.diff(hash))
+       }),
+       diffFull: Effect.fn("Snapshot.diffFull")(function* (from: string, to: string) {
+-        return yield* InstanceState.useEffect(state, (s) => s.diffFull(from, to))
++        const [elapsed, result] = yield* InstanceState.useEffect(state, (s) => s.diffFull(from, to)).pipe(Effect.timed)
++        yield* Effect.logInfo("snapshot operation completed", { operation: "diffFull", elapsedMs: Duration.toMillis(elapsed), files: result.length })
++        return result
+       }),
+     })
+   }),
+diff --git a/packages/opencode/test/session/prompt.test.ts b/packages/opencode/test/session/prompt.test.ts
+index da6e0f8..4d91d3b 100644
+--- a/packages/opencode/test/session/prompt.test.ts
++++ b/packages/opencode/test/session/prompt.test.ts
+@@ -242,6 +242,26 @@ function makeHttpNoLLMServer(input?: { mcpInstructions?: MCP.ServerInstructions[
+ const it = testEffect(makeHttp())
+ const noLLMServer = testEffect(makeHttpNoLLMServer())
+ const raceNoLLMServer = testEffect(makeHttpNoLLMServer({ processor: "blocking" }))
++const snapshotTracks: string[] = []
++const countedSnapshot = Layer.mock(Snapshot.Service, {
++  init: () => Effect.void,
++  track: () =>
++    Effect.sync(() => {
++      const hash = `snapshot-${snapshotTracks.length + 1}`
++      snapshotTracks.push(hash)
++      return hash
++    }),
++  patch: (hash) => Effect.succeed({ hash, files: [] }),
++})
++const withCountedSnapshot = testEffect(
++  LayerNode.compile(LayerNode.group([promptRoot, testLLMServerNode]), [
++    [SessionSummary.node, summary],
++    [LSP.node, lsp],
++    [MCP.node, makeMcp()],
++    [RuntimeFlags.node, runtimeFlags],
++    [Snapshot.node, countedSnapshot],
++  ]),
++)
+ const withMcpInstructions = testEffect(
+   makeHttp({
+     mcpInstructions: [
+@@ -500,6 +520,93 @@ noLLMServer.instance(
+   { config: cfg },
+ )
+ 
++it.instance("startup recovery finalizes abandoned work and preserves completed history", () =>
++  Effect.gen(function* () {
++    const { recoverInterruptedBeforeServe } = yield* Effect.promise(() => import("../../src/session/startup-recovery"))
++    yield* useServerConfig(providerCfg)
++    const sessions = yield* Session.Service
++    const chat = yield* sessions.create({ title: "Startup recovery" })
++    const seeded = yield* seed(chat.id, { finish: "stop" })
++    yield* sessions.updateMessage({ ...seeded.assistant, time: { created: 1 } })
++    const completed = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "done", tool: "bash",
++      state: { status: "completed", input: {}, title: "done", metadata: {}, output: "keep", time: { start: 1, end: 2 } },
++    })
++    const running = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "running", tool: "bash",
++      state: { status: "running", input: { command: "make" }, metadata: { output: "partial" }, time: { start: 1 } },
++    })
++    const pending = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "pending", tool: "bash",
++      state: { status: "pending", input: {}, raw: "" },
++    })
++    const other = yield* sessions.create({ title: "Completed history" })
++    yield* seed(other.id, { finish: "stop" })
++    const preserved = yield* sessions.messages({ sessionID: other.id })
++    const thinking = yield* sessions.create({ title: "Abandoned before tool" })
++    const unfinished = yield* seed(thinking.id, { finish: "stop" })
++    yield* sessions.updateMessage({ ...unfinished.assistant, finish: undefined, time: { created: 1 } })
++    yield* recoverInterruptedBeforeServe
++    for (const part of [running, pending]) {
++      const saved = yield* sessions.getPart({ sessionID: chat.id, messageID: part.messageID, partID: part.id })
++      expect(saved?.type === "tool" && saved.state.status).toBe("error")
++      if (saved?.type !== "tool" || saved.state.status !== "error") throw new Error("Not recovered")
++      expect(saved.state.metadata?.interrupted).toBe(true)
++      expect(saved.state.input).toEqual(part.state.input)
++      if (part.id === running.id) expect(saved.state.metadata?.output).toBe("partial")
++    }
++    expect(yield* sessions.getPart({ sessionID: chat.id, messageID: completed.messageID, partID: completed.id })).toEqual(completed)
++    const first = yield* sessions.messages({ sessionID: chat.id })
++    const assistant = first.find(m => m.info.id === seeded.assistant.id)?.info
++    expect(assistant?.role === "assistant" && assistant.error?.name).toBe("MessageAbortedError")
++    expect(assistant?.role === "assistant" && assistant.time.completed).toBeTruthy()
++    expect(yield* sessions.messages({ sessionID: other.id })).toEqual(preserved)
++    const stopped = (yield* sessions.messages({ sessionID: thinking.id })).find(m => m.info.id === unfinished.assistant.id)?.info
++    expect(stopped?.role === "assistant" && stopped.error?.name).toBe("MessageAbortedError")
++    yield* recoverInterruptedBeforeServe
++    expect(yield* sessions.messages({ sessionID: chat.id })).toEqual(first)
++  }),
++)
++
++it.instance("cancel marks persisted orphan tools interrupted without a live runner", () =>
++  Effect.gen(function* () {
++    yield* useServerConfig(providerCfg)
++    const prompt = yield* SessionPrompt.Service
++    const sessions = yield* Session.Service
++    const chat = yield* sessions.create({ title: "Orphan recovery" })
++    const seeded = yield* seed(chat.id, { finish: "stop" })
++    yield* sessions.updateMessage({ ...seeded.assistant, time: { created: 1 } })
++    const completed = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "finished-shell", tool: "bash",
++      state: { status: "completed", input: { command: "pwd" }, title: "pwd",
++        metadata: {}, output: "/workspace", time: { start: 1, end: 2 } },
++    })
++    const part = yield* sessions.updatePart({
++      id: PartID.ascending(), messageID: seeded.assistant.id, sessionID: chat.id,
++      type: "tool", callID: "orphan-shell", tool: "bash",
++      state: { status: "running", input: { command: "make" }, title: "make",
++        metadata: { output: "retained build output" }, time: { start: 1 } },
++    })
++    yield* prompt.cancel(chat.id)
++    const saved = yield* sessions.getPart({ sessionID: chat.id, messageID: part.messageID, partID: part.id })
++    expect(saved?.type).toBe("tool")
++    if (saved?.type !== "tool") throw new Error("Tool part missing")
++    expect(saved.state.status).toBe("error")
++    expect(saved.state.input).toEqual({ command: "make" })
++    if (saved.state.status !== "error") throw new Error("Orphan was not interrupted")
++    expect(saved.state.metadata?.interrupted).toBe(true)
++    expect(saved.state.metadata?.output).toBe("retained build output")
++    expect(yield* sessions.getPart({ sessionID: chat.id, messageID: completed.messageID, partID: completed.id })).toEqual(completed)
++    const message = (yield* sessions.messages({ sessionID: chat.id })).find(m => m.info.id === seeded.assistant.id)
++    expect(message?.info.role === "assistant" && message.info.time.completed).toBeTruthy()
++    expect(message?.info.role === "assistant" && message.info.error?.name).toBe("MessageAbortedError")
++  }),
++)
++
+ it.instance("loop exits without an LLM request for interrupted orphan tool calls", () =>
+   Effect.gen(function* () {
+     const { llm } = yield* useServerConfig(providerCfg)
+@@ -1561,6 +1668,42 @@ it.instance("shell rejects with BusyError when loop running", () =>
+   }),
+ )
+ 
++noLLMServer.instance(
++  "shell records the actual nonzero process exit code",
++  () => Effect.gen(function* () {
++    const { prompt, chat } = yield* boot()
++    const result = yield* prompt.shell({ sessionID: chat.id, agent: "build", command: "exit 7" })
++    const tool = completedTool(result.parts)
++    expect(tool?.state.metadata.exit).toBe(7)
++  }),
++  { config: cfg },
++)
++
++withCountedSnapshot.instance("reuses snapshots across provider continuation and a text-only finish", () =>
++  Effect.gen(function* () {
++    snapshotTracks.length = 0
++    const { llm } = yield* useServerConfig(providerCfg)
++    const prompt = yield* SessionPrompt.Service
++    const sessions = yield* Session.Service
++    const session = yield* sessions.create({
++      title: "Snapshot continuation",
++      permission: [{ permission: "*", pattern: "*", action: "allow" }],
++    })
++    yield* prompt.prompt({
++      sessionID: session.id,
++      agent: "build",
++      noReply: true,
++      parts: [{ type: "text", text: "hello" }],
++    })
++    yield* llm.tool("first", { value: "first" })
++    yield* llm.text("second")
++
++    yield* prompt.loop({ sessionID: session.id })
++
++    expect(snapshotTracks).toEqual(["snapshot-1", "snapshot-2"])
++  }),
++)
++
+ unixNoLLMServer(
+   "shell captures stdout and stderr in completed tool output",
+   () =>
+diff --git a/packages/opencode/test/session/status-all.test.ts b/packages/opencode/test/session/status-all.test.ts
+new file mode 100644
+index 0000000..6d7e6eb
+--- /dev/null
++++ b/packages/opencode/test/session/status-all.test.ts
+@@ -0,0 +1,31 @@
++import { expect, test } from "bun:test"
++import { Effect, Layer } from "effect"
++import { LayerNode } from "@opencode-ai/core/effect/layer-node"
++import { SessionStatus } from "../../src/session/status"
++import { SessionID } from "../../src/session/schema"
++import { InstanceRef } from "../../src/effect/instance-ref"
++import { disposeInstance } from "../../src/effect/instance-registry"
++import { EventV2Bridge } from "../../src/event-v2-bridge"
++import type { InstanceContext } from "../../src/project/instance-context"
++
++test("server status covers both directories and removes idle/disposed work", async () => {
++  const first = SessionID.make("ses_notificationFirst")
++  const second = SessionID.make("ses_notificationSecond")
++  const inDirectory = <A, E, R>(directory: string, effect: Effect.Effect<A, E, R>) =>
++    effect.pipe(Effect.provideService(InstanceRef, { directory } as InstanceContext))
++  await Effect.runPromise(Effect.gen(function* () {
++    const status = yield* SessionStatus.Service
++    yield* inDirectory("/notification-one", status.set(first, { type: "busy" }))
++    yield* inDirectory("/notification-two", status.set(second, { type: "busy" }))
++    expect([...(yield* inDirectory("/notification-one", status.list())).keys()]).toEqual([first])
++    expect([...(yield* status.listAll()).keys()].sort()).toEqual([first, second].sort())
++    yield* inDirectory("/notification-one", status.set(first, { type: "idle" }))
++    expect([...(yield* status.listAll()).keys()]).toEqual([second])
++    yield* Effect.promise(() => disposeInstance("/notification-two"))
++    expect((yield* status.listAll()).size).toBe(0)
++  }).pipe(
++    Effect.provide(LayerNode.compile(SessionStatus.node, [
++      [EventV2Bridge.node, Layer.succeed(EventV2Bridge.Service, { publish: () => Effect.void } as any)],
++    ])),
++  ))
++})
+diff --git a/packages/opencode/test/session/summary-lookup.test.ts b/packages/opencode/test/session/summary-lookup.test.ts
+new file mode 100644
+index 0000000..1eb62b9
+--- /dev/null
++++ b/packages/opencode/test/session/summary-lookup.test.ts
+@@ -0,0 +1,35 @@
++import { expect } from "bun:test"
++import { Effect } from "effect"
++import { LayerNode } from "@opencode-ai/core/effect/layer-node"
++import { SessionProjector } from "@opencode-ai/core/session/projector"
++import { Session } from "@/session/session"
++import { SessionSummary } from "@/session/summary"
++import { MessageID } from "@/session/schema"
++import { testEffect } from "../lib/effect"
++import { ProviderV2 } from "@opencode-ai/core/provider"
++import { ModelV2 } from "@opencode-ai/core/model"
++
++const it = testEffect(LayerNode.compile(LayerNode.group([Session.node, SessionSummary.node, SessionProjector.node])))
++
++it.instance("one message diff does not hydrate the entire conversation", () => Effect.gen(function* () {
++  const sessions = yield* Session.Service
++  const summary = yield* SessionSummary.Service
++  const session = yield* sessions.create({})
++  const other = yield* sessions.create({})
++  const messageID = MessageID.ascending()
++  const diff = { file: "hello.txt", before: "", after: "hello", additions: 1, deletions: 0 }
++  yield* sessions.updateMessage({
++    id: messageID, sessionID: session.id, role: "user", time: { created: Date.now() },
++    agent: "build", model: { providerID: ProviderV2.ID.make("test"), modelID: ModelV2.ID.make("test") }, summary: { diffs: [diff] },
++  })
++  const messages = sessions.messages
++  Object.assign(sessions, { messages: () => Effect.die("Whole-conversation hydration is forbidden for one diff") })
++  yield* Effect.gen(function* () {
++    expect(yield* summary.diff({ sessionID: session.id, messageID })).toEqual([diff])
++    expect(yield* summary.diff({ sessionID: other.id, messageID })).toEqual([])
++    expect(yield* summary.diff({ sessionID: session.id, messageID: MessageID.ascending() })).toEqual([])
++    expect(yield* summary.diff({ sessionID: session.id })).toEqual([])
++  }).pipe(Effect.ensuring(Effect.sync(() => Object.assign(sessions, { messages }))))
++  yield* sessions.remove(session.id)
++  yield* sessions.remove(other.id)
++}))
+diff --git a/packages/opencode/test/snapshot/diff-writer.test.ts b/packages/opencode/test/snapshot/diff-writer.test.ts
+new file mode 100644
+index 0000000..88ff4e3
+--- /dev/null
++++ b/packages/opencode/test/snapshot/diff-writer.test.ts
+@@ -0,0 +1,71 @@
++import { afterEach, expect } from "bun:test"
++import { Context, Deferred, Effect, Fiber, Layer } from "effect"
++import { AppProcess } from "@opencode-ai/core/process"
++import { LayerNode } from "@opencode-ai/core/effect/layer-node"
++import { FSUtil } from "@opencode-ai/core/fs-util"
++import { Snapshot } from "../../src/snapshot"
++import { disposeAllInstances, TestInstance, testInstanceStoreLayer } from "../fixture/fixture"
++import { testEffect } from "../lib/effect"
++
++class Gate extends Context.Service<Gate, {
++  entered: Deferred.Deferred<void>
++  release: Deferred.Deferred<void>
++  collected: Deferred.Deferred<void>
++}>()("SnapshotDiffGate") {}
++
++const gate = Layer.effect(Gate, Effect.gen(function* () {
++  return { entered: yield* Deferred.make<void>(), release: yield* Deferred.make<void>(), collected: yield* Deferred.make<void>() }
++}))
++const process = Layer.effect(AppProcess.Service, Effect.gen(function* () {
++  const original = yield* AppProcess.Service
++  const wait = yield* Gate
++  return AppProcess.Service.of({
++    ...original,
++    run: (command, options) => Effect.gen(function* () {
++      if (command._tag === "StandardCommand" && command.args.includes("cat-file")) {
++        yield* Deferred.succeed(wait.entered, undefined)
++        yield* Deferred.await(wait.release)
++      }
++      if (command._tag === "StandardCommand" && command.args.includes("gc")) {
++        expect(yield* Deferred.isDone(wait.release)).toBe(true)
++        yield* Deferred.succeed(wait.collected, undefined)
++      }
++      return yield* original.run(command, options)
++    }),
++  })
++})).pipe(Layer.provide(Layer.mergeAll(LayerNode.compile(AppProcess.node), gate)))
++const it = testEffect(Layer.mergeAll(
++  LayerNode.compile(LayerNode.group([Snapshot.node, FSUtil.node]), [[AppProcess.node, process]]),
++  testInstanceStoreLayer,
++  gate,
++))
++afterEach(disposeAllInstances)
++
++it.instance("slow immutable diff does not block a new snapshot", () => Effect.gen(function* () {
++  const tmp = yield* TestInstance
++  const fs = yield* FSUtil.Service
++  const snapshot = yield* Snapshot.Service
++  const wait = yield* Gate
++  yield* fs.writeWithDirs(`${tmp.directory}/file.txt`, "before\n")
++  const before = yield* snapshot.track()
++  yield* fs.writeWithDirs(`${tmp.directory}/file.txt`, "after\n")
++  const after = yield* snapshot.track()
++  expect(before).toBeTruthy()
++  expect(after).toBeTruthy()
++  const diff = yield* snapshot.diffFull(before!, after!).pipe(Effect.forkChild)
++  yield* Deferred.await(wait.entered).pipe(Effect.timeout("10 seconds"),
++    Effect.catchTag("TimeoutError", () => Effect.die("diff reader never entered")))
++  const cleanup = yield* snapshot.cleanup().pipe(Effect.forkChild)
++  yield* fs.writeWithDirs(`${tmp.directory}/next.txt`, "next tool\n")
++  const tracked = yield* snapshot.track().pipe(
++    Effect.timeout("2 seconds"),
++    Effect.catchTag("TimeoutError", () => Effect.die("snapshot writer blocked behind diff reader")),
++    Effect.ensuring(Deferred.succeed(wait.release, undefined)),
++  )
++  expect(tracked).toBeTruthy()
++  const result = yield* Fiber.join(diff)
++  expect(result.map(item => item.file)).toEqual(["file.txt"])
++  expect(result[0].patch).toContain("+after")
++  yield* Fiber.join(cleanup)
++  expect(yield* Deferred.isDone(wait.collected)).toBe(true)
++}), { git: true }, 20000)
+diff --git a/packages/opencode/test/snapshot/snapshot.test.ts b/packages/opencode/test/snapshot/snapshot.test.ts
+index a396240..aa12761 100644
+--- a/packages/opencode/test/snapshot/snapshot.test.ts
++++ b/packages/opencode/test/snapshot/snapshot.test.ts
+@@ -7,6 +7,9 @@ import fs from "fs/promises"
+ import path from "path"
+ import { Effect, Fiber, Layer } from "effect"
+ import { Snapshot } from "../../src/snapshot"
++import { Global } from "@opencode-ai/core/global"
++import { Hash } from "@opencode-ai/core/util/hash"
++import { InstanceRef } from "../../src/effect/instance-ref"
+ import {
+   disposeAllInstances,
+   provideInstance,
+@@ -106,6 +109,22 @@ const withGitConfigGlobal = <A, E, R>(config: string, self: Effect.Effect<A, E,
+       }),
+   )
+ 
++it.instance(
++  "patch reuses the completed snapshot without staging later writes",
++  withTrackedSnapshot(({ tmp, snapshot, before }) =>
++    Effect.gen(function* () {
++      yield* write(`${tmp.path}/a.txt`, "completed tool")
++      const completed = yield* snapshot.track()
++      expect(completed).toBeTruthy()
++      yield* write(`${tmp.path}/later.txt`, "still running outside this step")
++      const patch = yield* snapshot.patch(before, completed!)
++      expect(patch.files).toEqual([fwd(tmp.path, "a.txt")])
++      expect((yield* snapshot.patch(before)).files).toContain(fwd(tmp.path, "later.txt"))
++    }),
++  ),
++  { git: true },
++)
++
+ it.instance(
+   "tracks deleted files correctly",
+   withTrackedSnapshot(({ tmp, snapshot, before }) =>
+@@ -454,6 +473,36 @@ it.live(
+   }),
+ )
+ 
++it.live(
++  "opening a nested repository snapshots and restores its files without sibling changes",
++  Effect.gen(function* () {
++    const dir = yield* scopedGitTmpdir()
++    const project = path.join(dir, "project")
++    yield* mkdirp(project)
++    yield* exec(project, ["git", "init"])
++    yield* exec(project, ["git", "config", "user.email", "test@example.com"])
++    yield* exec(project, ["git", "config", "user.name", "Test"])
++    yield* write(`${project}/tracked.txt`, "initial")
++    yield* exec(project, ["git", "add", "."])
++    yield* exec(project, ["git", "commit", "-m", "initial"])
++    yield* write(`${dir}/sibling.txt`, "keep")
++    yield* Effect.gen(function* () {
++      const snapshot = yield* Snapshot.Service
++      const before = yield* snapshot.track()
++      expect(before).toBeTruthy()
++      yield* write(`${project}/tracked.txt`, "changed")
++      yield* write(`${project}/new.txt`, "new")
++      yield* write(`${dir}/sibling.txt`, "sibling edit")
++      const patch = yield* snapshot.patch(before!)
++      expect(patch.files.sort()).toEqual([fwd(project, "new.txt"), fwd(project, "tracked.txt")].sort())
++      yield* snapshot.revert([patch])
++      expect(yield* readText(`${project}/tracked.txt`)).toBe("initial")
++      expect(yield* exists(`${project}/new.txt`)).toBe(false)
++      expect(yield* readText(`${dir}/sibling.txt`)).toBe("sibling edit")
++    }).pipe(provideInstance(project))
++  }),
++)
++
+ it.live(
+   "subdirectory snapshots include scoped changes only",
+   Effect.gen(function* () {
+@@ -598,6 +647,26 @@ it.instance(
+   { git: true },
+ )
+ 
++it.instance(
++  "oversized files do not invalidate snapshot excludes and are tracked after shrinking",
++  withTrackedSnapshot(({ tmp, snapshot, before }) =>
++    Effect.gen(function* () {
++      yield* write(`${tmp.path}/oversized.bin`, new Uint8Array(2 * 1024 * 1024 + 1))
++      expect(yield* snapshot.track()).toBe(before)
++      const ctx = yield* InstanceRef
++      if (!ctx) throw new Error("Snapshot test requires an instance")
++      const file = path.join(Global.Path.data, "snapshot", ctx.project.id, Hash.fast(ctx.worktree), "info", "exclude")
++      const previous = new Date("2000-01-01T00:00:00Z")
++      yield* Effect.promise(() => fs.utimes(file, previous, previous))
++      yield* snapshot.track()
++      expect((yield* Effect.promise(() => fs.stat(file))).mtimeMs).toBe(previous.getTime())
++      yield* write(`${tmp.path}/oversized.bin`, "now small")
++      expect((yield* snapshot.patch(before)).files).toEqual([fwd(tmp.path, "oversized.bin")])
++    }),
++  ),
++  { git: true },
++)
++
+ it.instance(
+   "git info exclude changes",
+   withTrackedSnapshot(({ tmp, snapshot, before }) =>

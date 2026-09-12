@@ -31,6 +31,16 @@ public final class LocalPolicy {
         return value;
     }
 
+    public static int listenPort(String addresses) {
+        if(addresses==null)return 0;
+        for(String address:addresses.trim().split("[;,\\s]+")) {
+            if(!address.startsWith("tcp:"))continue;
+            try {return port(address.substring(address.lastIndexOf(':')+1));}
+            catch(IllegalArgumentException ignored) { }
+        }
+        return 0;
+    }
+
     public static boolean isBackendUrl(String url) {
         URI uri = uri(url);
         return uri != null && "http".equals(uri.getScheme())

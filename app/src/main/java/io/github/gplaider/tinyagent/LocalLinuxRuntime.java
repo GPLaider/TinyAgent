@@ -17,6 +17,8 @@ final class LocalLinuxRuntime {
     private volatile Process active;
     private final Map<Process, File> pids = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean cancelled;
+    private volatile Integer lastExitCode;
+    Integer lastExitCode() { return lastExitCode; }
     private boolean previousRuntimeStopped;
     private BiConsumer<String, Integer> measured = (label, percent) -> {};
     LocalLinuxRuntime(Context context) {
@@ -45,13 +47,13 @@ final class LocalLinuxRuntime {
         }
         File bin = new File(rootfs, "usr/local/bin");
         Files.createDirectories(bin.toPath());
-        String backendHash = "c92991c178f77ec717f64def66c01a6bcb93ea834be1c5a50b7be0649fb9f20e";
+        String backendHash = "5e64f096fbc1e7a891d5382d86fc657a7d2b316fe2546a2025a28fb531a1fc6e";
         Path executable = new File(bin, "opencode").toPath();
         progress.accept("OpenCode 실행 파일 확인 중…");
         if (!RuntimeExecutable.matches(executable, backendHash)) {
             Path staging = Files.createTempDirectory(bin.toPath(), ".opencode-update-");
             try {
-                unpack("opencode-linux-arm64.tar.gz.bin", "5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2", staging.toFile(), "OpenCode 업데이트", 1);
+                unpack("opencode-linux-arm64.tar.gz.bin", "b877f7baa8d60611b9a638209c84868e5dea9139c8dec622943d25f29c07f205", staging.toFile(), "OpenCode 업데이트", 1);
                 if (cancelled) throw new InterruptedException("환경 준비 중단");
                 RuntimeExecutable.replace(staging.resolve("opencode"), executable, backendHash);
             } finally {
@@ -62,26 +64,22 @@ final class LocalLinuxRuntime {
         // The installed APK is immutable to this app UID; expose its exact runtime inputs for self-builds.
         new File(rootfs, "tinyagent-installed.apk").createNewFile();
         refreshDns();
+        progress.accept("dnfast 패키지 실행환경 확인 중…");
+        DnfastRuntime.prepare(this);
         // The minimal Fedora image lacks development tools. Also repair earlier installs.
         if (!List.of("git", "python3", "make", "gcc", "unzip").stream()
                 .allMatch(name -> new File(rootfs, "usr/bin/" + name).isFile())) {
             progress.accept("Fedora 개발 도구 설치 중 · 네트워크 연결이 필요합니다. 실패하면 환경 준비를 다시 누르세요.");
             var network = context.getSystemService(ConnectivityManager.class).getActiveNetwork();
             if (network == null) throw new IOException("인터넷 연결이 필요합니다. Wi-Fi 또는 모바일 데이터 연결 후 다시 시도하세요.");
-            boolean[] installing = {false};
-            run(guest("/workspace", "/usr/bin/microdnf", "install", "-y", "git", "python3", "make", "gcc", "unzip", "tar", "gzip"), line -> {
-                String clean = line.replaceAll("\u001B\\[[0-9;]*[A-Za-z]", "").trim();
-                if (clean.contains("Running transaction")) {
-                    installing[0] = true;
-                    measured.accept("개발 도구 설치 준비 중…", -1);
-                }
-                var match = java.util.regex.Pattern.compile("^\\[\\s*(\\d+)\\s*/\\s*(\\d+)\\].*").matcher(clean);
-                if (match.matches()) {
-                    long current = Long.parseLong(match.group(1)), total = Long.parseLong(match.group(2));
-                    if (total > 0) measured.accept("개발 도구 " + (installing[0] ? "설치" : "다운로드") + " · " + current + "/" + total + " 항목",
-                            (int)Math.min(99, Math.max(0, (current - 1) * 100 / total)));
-                }
-            });
+            progress.accept("개발 도구 준비 · 이전 패키지 작업 확인 중…");
+            runPackages("check",line -> {},"app-runtime","check");
+            progress.accept("개발 도구 준비 · 패키지 목록 갱신 중…");
+            runPackages("refresh",line -> {},"repo","refresh");
+            progress.accept("개발 도구 준비 · 패키지 다운로드·설치 중…");
+            // dnfast currently emits a terminal JSON result, not byte/package progress.
+            // Keep the native indeterminate bar and elapsed clock until measured progress exists.
+            runPackages("install", line -> {}, "install", "--assumeyes", "git", "python3", "make", "gcc", "unzip", "tar", "gzip");
         }
         run(guest("/workspace", "/usr/bin/git", "--version"));
         File auth = new File(context.getNoBackupFilesDir(), "stock-backend-auth");
@@ -94,7 +92,9 @@ final class LocalLinuxRuntime {
         }
         if (!password().matches("[0-9a-f]{64}")) throw new IOException("로컬 인증 파일 오류");
         progress.accept("Fedora 실행 확인 중 · Android UID=" + android.os.Process.myUid());
-        run(guest("/workspace", "/usr/local/bin/opencode", "--version"));
+        StringBuilder backendVersion = new StringBuilder();
+        run(guest("/workspace", "/usr/local/bin/opencode", "--version"),
+                line -> backendVersion.append(line).append('\n'));
         File harness = new File(home, ".tinyagent"); Files.createDirectories(harness.toPath());
         File bootstrap = new File(harness, "bootstrap"); Files.createDirectories(bootstrap.toPath());
         for (String name : context.getAssets().list("bootstrap")) {
@@ -110,10 +110,11 @@ final class LocalLinuxRuntime {
         String measured = "# TinyAgent measured environment\n\nMeasured: " + java.time.Instant.now()
                 + "\nAndroid device: " + android.os.Build.DEVICE + "\nAndroid version: " + android.os.Build.VERSION.RELEASE
                 + "\nDevice serial: unavailable to ordinary app; do not infer it.\nAndroid UID: " + android.os.Process.myUid()
-                + "\nExecution provider: fedora-local\nRuntime: TinyAgent-patched PRoot 5.1.107.92-tinyagent.1, Fedora 44, OpenCode 1.18.29-tinyagent.2"
+                + "\nExecution provider: fedora-local\nRuntime: TinyAgent-patched PRoot 5.1.107.92-tinyagent.1, Fedora 44"
+                + "\nOpenCode --version (exit 0): " + backendVersion.toString().strip()
                 + "\nPermission: app-sandbox. Guest uid=0 is emulated and is not Android root."
                 + "\nFedora tool: OpenCode bash tool; commands run directly in the guest. Try `cat /etc/fedora-release`, `id`, `pwd`."
-                + "\nAndroid diagnostic tool: read /root/.tinyagent/ANDROID_TOOL.md for this runtime's actual connection. It exposes read-only inspection, not arbitrary shell commands."
+                + "\nAndroid tool: read /root/.tinyagent/ANDROID_TOOL.md for this runtime's actual connection. tinyagent-android.py exposes verified Developer/Root shell and installation jobs; Stock Fedora never requires ADB."
                 + "\nWorkspace: /workspace = " + workspace + "\nHome: /root = " + home
                 + "\nPrivate internal exchange: /shared = " + new File(base, "shared")
                 + "\nAll paths above are app-private, NOT browsable in Android Files. Copying to /shared does not export."
@@ -122,11 +123,15 @@ final class LocalLinuxRuntime {
                 + "\nBackend: " + LocalPolicy.BACKEND_ORIGIN + " owned by RuntimeSetupService."
                 + "\nStop: native Work Environment > diagnostics > stop; signals PRoot to terminate its tracees."
                 + "\nRecovery: reopen the app; an explicitly stopped runtime requires Prepare. Check real session state before repeating writes."
-                + "\nRuntime log: " + new File(base, "backend.log")
-                + "\nAndroid root install option selected: " + context.getSharedPreferences("connection", Context.MODE_PRIVATE).getBoolean("rootAllowed", false)
-                + " (selection is not proof of a live verified ADB connection).\n";
+                + "\nRuntime diagnostics: TinyAgent work environment > diagnostics. Android-private log mapping (not a Fedora path): " + new File(base, "backend.log")
+                + "\nAndroid Root last detected: " + context.getSharedPreferences("connection", Context.MODE_PRIVATE).getBoolean("rootAvailable", false)
+                + " (automatically detected; each Root operation must reverify self-device and UID 0).\n";
         Files.write(new File(harness, "TINYAGENT_ENVIRONMENT.md").toPath(), measured.getBytes(StandardCharsets.UTF_8));
         recordAndroidTool("Android diagnostic bridge is not connected yet. Fedora remains available.\n");
+        Files.deleteIfExists(new File(home, ".tinyagent/PACKAGE_SOCKET").toPath());
+    }
+    void recordPackageSocket(String name) throws IOException {
+        Files.write(new File(home, ".tinyagent/PACKAGE_SOCKET").toPath(), name.getBytes(StandardCharsets.UTF_8));
     }
     void recordAndroidTool(String text) throws IOException {
         Files.write(new File(home, ".tinyagent/ANDROID_TOOL.md").toPath(), text.getBytes(StandardCharsets.UTF_8));
@@ -146,6 +151,52 @@ final class LocalLinuxRuntime {
     }
     private String password() throws IOException {
         return new String(Files.readAllBytes(new File(context.getNoBackupFilesDir(), "stock-backend-auth").toPath()), StandardCharsets.US_ASCII);
+    }
+
+    String[] sessionNotification() throws Exception {
+        var states = new org.json.JSONObject(backendJson("/session/status?scope=server"));
+        var active = new ArrayList<String>();
+        for (var keys = states.keys(); keys.hasNext();) {
+            String id = keys.next();
+            if (!"idle".equals(states.getJSONObject(id).optString("type")) && id.matches("ses_[A-Za-z0-9]+")) active.add(id);
+        }
+        if (active.isEmpty()) return new String[] {"TinyAgent · 작업 대기", "실행 중인 세션이 없습니다. 앱에서 작업을 시작하세요."};
+        Collections.sort(active);
+        String id = active.get(0);
+        var session = new org.json.JSONObject(backendJson("/session/" + id));
+        String title = session.optString("title", "작업 중");
+        String detail = "에이전트 응답 중";
+        if ("retry".equals(states.getJSONObject(id).optString("type"))) detail = "모델 연결 재시도 중";
+        var messages = new org.json.JSONArray(backendJson("/session/" + id + "/message?limit=1"));
+        if (messages.length() > 0) {
+            var parts = messages.getJSONObject(messages.length() - 1).optJSONArray("parts");
+            for (int i = parts == null ? -1 : parts.length() - 1; i >= 0; i--) {
+                var part = parts.getJSONObject(i);
+                var state = part.optJSONObject("state");
+                if (state == null || !("running".equals(state.optString("status")) || "pending".equals(state.optString("status")))) continue;
+                String task = state.optString("title", "").strip();
+                detail = task.isEmpty() ? part.optString("tool", "도구") + " 실행 중" : task;
+                break;
+            }
+        }
+        if (active.size() > 1) detail += " · 그 외 " + (active.size() - 1) + "개 세션 실행 중";
+        return new String[] {title.length() > 80 ? title.substring(0, 80) + "…" : title,
+                detail.length() > 200 ? detail.substring(0, 200) + "…" : detail};
+    }
+
+    private String backendJson(String path) throws Exception {
+        var connection = (java.net.HttpURLConnection) new java.net.URL(LocalPolicy.BACKEND_ORIGIN + path).openConnection();
+        connection.setConnectTimeout(1500); connection.setReadTimeout(2000);
+        connection.setRequestProperty("Authorization", "Basic " + android.util.Base64.encodeToString(
+                ("opencode:" + password()).getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
+        try (var input = connection.getInputStream(); var output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            for (int n; (n = input.read(buffer)) != -1;) {
+                if (output.size() + n > 1024 * 1024) throw new IOException("Session state response too large");
+                output.write(buffer, 0, n);
+            }
+            return output.toString(StandardCharsets.UTF_8.name());
+        } finally { connection.disconnect(); }
     }
     Process startBackend() throws Exception {
         if (!previousRuntimeStopped) throw new IOException("이전 실행환경 종료 확인이 필요합니다.");
@@ -199,7 +250,7 @@ final class LocalLinuxRuntime {
         builder.environment().put("PROOT_L2S_DIR", new File(rootfs, ".l2s").toString());
         return builder;
     }
-    private void unpack(String asset, String expected, File destination, String label, int entries) throws Exception {
+    void unpack(String asset, String expected, File destination, String label, int entries) throws Exception {
         File archive = new File(base, "input.tar.gz");
         MessageDigest hash = MessageDigest.getInstance("SHA-256");
         long length;
@@ -220,29 +271,71 @@ final class LocalLinuxRuntime {
         // Entry totals belong to the SHA256-pinned archives above, not an estimated duration.
         int[] extracted = {0};
         measured.accept(label + " 압축 해제", 0);
-        run(process(List.of("-0", "-l", "--kill-on-exit", "/system/bin/tar", "-xvzf", archive.toString(), "-C", destination.toString())), line -> {
-            if (!line.startsWith("proot") && !line.startsWith("tar:") && !line.isBlank()) {
-                extracted[0]++;
-                measured.accept(label + " 압축 해제 · " + Math.min(extracted[0], entries) + "/" + entries + " 항목", Math.min(99, extracted[0] * 100 / entries));
-            }
-        });
+        // Some stock devices allow Java to read toybox but deny native child reads.
+        // Copy the device's own tar executable; retain argv[0] and PRoot link emulation.
+        Path systemTar = new File("/system/bin/tar").getCanonicalFile().toPath();
+        Path readableTar = Files.createTempFile(base.toPath(), ".bootstrap-tar-", ".bin");
+        try {
+            Files.copy(systemTar, readableTar, StandardCopyOption.REPLACE_EXISTING);
+            if (!readableTar.toFile().setExecutable(true, true)) throw new IOException("압축 해제 도구 실행 권한 설정 실패");
+            run(process(List.of("-0", "-l", "--kill-on-exit", "-b", readableTar + ":" + systemTar,
+                    "/system/bin/tar", "-xvzf", archive.toString(), "-C", destination.toString())), line -> {
+                if (!line.startsWith("proot") && !line.startsWith("tar:") && !line.isBlank()) {
+                    extracted[0]++;
+                    measured.accept(label + " 압축 해제 · " + Math.min(extracted[0], entries) + "/" + entries + " 항목", Math.min(99, extracted[0] * 100 / entries));
+                }
+            });
+        } finally { Files.deleteIfExists(readableTar); }
         measured.accept(label + " 압축 해제 완료", 100);
         Files.delete(archive.toPath());
     }
-    private void run(ProcessBuilder builder) throws Exception {
+    void runPackages(String action, Consumer<String> lines, String... operation) throws Exception {
+        // One in-process writer also covers initial preparation. The launcher retains its root lock.
+        synchronized (DnfastRuntime.class) {
+            if (action.equals("install") && !DnfastRuntime.planningCurrent(this)) {
+                lines.accept("dnfast: 실행환경 변경 확인 · 설치 계획 갱신 중");
+                runPackages("check", lines, "app-runtime", "check");
+                // Native migrate refuses Started/RpmResult; never replay or rewrite those journals.
+                runPackages("migrate", lines, "app-runtime", "migrate");
+                runPackages("verify", lines, "app-runtime", "check");
+                runPackages("refresh", lines, "repo", "refresh");
+            }
+            runPackageCommand(action, lines, operation);
+        }
+    }
+    private void runPackageCommand(String action, Consumer<String> lines, String... operation) throws Exception {
+        String planningIdentity = action.equals("refresh") ? DnfastRuntime.planningIdentity(this) : null;
+        StringBuilder terminal = new StringBuilder();
+        run(DnfastRuntime.command(this,operation), line -> {
+            lines.accept(line);
+            if (line.startsWith("{") && line.contains("dnfast.cli.v1")) {
+                terminal.setLength(0); terminal.append(line);
+            }
+        });
+        DnfastResult.require(action,0,terminal.toString());
+        if (action.equals("refresh")) DnfastRuntime.rememberPlanning(this, planningIdentity);
+    }
+    void run(ProcessBuilder builder) throws Exception {
         run(builder, line -> {});
     }
-    private void run(ProcessBuilder builder, Consumer<String> lines) throws Exception {
-        active = start(builder);
+    void run(ProcessBuilder builder, Consumer<String> lines) throws Exception {
+        lastExitCode = null;
+        Process process = start(builder);
+        active = process;
         StringBuilder output = new StringBuilder();
-        try (var reader = new BufferedReader(new InputStreamReader(active.getInputStream()))) {
-            for (String line; (line = reader.readLine()) != null;) {
+        int code;
+        try {
+            code = RuntimeProcessOutput.read(process, line -> {
                 lines.accept(line);
                 output.append(line).append('\n');
                 if (output.length() > 8192) output.delete(0, output.length() - 8192);
+            }, this::stop);
+        } finally {
+            if (!process.isAlive()) {
+                lastExitCode = process.exitValue();
+                forget(process); active = null;
             }
         }
-        int code = active.waitFor(); forget(active); active = null;
         if (cancelled) throw new InterruptedException("환경 준비 중단");
         if (code != 0) throw new IOException("Fedora exit=" + code + "\n" + output);
     }

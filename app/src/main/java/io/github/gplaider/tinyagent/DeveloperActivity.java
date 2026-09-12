@@ -33,7 +33,7 @@ public final class DeveloperActivity extends Activity {
             var bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
             v.setPadding(bars.left,bars.top,bars.right,bars.bottom); return insets;
         });
-        add(body,"Developer 연결",26);
+        add(body,"개발자 연결",26);
         status = add(body,"연결 안 됨",16);
         add(body,"1 / 3 · 개발자 옵션",20);
         add(body,"휴대전화 정보에서 빌드 번호를 7번 누르면 개발자 옵션이 열립니다.",15);
@@ -44,7 +44,7 @@ public final class DeveloperActivity extends Activity {
         add(body,"Wi-Fi에 연결하고 무선 디버깅을 켜세요. PC·Tailscale·기존 ADB 연결은 필요하지 않습니다.",15);
         action(body,"무선 디버깅 열기",() -> startActivity(wirelessSettings(this)));
         add(body,"3 / 3 · 페어링 코드 입력",20);
-        add(body,"아래 알림을 켠 뒤 설정에서 ‘페어링 코드로 기기 페어링’을 누르세요. 그 창을 열어 둔 채 알림창의 TinyAgent ‘코드 입력’에 6자리를 입력하세요. 주소와 포트는 자동으로 찾습니다.",15);
+        add(body,"아래 알림을 켠 뒤 설정에서 ‘페어링 코드로 기기 페어링’을 누르세요. 그 창을 열어 둔 채 알림창의 TinyAgent ‘코드 입력’에 6자리를 입력하세요. 연결은 자동으로 찾습니다.",15);
         action(body,"페어링 알림 켜기",() -> {
             if (Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=getPackageManager().PERMISSION_GRANTED)
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},41);
@@ -63,7 +63,7 @@ public final class DeveloperActivity extends Activity {
         action(body,"기존 페어링으로 다시 연결",() -> startForegroundService(new Intent(this,WirelessPairingService.class).setAction(WirelessPairingService.CONNECT)));
         action(body,"Stock으로 돌아가기",() -> {
             stopService(new Intent(this,WirelessPairingService.class));
-            getSharedPreferences("connection",0).edit().putString("transport","stock").putBoolean("rootAllowed",false)
+            getSharedPreferences("connection",0).edit().putString("transport","stock").remove("rootAllowed").putBoolean("rootAvailable",false)
                     .putString("wirelessStatus","Stock · 앱 권한으로 실행합니다. 페어링 키는 다음 연결을 위해 보관합니다.").apply();
             finish();
         });

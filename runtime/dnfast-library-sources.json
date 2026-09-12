@@ -1,0 +1,175 @@
+{
+  "scope": "Exact source RPM filenames from the original build image; HTTPS downloads, no RPM signature verification",
+  "expected": 24,
+  "sources": [
+    {
+      "source_rpm": "acl-2.4.0-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/acl/2.4.0/1.fc44/src/acl-2.4.0-1.fc44.src.rpm",
+      "bytes": 614655,
+      "sha256": "8e5f0cda4f992e8fe8c8628ace8bc69e962174b8ca170444f6d286151c9fab87",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "bzip2-1.0.8-23.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/bzip2/1.0.8/23.fc44/src/bzip2-1.0.8-23.fc44.src.rpm",
+      "bytes": 848267,
+      "sha256": "d3b7ec1332f6227f5b7c797efac1e3df6ef641b64838e0b233d22baf4253f715",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "gcc-16.2.1-2.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/gcc/16.2.1/2.fc44/src/gcc-16.2.1-2.fc44.src.rpm",
+      "bytes": 103974336,
+      "sha256": "30208e442e9158f3517fd6bc78ac5e6330ecab58676cdb47b09c13b7219dd98f",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "glib2-2.88.3-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/glib2/2.88.3/1.fc44/src/glib2-2.88.3-1.fc44.src.rpm",
+      "bytes": 5883380,
+      "sha256": "ecb252fe3d1904ccd82184e3a3c7dd182bab1c0d47af435fde8057d24219bfa5",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "glibc-2.43-8.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/glibc/2.43/8.fc44/src/glibc-2.43-8.fc44.src.rpm",
+      "bytes": 21932721,
+      "sha256": "9a4dde3afc3d11906684d529d086cb2c060bd9c3bcf0e04f186117153dbb50f1",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "gmp-6.3.0-5.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/gmp/6.3.0/5.fc44/src/gmp-6.3.0-5.fc44.src.rpm",
+      "bytes": 2173897,
+      "sha256": "85fdb3e945dc3a2869196487e0e33001e825d79d0ed74f86e31fa25aeb3f1a7c",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "libcap-2.78-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/libcap/2.78/1.fc44/src/libcap-2.78-1.fc44.src.rpm",
+      "bytes": 308356,
+      "sha256": "c9b66c05d600f1437cd2c44ce3a063990432b629a93d0ef62b8c9b2f8134d245",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "libffi-3.5.2-2.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/libffi/3.5.2/2.fc44/src/libffi-3.5.2-2.fc44.src.rpm",
+      "bytes": 1457752,
+      "sha256": "4335b2ecbb2059caa9c687850adab9452442a0f7b7d156a49de08e122cbb64e6",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "libmodulemd-2.15.3-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/libmodulemd/2.15.3/1.fc44/src/libmodulemd-2.15.3-1.fc44.src.rpm",
+      "bytes": 374966,
+      "sha256": "7d8eb1d124c87496169ed7f46c88ee9bc5b0f8bed71ccb1e93605df3d428db7a",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "libsolv-0.7.39-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/libsolv/0.7.39/1.fc44/src/libsolv-0.7.39-1.fc44.src.rpm",
+      "bytes": 844518,
+      "sha256": "e3247390f9fbff8b74cdfc404128e61f7c84771427d3159be4c9139158e78d01",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "libxml2-2.12.10-6.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/libxml2/2.12.10/6.fc44/src/libxml2-2.12.10-6.fc44.src.rpm",
+      "bytes": 11721351,
+      "sha256": "b14deef971003ec4494a0093e3a1709c1970babda9ffbbef8dc981a92414faf2",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "libyaml-0.2.5-18.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/libyaml/0.2.5/18.fc44/src/libyaml-0.2.5-18.fc44.src.rpm",
+      "bytes": 636504,
+      "sha256": "7d95e3faff7856300c7d66739d49d93b5c07020048fb79f46016fcfeeb69af79",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "lua-5.4.8-5.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/lua/5.4.8/5.fc44/src/lua-5.4.8-5.fc44.src.rpm",
+      "bytes": 560420,
+      "sha256": "361f681054524052406730f714466f24fa17a1068d2d33de029e5300bfb8f016",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "nettle-3.10.1-3.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/nettle/3.10.1/3.fc44/src/nettle-3.10.1-3.fc44.src.rpm",
+      "bytes": 2710887,
+      "sha256": "49a3668e4a5c4402264bc01799807144f7671e5abf0fa6e50449987b7817217e",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "openssl-3.5.8-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/openssl/3.5.8/1.fc44/src/openssl-3.5.8-1.fc44.src.rpm",
+      "bytes": 53455602,
+      "sha256": "b61fc4521c7a00dfdacf9b734f9f64d2809e03723796109b73a119be0b174491",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "pcre2-10.47-1.fc44.1.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/pcre2/10.47/1.fc44.1/src/pcre2-10.47-1.fc44.1.src.rpm",
+      "bytes": 2207960,
+      "sha256": "b6261da4b9316cf2f5f716ed0e62402251e705eaa23b9575d70d2eabce517457",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "popt-1.19-10.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/popt/1.19/10.fc44/src/popt-1.19-10.fc44.src.rpm",
+      "bytes": 625051,
+      "sha256": "489697d0dcdeeb46a390f5c36fc275284fb869a83cac2854b535d93872fc78a4",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "rpm-6.0.1-2.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/rpm/6.0.1/2.fc44/src/rpm-6.0.1-2.fc44.src.rpm",
+      "bytes": 1530085,
+      "sha256": "a261d1693c69fec0b4f29d8e55deeefe4ee86b55bf52d307fea586aacddb49c0",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "rust-rpm-sequoia-1.10.2-4.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/rust-rpm-sequoia/1.10.2/4.fc44/src/rust-rpm-sequoia-1.10.2-4.fc44.src.rpm",
+      "bytes": 124834,
+      "sha256": "d57f0936f8ced344da248a977484222bc3a6ee30f51b546ae9d767b99e59c6af",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "sqlite-3.51.2-1.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/sqlite/3.51.2/1.fc44/src/sqlite-3.51.2-1.fc44.src.rpm",
+      "bytes": 28497676,
+      "sha256": "ce213e98b32f49215c9f07690262d4ff95f20088c6cdad495267df86a2365fd7",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "xz-5.8.2-2.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/xz/5.8.2/2.fc44/src/xz-5.8.2-2.fc44.src.rpm",
+      "bytes": 2738055,
+      "sha256": "e0b53a8dff88417c7821693ba36c587e7ff1e7d8392d046a15031702c88fa270",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "zchunk-1.5.1-4.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/zchunk/1.5.1/4.fc44/src/zchunk-1.5.1-4.fc44.src.rpm",
+      "bytes": 1537608,
+      "sha256": "06b719b993e4f35d1dd0bed784837fb9e80284f55846bfaa9e2147bd4251ffb4",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "zlib-ng-2.3.3-3.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/zlib-ng/2.3.3/3.fc44/src/zlib-ng-2.3.3-3.fc44.src.rpm",
+      "bytes": 2467915,
+      "sha256": "d224a30988f1f17548d70d8b32af13cb10611ce0a234242db486b3c5fa89d7af",
+      "signature_verified": false
+    },
+    {
+      "source_rpm": "zstd-1.5.7-5.fc44.src.rpm",
+      "url": "https://kojipkgs.fedoraproject.org/packages/zstd/1.5.7/5.fc44/src/zstd-1.5.7-5.fc44.src.rpm",
+      "bytes": 2477604,
+      "sha256": "6d4bdea2ac67f415b80d1e9a432858293733c33083c891f112c94c217d6dd7e8",
+      "signature_verified": false
+    }
+  ],
+  "complete": true
+}

@@ -1,0 +1,24 @@
+{
+  "source_sha256": "29385d1ddb619a9c4449ab512bfd55032034b22f724ddf98fc95ff300ea32135",
+  "patch_sha256": "4f5af6494c3b2f1b15bbfd54e4f4913655a1479a60721203ab6dbb33455782ef",
+  "fchmodat2_patch_sha256": "e9dacb0c43c73fec3b6c9342d0783fdd4d6cb06d0b06036712663cd57daa89dd",
+  "ndk": "28.0.13004108",
+  "compiler_sha256": "72875988e5833d3d508ac8e8d926407380666780967c50050868a94a196bb7a7",
+  "build_script_sha256": "56c129ca3cd6cc84741a35a65b896c8194d598f2736bd4ef8cb3f03578ae33c7",
+  "objects": 67,
+  "features": [
+    "#define HAVE_PROCESS_VM",
+    "#define HAVE_SECCOMP_FILTER"
+  ],
+  "dependencies": {
+    "libtalloc.so": "34c92182bdbda07e009eaa09afa852c575c566691786ca456b28778222ba0afc",
+    "libandroid-shmem.so": "84475798e07c8174dbbfaec70a827fdb02f19ffa69a589380c13e7507fd0e731"
+  },
+  "outputs": {
+    "libproot.so": "ccea97386ab59d764d3e5f921f8f1804bceaf8153644e28375e1b39b6da004a1",
+    "libproot_loader.so": "12d2b63e897fd91a334fce23edea5d2419cae4d5fd2a369f05d03ab75682add0"
+  },
+  "status": "App UID 10154: exact Cargo tar baseline exit2/candidate exit0; full APK integration pending",
+  "archive": "proot-fchmodat2-2.tar.gz",
+  "archive_sha256": "663560a19c03f6e51abed3b086374be229887803ca14854b1c9c0acaabce4e2e"
+}

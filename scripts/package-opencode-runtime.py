@@ -12,7 +12,7 @@ parser.add_argument('output', type=Path)
 parser.add_argument('--manifest', type=Path, help='Explicit candidate manifest; default remains the shipped runtime')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
-manifest_path = args.manifest or root / 'runtime/opencode-runtime-recovery-2.json'
+manifest_path = args.manifest or root / 'runtime/opencode-snapshot-12.json'
 manifest = json.loads(manifest_path.read_text())
 with args.binary.open('rb') as stream:
     assert hashlib.file_digest(stream, 'sha256').hexdigest() == manifest['binary_sha256']

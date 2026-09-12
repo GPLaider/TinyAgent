@@ -1,0 +1,23 @@
+[
+  {
+    "file": "dnfast-source/acl-2.4.0-1.fc44.src.rpm/COPYING",
+    "sha256": "a45a845012742796534f7e91fe623262ccfb99460a2bd04015bd28d66fba95b8",
+    "source_rpm": "acl-2.4.0-1.fc44.src.rpm",
+    "source_archive": "acl-2.4.0.tar.gz",
+    "member": "acl-2.4.0/doc/COPYING"
+  },
+  {
+    "file": "dnfast-source/acl-2.4.0-1.fc44.src.rpm/COPYING.LGPL",
+    "sha256": "01b1f9f2c8ee648a7a596a1abe8aa4ed7899b1c9e5551bda06da6e422b04aa55",
+    "source_rpm": "acl-2.4.0-1.fc44.src.rpm",
+    "source_archive": "acl-2.4.0.tar.gz",
+    "member": "acl-2.4.0/doc/COPYING.LGPL"
+  },
+  {
+    "file": "dnfast-source/zlib-ng-2.3.3-3.fc44.src.rpm/LICENSE.md",
+    "sha256": "6c9f0d975b41afaa34d22f55bb8986ce69e5cb7ad327cb2b28820cd425edf5ee",
+    "source_rpm": "zlib-ng-2.3.3-3.fc44.src.rpm",
+    "source_archive": "zlib-ng-2.3.3.tar.gz",
+    "member": "zlib-ng-2.3.3/LICENSE.md"
+  }
+]

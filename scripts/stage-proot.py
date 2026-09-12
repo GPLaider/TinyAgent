@@ -74,11 +74,12 @@ def main():
     assert set(outputs) == {'libproot.so', 'libproot_loader.so', 'libtalloc.so', 'libandroid-shmem.so'}
     assert outputs == pins['output_sha256'], 'Packaged native bytes differ from source pins'
     # Preserve dependency provenance while promoting the separately source-built tracer.
-    candidate = json.loads((ROOT / 'runtime/proot-exitkill-1.json').read_text())
-    archive_path = ROOT / 'runtime/proot-exitkill-1.tar.gz'
+    candidate = json.loads((ROOT / 'runtime/proot-fchmodat2-2.json').read_text())
+    archive_path = ROOT / 'runtime/proot-fchmodat2-2.tar.gz'
     assert candidate['archive'] == archive_path.name
     assert hashlib.sha256(archive_path.read_bytes()).hexdigest() == candidate['archive_sha256']
     assert candidate['patch_sha256'] == hashlib.sha256((ROOT / 'patches/proot-exitkill.patch').read_bytes()).hexdigest()
+    assert candidate['fchmodat2_patch_sha256'] == hashlib.sha256((ROOT / 'patches/proot-fchmodat2.patch').read_bytes()).hexdigest()
     assert set(candidate['outputs']) == {'libproot.so', 'libproot_loader.so'}
     for name, digest in candidate['dependencies'].items():
         assert outputs[name] == digest

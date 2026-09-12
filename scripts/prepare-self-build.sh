@@ -17,7 +17,8 @@ printf 'options timeout:2 attempts:2\n' >> "$dns"
 mv "$dns" /etc/resolv.conf
 fi
 curl -fsSL --max-time 25 -o /dev/null -w 'fedora_https=%{http_code}\n' https://fedoraproject.org/
-microdnf install -y git python3 make gcc unzip tar gzip
+scripts=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+python3 "$scripts/tinyagent-packages.py" install git python3 make gcc unzip tar gzip
 # Fedora 44 ships Java 25+, while this source uses Gradle 8.13. Keep JDK 17.
 # Official Adoptium API metadata recorded 2026-09-08; archive is verified first.
 jdk=/opt/tinyagent-build/jdk-17.0.20.1+1

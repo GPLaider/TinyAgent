@@ -2,8 +2,8 @@
 
 폰 내부 Fedora와 OpenCode를 사용하는 Android 개발 에이전트입니다.
 현재는 실기기 통합 검증 중인 개발 빌드이며 정식 릴리즈가 아닙니다.
-Preview 4 후보는 dnfast 결과 판정 수정과 ARM 실기기 빌드 검증을 반영합니다.
-[현재 후보 검증 상태](docs/PRERELEASE-4-VALIDATION.md)를 먼저 확인하세요.
+[현재 후보 검증 상태](docs/PRERELEASE-CURRENT.md)를 먼저 확인하세요.
+이 소스에는 공개된 이전 프리릴리즈 이후의 미게시 수정이 포함됩니다.
 [무선 Developer 설정·검증 범위](docs/WIRELESS-DEVELOPER.md)와
 [Stock 준비 수정](docs/STOCK-COMPATIBILITY.md)을 참고하세요.
 
@@ -12,7 +12,8 @@ Preview 4 후보는 dnfast 결과 판정 수정과 ARM 실기기 빌드 검증�
 1. APK 설치 후 **환경 준비하기**를 누릅니다. Fedora와 로컬 백엔드는 앱 권한으로 실행됩니다.
 2. 준비가 끝나면 **대화 시작하기**를 누릅니다.
 3. 설정의 **공급자**에서 사용할 인증 방법을 연결하고 **모델**을 선택합니다.
-   big-pickle과 OpenAI OAuth의 GPT-5.6 Luna 응답·도구 실행은 이전 실기기 후보에서 확인했습니다.
+   현재 서명된 후보의 Pacman Stock 실행에서 OpenCode Go의 DeepSeek V4.1 Flash
+   연결·응답·도구 실행·재실행 후 재사용을 확인했습니다. OpenAI OAuth의 GPT-5.6 Luna는 이전 후보 검증입니다.
    모든 공급자·인증 갱신 방식의 검증을 뜻하지 않습니다.
 4. 개발 작업에 필요한 도구는 에이전트가 다음 명령으로 준비할 수 있습니다.
 

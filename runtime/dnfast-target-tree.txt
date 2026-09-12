@@ -1,0 +1,432 @@
+dnfast-cli v0.1.0 (/work/source/crates/dnfast-cli)
+base64 v0.22.1
+clap v4.6.1
+clap_builder v4.6.0
+anstream v1.0.0
+anstyle v1.0.14
+anstyle-parse v1.0.0
+utf8parse v0.2.2
+anstyle-query v1.1.5
+colorchoice v1.0.5
+is_terminal_polyfill v1.70.2
+utf8parse v0.2.2
+anstyle v1.0.14
+clap_lex v1.1.0
+strsim v0.11.1
+clap_derive v4.6.1 (proc-macro)
+heck v0.5.0
+proc-macro2 v1.0.106
+unicode-ident v1.0.24
+quote v1.0.46
+proc-macro2 v1.0.106 (*)
+syn v2.0.118
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+unicode-ident v1.0.24
+dnfast-cache v0.1.0 (/work/source/crates/dnfast-cache)
+dnfast-metadata v0.1.0 (/work/source/crates/dnfast-metadata)
+flate2 v1.1.9
+crc32fast v1.5.0
+cfg-if v1.0.4
+miniz_oxide v0.8.9
+adler2 v2.0.1
+simd-adler32 v0.3.9
+zlib-rs v0.6.6
+hex v0.4.3
+memchr v2.8.3
+quick-xml v0.41.0
+memchr v2.8.3
+serde v1.0.228
+serde_core v1.0.228
+serde_derive v1.0.228 (proc-macro)
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+sha2 v0.11.0
+cfg-if v1.0.4
+cpufeatures v0.3.0
+libc v0.2.186
+digest v0.11.3
+block-buffer v0.12.1
+hybrid-array v0.4.13
+typenum v1.20.1
+const-oid v0.10.2
+crypto-common v0.2.2
+hybrid-array v0.4.13 (*)
+zstd v0.13.3
+zstd-safe v7.2.4
+zstd-sys v2.0.16+zstd.1.5.7
+cc v1.2.67
+find-msvc-tools v0.1.9
+jobserver v0.1.35
+libc v0.2.186
+libc v0.2.186
+shlex v2.0.1
+pkg-config v0.3.33
+dnfast-native-sys v0.1.0 (/work/source/crates/dnfast-native-sys)
+sha2 v0.10.9
+cfg-if v1.0.4
+cpufeatures v0.2.17
+libc v0.2.186
+digest v0.10.7
+block-buffer v0.10.4
+generic-array v0.14.7
+typenum v1.20.1
+version_check v0.9.5
+crypto-common v0.1.7
+generic-array v0.14.7 (*)
+typenum v1.20.1
+subtle v2.6.1
+cc v1.2.67 (*)
+pkg-config v0.3.33
+hex v0.4.3
+rustix v1.1.4
+bitflags v2.13.0
+linux-raw-sys v0.12.1
+serde v1.0.228 (*)
+serde_json v1.0.150
+itoa v1.0.18
+memchr v2.8.3
+serde_core v1.0.228
+zmij v1.0.21
+sha2 v0.11.0 (*)
+tempfile v3.27.0
+fastrand v2.4.1
+getrandom v0.4.3
+cfg-if v1.0.4
+libc v0.2.186
+once_cell v1.21.4
+rustix v1.1.4 (*)
+thiserror v2.0.18
+thiserror-impl v2.0.18 (proc-macro)
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+ureq v3.3.0 (/work/source/vendor/ureq)
+base64 v0.22.1
+log v0.4.33
+percent-encoding v2.3.2
+rustls v0.23.41
+log v0.4.33
+once_cell v1.21.4
+ring v0.17.14
+cfg-if v1.0.4
+getrandom v0.2.17
+cfg-if v1.0.4
+libc v0.2.186
+libc v0.2.186
+untrusted v0.9.0
+cc v1.2.67 (*)
+rustls-pki-types v1.15.0
+zeroize v1.9.0
+rustls-webpki v0.103.13
+ring v0.17.14 (*)
+rustls-pki-types v1.15.0 (*)
+untrusted v0.9.0
+subtle v2.6.1
+zeroize v1.9.0
+rustls-pki-types v1.15.0 (*)
+rustls-platform-verifier v0.6.2
+log v0.4.33
+rustls v0.23.41 (*)
+rustls-native-certs v0.8.4
+openssl-probe v0.2.1
+rustls-pki-types v1.15.0 (*)
+rustls-webpki v0.103.13 (*)
+ureq-proto v0.6.0
+base64 v0.22.1
+http v1.4.2
+bytes v1.12.1
+itoa v1.0.18
+httparse v1.10.1
+log v0.4.33
+utf8-zero v0.8.1
+webpki-roots v1.0.8
+rustls-pki-types v1.15.0 (*)
+url v2.5.8
+form_urlencoded v1.2.2
+percent-encoding v2.3.2
+idna v1.1.0
+idna_adapter v1.2.1
+icu_normalizer v2.1.1
+icu_collections v2.1.1
+displaydoc v0.2.6 (proc-macro)
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+potential_utf v0.1.5
+zerovec v0.11.6
+yoke v0.8.3
+stable_deref_trait v1.2.1
+yoke-derive v0.8.2 (proc-macro)
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+synstructure v0.13.2
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+zerofrom v0.1.8
+zerofrom-derive v0.1.7 (proc-macro)
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+synstructure v0.13.2 (*)
+zerofrom v0.1.8 (*)
+zerovec-derive v0.11.3 (proc-macro)
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+syn v2.0.118 (*)
+yoke v0.8.3 (*)
+zerofrom v0.1.8 (*)
+zerovec v0.11.6 (*)
+icu_normalizer_data v2.1.1
+icu_provider v2.1.1
+displaydoc v0.2.6 (proc-macro) (*)
+icu_locale_core v2.1.1
+displaydoc v0.2.6 (proc-macro) (*)
+litemap v0.8.2
+tinystr v0.8.3
+displaydoc v0.2.6 (proc-macro) (*)
+zerovec v0.11.6 (*)
+writeable v0.6.3
+zerovec v0.11.6 (*)
+writeable v0.6.3
+yoke v0.8.3 (*)
+zerofrom v0.1.8 (*)
+zerotrie v0.2.4
+displaydoc v0.2.6 (proc-macro) (*)
+yoke v0.8.3 (*)
+zerofrom v0.1.8 (*)
+zerovec v0.11.6 (*)
+smallvec v1.15.2
+zerovec v0.11.6 (*)
+icu_properties v2.1.2
+icu_collections v2.1.1 (*)
+icu_locale_core v2.1.1 (*)
+icu_properties_data v2.1.2
+icu_provider v2.1.1 (*)
+zerotrie v0.2.4 (*)
+zerovec v0.11.6 (*)
+smallvec v1.15.2
+utf8_iter v1.0.4
+percent-encoding v2.3.2
+dnfast-core v0.1.0 (/work/source/crates/dnfast-core)
+serde v1.0.228 (*)
+serde_json v1.0.150 (*)
+sha2 v0.10.9 (*)
+thiserror v2.0.18 (*)
+dnfast-dnf5-history v0.1.0 (/work/source/crates/dnfast-dnf5-history)
+libloading v0.8.9
+cfg-if v1.0.4
+rustix v1.1.4 (*)
+thiserror v2.0.18 (*)
+dnfast-executor v0.1.0 (/work/source/crates/dnfast-executor)
+base64 v0.22.1
+dnfast-cache v0.1.0 (/work/source/crates/dnfast-cache) (*)
+dnfast-core v0.1.0 (/work/source/crates/dnfast-core) (*)
+dnfast-metadata v0.1.0 (/work/source/crates/dnfast-metadata) (*)
+dnfast-native v0.1.0 (/work/source/crates/dnfast-native)
+dnfast-cache v0.1.0 (/work/source/crates/dnfast-cache) (*)
+dnfast-core v0.1.0 (/work/source/crates/dnfast-core) (*)
+dnfast-native-sys v0.1.0 (/work/source/crates/dnfast-native-sys) (*)
+dnfast-repo v0.1.0 (/work/source/crates/dnfast-repo)
+rustix v1.1.4 (*)
+sequoia-openpgp v2.4.1
+anyhow v1.0.103
+argon2 v0.5.3
+base64ct v1.8.3
+blake2 v0.10.6
+digest v0.10.7 (*)
+password-hash v0.5.0
+base64ct v1.8.3
+rand_core v0.6.4
+subtle v2.6.1
+base64 v0.22.1
+buffered-reader v1.4.1
+bzip2 v0.6.1
+libbz2-rs-sys v0.2.5
+flate2 v1.1.9 (*)
+libc v0.2.186
+bzip2 v0.6.1 (*)
+dyn-clone v1.0.20
+flate2 v1.1.9 (*)
+idna v1.1.0 (*)
+lalrpop-util v0.22.2
+regex-automata v0.4.15
+aho-corasick v1.1.4
+memchr v2.8.3
+memchr v2.8.3
+regex-syntax v0.8.11
+rustversion v1.0.23 (proc-macro)
+libc v0.2.186
+memsec v0.7.0
+nettle v7.5.0
+getrandom v0.4.3 (*)
+libc v0.2.186
+nettle-sys v2.3.2
+libc v0.2.186
+bindgen v0.72.1
+bitflags v2.13.0
+cexpr v0.6.0
+nom v7.1.3
+memchr v2.8.3
+minimal-lexical v0.2.1
+clang-sys v1.8.1
+glob v0.3.3
+libc v0.2.186
+libloading v0.8.9
+cfg-if v1.0.4
+glob v0.3.3
+itertools v0.13.0
+either v1.16.0
+proc-macro2 v1.0.106 (*)
+quote v1.0.46 (*)
+regex v1.13.0
+regex-automata v0.4.15
+regex-syntax v0.8.11
+regex-syntax v0.8.11
+rustc-hash v2.1.3
+shlex v1.3.0
+syn v2.0.118 (*)
+cc v1.2.67 (*)
+pkg-config v0.3.33
+tempfile v3.27.0
+fastrand v2.4.1
+getrandom v0.4.3
+cfg-if v1.0.4
+libc v0.2.186
+once_cell v1.21.4
+rustix v1.1.4
+bitflags v2.13.0
+linux-raw-sys v0.12.1
+thiserror v2.0.18 (*)
+typenum v1.20.1
+regex v1.13.0
+aho-corasick v1.1.4 (*)
+memchr v2.8.3
+regex-automata v0.4.15 (*)
+regex-syntax v0.8.11
+regex-syntax v0.8.11
+sha1collisiondetection v0.3.4
+generic-array v0.14.7 (*)
+thiserror v2.0.18 (*)
+xxhash-rust v0.8.17
+lalrpop v0.22.2
+ascii-canvas v4.0.0
+term v1.2.1
+bit-set v0.8.0
+bit-vec v0.8.0
+ena v0.14.4
+log v0.4.33
+itertools v0.14.0
+either v1.16.0
+lalrpop-util v0.22.2
+rustversion v1.0.23 (proc-macro)
+petgraph v0.7.1
+fixedbitset v0.5.7
+indexmap v2.14.0
+equivalent v1.0.2
+hashbrown v0.17.1
+regex v1.13.0 (*)
+regex-syntax v0.8.11
+sha3 v0.10.9
+digest v0.10.7
+block-buffer v0.10.4
+generic-array v0.14.7
+typenum v1.20.1
+version_check v0.9.5
+crypto-common v0.1.7
+generic-array v0.14.7 (*)
+typenum v1.20.1
+keccak v0.1.6
+cpufeatures v0.2.17
+libc v0.2.186
+string_cache v0.8.9
+new_debug_unreachable v1.0.6
+parking_lot v0.12.5
+lock_api v0.4.14
+scopeguard v1.2.0
+parking_lot_core v0.9.12
+cfg-if v1.0.4
+libc v0.2.186
+smallvec v1.15.2
+phf_shared v0.11.3
+siphasher v1.0.3
+precomputed-hash v0.1.1
+term v1.2.1
+unicode-xid v0.2.6
+walkdir v2.5.0
+same-file v1.0.6
+sha2 v0.11.0 (*)
+dnfast-state v0.1.0 (/work/source/crates/dnfast-state)
+dnfast-core v0.1.0 (/work/source/crates/dnfast-core) (*)
+rustix v1.1.4 (*)
+serde v1.0.228 (*)
+serde_json v1.0.150 (*)
+thiserror v2.0.18 (*)
+hex v0.4.3
+rustix v1.1.4 (*)
+sha2 v0.10.9 (*)
+thiserror v2.0.18 (*)
+dnfast-native-sys v0.1.0 (/work/source/crates/dnfast-native-sys) (*)
+dnfast-planning v0.1.0 (/work/source/crates/dnfast-planning)
+base64 v0.22.1
+dnfast-cache v0.1.0 (/work/source/crates/dnfast-cache) (*)
+dnfast-core v0.1.0 (/work/source/crates/dnfast-core) (*)
+dnfast-metadata v0.1.0 (/work/source/crates/dnfast-metadata) (*)
+dnfast-native v0.1.0 (/work/source/crates/dnfast-native) (*)
+dnfast-native-sys v0.1.0 (/work/source/crates/dnfast-native-sys) (*)
+dnfast-repo v0.1.0 (/work/source/crates/dnfast-repo) (*)
+hex v0.4.3
+rustix v1.1.4 (*)
+serde v1.0.228 (*)
+serde_json v1.0.150 (*)
+sha2 v0.10.9 (*)
+tempfile v3.27.0 (*)
+thiserror v2.0.18 (*)
+zstd v0.13.3 (*)
+dnfast-repo v0.1.0 (/work/source/crates/dnfast-repo) (*)
+dnfast-solver v0.1.0 (/work/source/crates/dnfast-solver)
+dnfast-core v0.1.0 (/work/source/crates/dnfast-core) (*)
+dnfast-metadata v0.1.0 (/work/source/crates/dnfast-metadata) (*)
+dnfast-native v0.1.0 (/work/source/crates/dnfast-native) (*)
+serde v1.0.228 (*)
+serde_json v1.0.150 (*)
+sha2 v0.10.9 (*)
+thiserror v2.0.18 (*)
+dnfast-state v0.1.0 (/work/source/crates/dnfast-state) (*)
+getrandom v0.3.1
+cfg-if v1.0.4
+libc v0.2.186
+hex v0.4.3
+rustix v1.1.4 (*)
+serde v1.0.228 (*)
+serde_json v1.0.150 (*)
+sha2 v0.10.9 (*)
+tempfile v3.27.0 (*)
+thiserror v2.0.18 (*)
+dnfast-metadata v0.1.0 (/work/source/crates/dnfast-metadata) (*)
+dnfast-native v0.1.0 (/work/source/crates/dnfast-native) (*)
+dnfast-native-sys v0.1.0 (/work/source/crates/dnfast-native-sys) (*)
+dnfast-planning v0.1.0 (/work/source/crates/dnfast-planning) (*)
+dnfast-refresh v0.1.0 (/work/source/crates/dnfast-refresh)
+dnfast-cache v0.1.0 (/work/source/crates/dnfast-cache) (*)
+dnfast-metadata v0.1.0 (/work/source/crates/dnfast-metadata) (*)
+hex v0.4.3
+quick-xml v0.41.0 (*)
+rustix v1.1.4 (*)
+sequoia-openpgp v2.4.1 (*)
+sha2 v0.11.0 (*)
+ureq v3.3.0 (/work/source/vendor/ureq) (*)
+url v2.5.8 (*)
+dnfast-repo v0.1.0 (/work/source/crates/dnfast-repo) (*)
+dnfast-solver v0.1.0 (/work/source/crates/dnfast-solver) (*)
+dnfast-state v0.1.0 (/work/source/crates/dnfast-state) (*)
+hex v0.4.3
+rustix v1.1.4 (*)
+serde v1.0.228 (*)
+serde_json v1.0.150 (*)
+tempfile v3.27.0 (*)
+
+dnfast-executor v0.1.0 (/work/source/crates/dnfast-executor) (*)

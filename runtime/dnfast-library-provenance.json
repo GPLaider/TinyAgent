@@ -1,0 +1,175 @@
+{
+  "source_commit": "16c6887ac6077a771f2f20892631a86c313ff422",
+  "original_build_manifest_sha256": "c42dbdb048723be8924868fe47fec61dc35ebeb00aa82565eabd71fdf73424a9",
+  "original_source_archive_sha256": "a30da05f6efcd22590444d65b6a1ccfa1e6a8fe53c65494d7a9b3c229b12585f",
+  "attribution": "Original ARM build rpm -qf records, matched by file hash; not a fresh RPM signature verification",
+  "libraries": [
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/ld-linux-aarch64.so.1",
+      "sha256": "5fc26a94423f7110018393305aa1cbafe3cb9e58ef64d76e0880a2c7311dbcb0",
+      "package": "glibc-2.43-8.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libacl.so.1",
+      "sha256": "1ec2f7e421cc14a415e49fa460c45614798335d9e40afa4175ca465b1398cf23",
+      "package": "libacl-2.4.0-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libbz2.so.1",
+      "sha256": "c56ebd14fa27a645d714b650b7ebdabc7f86aa4e6721abdbbfa6161b6612a5b2",
+      "package": "bzip2-libs-1.0.8-23.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libc.so.6",
+      "sha256": "e9f85625bf50ff0387f742dd8df0cb294f565135720915223f1a02c2ec5c4c9e",
+      "package": "glibc-2.43-8.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libcap.so.2",
+      "sha256": "21eaa58014444ed524e9e1b88cb0812307fccf88f87c9ffcea0a92a4f19e669b",
+      "package": "libcap-2.78-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libcrypto.so.3",
+      "sha256": "c5ad83dcc8e4450fb735cbdc33183acb841303586f99f400c9ebf5a9f3a8b104",
+      "package": "openssl-libs-3.5.8-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libffi.so.8",
+      "sha256": "74eaf1ef69deca87296b600d50777102cad66b2a8021caefc11df3b296055d86",
+      "package": "libffi-3.5.2-2.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libgcc_s.so.1",
+      "sha256": "02f0e27d3f525c4a2ac473f00c152fbf6875f7b01b0282272c6e1122873e1b48",
+      "package": "libgcc-16.2.1-2.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libglib-2.0.so.0",
+      "sha256": "3179a5d26130a9e72908c97a2a9d28bd81ea94b4cb68d98993066bd6f5404eb1",
+      "package": "glib2-2.88.3-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libgmp.so.10",
+      "sha256": "d11f0efe28862cc29718405a4450ad00190c4bfb6f5549e3ce833d8b9c8ee2ca",
+      "package": "gmp-6.3.0-5.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libgobject-2.0.so.0",
+      "sha256": "076189ff644558d07072ead694c32c2e702bb5afc6a550b0d1367f389b1c84b5",
+      "package": "glib2-2.88.3-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libhogweed.so.6",
+      "sha256": "3cb973b541b2d0313913c00a86dc31239dece6f5717df82171fa907647fec6f8",
+      "package": "nettle-3.10.1-3.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/liblua-5.4.so",
+      "sha256": "d26a8d0e4b2ef5fb01cab00bf02befb4e21bad135a9b8c62158a8bcfd205df98",
+      "package": "lua-libs-5.4.8-5.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/liblzma.so.5",
+      "sha256": "c683e500567e3e65a4e95694f1d2041b771147c755bb036d136f73981ce0b175",
+      "package": "xz-libs-5.8.2-2.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libm.so.6",
+      "sha256": "b3305817dbaa7350da178a06e918011e644f87fd089d8207151bd0903b81d7b4",
+      "package": "glibc-2.43-8.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libmodulemd.so.2",
+      "sha256": "21bbd80c28effef29df598a92f0dc17442ddd763c2c486c83953252f5edd9ab3",
+      "package": "libmodulemd-2.15.3-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libnettle.so.8",
+      "sha256": "a385d14976898880c02ef130daec0e61139cfbe48f2fbe8ced397242e4312059",
+      "package": "nettle-3.10.1-3.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libpcre2-8.so.0",
+      "sha256": "9e1a7bb1b66846479858b804897bc514fb485edf10c40fe3a77e279defc512bb",
+      "package": "pcre2-10.47-1.fc44.1.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libpopt.so.0",
+      "sha256": "910d02fba67721586abdf908222767f0420a76ff6e3ac88b30799ac3dde5c8cd",
+      "package": "popt-1.19-10.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/librpm.so.10",
+      "sha256": "8a298f03e3ffa71267b13471eeba68be7c34bdad377a98cc9065a44994639cd0",
+      "package": "rpm-libs-6.0.1-2.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/librpm_sequoia.so.1",
+      "sha256": "5b65a2b4fcc731d3fdbff88a92ee59148b86787910bf6d28f6a8dee6b25f4bc7",
+      "package": "rpm-sequoia-1.10.2-4.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/librpmio.so.10",
+      "sha256": "688459ed3c732b195b17777fdaedd2be111f15568aa09f3059cd2f6b0ea439bc",
+      "package": "rpm-libs-6.0.1-2.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libsolv.so.1",
+      "sha256": "b762908d9fa554bec51f911babca84aeb82d3632f3e12417bbccbc94932af088",
+      "package": "libsolv-0.7.39-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libsolvext.so.1",
+      "sha256": "ea4e25d4460f060ddb82e2b69316323550f261877807e87dae40c9c0fc66d3d6",
+      "package": "libsolv-0.7.39-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libsqlite3.so.0",
+      "sha256": "9e73fde69b90c089cc094ce282677fa865c9cbaf1abcb7721df8fedd68a16a53",
+      "package": "sqlite-libs-3.51.2-1.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libstdc++.so.6",
+      "sha256": "567b8f4d2edcba100a9ea1da822b34f2668bbb49fc7c616e322b76f83f34e5b5",
+      "package": "libstdc++-16.2.1-2.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libxml2.so.2",
+      "sha256": "791275d4afc6df971e4ac6477293ea8071079ef4e915858359b858d5cef42974",
+      "package": "libxml2-2.12.10-6.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libyaml-0.so.2",
+      "sha256": "19d9de519927681fbd71a9e9d7a5719c894b42917474e4d190325451d68649cc",
+      "package": "libyaml-0.2.5-18.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libz.so.1",
+      "sha256": "83de744e6e128887e7567fd682373adf2c93e2d2c45c97e4c817130dc79b6fac",
+      "package": "zlib-ng-compat-2.3.3-3.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libzck.so.1",
+      "sha256": "18cafc4aac4578e4546e26f950353b7c75657c996a573e6d5d07b7c497f177ca",
+      "package": "zchunk-libs-1.5.1-4.fc44.aarch64"
+    },
+    {
+      "file": "opt/tinyagent-dnfast/planninggc/lib/libzstd.so.1",
+      "sha256": "c24309a0e55dbd6f73a838010f869b340d47cfe1580b81d9cf216807c69d49d2",
+      "package": "libzstd-1.5.7-5.fc44.aarch64"
+    }
+  ],
+  "tool_packages": [
+    "libsolv-0.7.39-1.fc44.aarch64",
+    "rpm-6.0.1-2.fc44.aarch64",
+    "rpm-libs-6.0.1-2.fc44.aarch64",
+    "libmodulemd-2.15.3-1.fc44.aarch64",
+    "rust-1.98.0-1.fc44.aarch64",
+    "cargo-1.98.0-1.fc44.aarch64"
+  ],
+  "remaining": [
+    "Collect matching dependency source RPMs and license notices",
+    "Collect pinned Rust dependency sources and notices"
+  ]
+}

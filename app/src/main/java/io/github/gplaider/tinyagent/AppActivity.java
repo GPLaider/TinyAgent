@@ -53,11 +53,18 @@ public final class AppActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Object backCallback;
     private SharedPreferences preferences;
+    private final SharedPreferences.OnSharedPreferenceChangeListener connectionListener = (prefs, key) -> {
+        if ("wirelessStatus".equals(key) || "transport".equals(key))
+            runOnUiThread(this::updateConnectionStatus);
+    };
     private LinearLayout root;
     private FrameLayout content;
     private ScrollView settings;
-    private EditText port;
-    private Switch rootAllowed;
+    private LinearLayout connecting;
+    private TextView rootStatus;
+    private final ExecutorService accessWorker = Executors.newSingleThreadExecutor();
+    private Future<?> accessProbe;
+    private volatile SelfAdbClient rootProbeClient;
     private TextView diagnostics;
     private TextView backendStatus;
     private TextView runtimeStatus;
@@ -106,7 +113,12 @@ public final class AppActivity extends Activity {
         if (savedInstanceState != null) {
             webState = savedInstanceState.getBundle("web");
             diagnostics.setText(savedInstanceState.getString("diagnostics", "아직 연결하지 않았습니다."));
-            if (savedInstanceState.getBoolean("showingWeb")) checkBackend();
+        }
+        if (resume && (savedInstanceState == null || savedInstanceState.getBoolean("showingWeb"))) {
+            settings.setVisibility(View.GONE);
+            connecting.setVisibility(View.VISIBLE);
+            settingsButton.setVisibility(View.VISIBLE);
+            checkBackend();
         }
     }
 
@@ -148,44 +160,18 @@ public final class AppActivity extends Activity {
         Button developer = button("Developer 연결 설정", false);
         developer.setOnClickListener(v -> startActivity(new Intent(this, DeveloperActivity.class)));
         body.addView(developer);
-        rootAllowed = new Switch(this);
-        rootAllowed.setText("Root 실행 허용");
-        rootAllowed.setContentDescription("Unrestricted root 연결 허용");
-        rootAllowed.setTextColor(getColor(R.color.text_primary));
-        rootAllowed.setTextSize(16);
-        rootAllowed.setMinHeight(dp(48));
-        rootAllowed.setSwitchPadding(dp(16));
-        rootAllowed.setChecked(preferences.getBoolean("rootAllowed", false));
-        body.addView(rootAllowed, new LinearLayout.LayoutParams(-1, -2));
+        rootStatus = text("기기 관리 기능 확인 중…", 15);
+        body.addView(rootStatus);
         body.addView(text("Fedora와 대화는 기본 앱 권한으로 실행합니다. Root는 Android 관리 작업에만 사용합니다.", 14));
-        LinearLayout advanced = new LinearLayout(this);
-        advanced.setOrientation(LinearLayout.VERTICAL);
-        fold(body, "고급 연결 설정", advanced);
-        advanced.addView(text("기존 TCP ADB와 Root 연결용 설정입니다. 일반 Developer 연결은 위의 무선 페어링을 사용하세요.", 14));
-        TextView portLabel = text("기존 TCP ADB 연결 포트 · 수동 입력", 15);
-        port = new EditText(this);
-        port.setId(View.generateViewId());
-        portLabel.setLabelFor(port.getId());
-        port.setInputType(InputType.TYPE_CLASS_NUMBER);
-        port.setSingleLine(true);
-        port.setSelectAllOnFocus(true);
-        port.setText(preferences.getString("port", ""));
-        port.setHint("실제 연결 포트 · 페어링 포트 아님");
-        port.setTextSize(16);
-        advanced.addView(portLabel);
-        advanced.addView(port, new LinearLayout.LayoutParams(-1, dp(52)));
-        inspect = button("이 기기 연결 확인", false);
-        inspect.setOnClickListener(view -> {
-            if (pending != null && !pending.isDone()) cancelInspection();
-            else startInspection(false);
-        });
-        advanced.addView(inspect);
+        inspect = button("기기 관리 기능 다시 확인", false);
+        inspect.setOnClickListener(view -> detectRootAccess());
+        body.addView(inspect);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         progress.setContentDescription("연결 확인 중");
         progress.setVisibility(View.GONE);
         body.addView(progress, new LinearLayout.LayoutParams(-1, dp(4)));
-        diagnostics = text("아직 연결하지 않았습니다.\n처음 연결할 때 Android의 USB 디버깅 허용 창을 확인하세요.", 14);
+        diagnostics = text("이 화면에서 연결을 아직 확인하지 않았습니다.\nAndroid 권한이 필요한 작업은 Developer 연결 설정에서 확인하세요. Fedora와 대화는 ADB 없이 사용할 수 있습니다.", 14);
         diagnostics.setTextIsSelectable(true);
         section(body, "Fedora 환경");
         runtimeStatus = text(runtimePreferences.getString("status", "환경 준비 전"), 14);
@@ -253,15 +239,14 @@ public final class AppActivity extends Activity {
         openLayout.topMargin = dp(24);
         body.addView(open, openLayout);
         content.addView(settings, new FrameLayout.LayoutParams(-1, -1));
-        port.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { invalidateConnection(); }
-            @Override public void afterTextChanged(Editable text) {}
-        });
-        rootAllowed.setOnCheckedChangeListener((button, checked) -> {
-            preferences.edit().putBoolean("rootAllowed", checked).apply();
-            invalidateConnection();
-        });
+        connecting = new LinearLayout(this);
+        connecting.setOrientation(LinearLayout.VERTICAL);
+        connecting.setGravity(android.view.Gravity.CENTER);
+        connecting.setPadding(dp(24), dp(24), dp(24), dp(24));
+        connecting.addView(new ProgressBar(this), new LinearLayout.LayoutParams(dp(36), dp(36)));
+        connecting.addView(text("대화에 다시 연결하는 중…", 18));
+        connecting.setVisibility(View.GONE);
+        content.addView(connecting, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         root.requestApplyInsets();
     }
@@ -272,53 +257,41 @@ public final class AppActivity extends Activity {
         diagnostics.setText("연결 설정이 바뀌었습니다. 이 기기 연결을 다시 확인하세요.");
     }
 
+    private void updateConnectionStatus() {
+        if (isDestroyed() || diagnostics == null) return;
+        String transport = WirelessAdb.transport(this);
+        if ("wireless".equals(transport)) {
+            diagnostics.setText(preferences.getString("wirelessStatus", "무선 ADB 연결 확인 전")
+                    + "\n\n최근 연결 결과입니다. Android 작업마다 연결·권한을 다시 확인합니다.");
+        } else if ("stock".equals(transport)) {
+            diagnostics.setText("Stock · ADB를 사용하지 않습니다.\nFedora 준비와 대화는 앱 권한으로 실행합니다.");
+        }
+    }
+
     private void setBusy(boolean busy) {
-        port.setEnabled(!busy);
-        rootAllowed.setEnabled(!busy);
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
-        inspect.setText(busy ? "연결 확인 중단" : "이 기기 연결 확인");
         open.setText(busy ? "연결 확인 중…" : "대화 시작하기");
         open.setEnabled(!busy);
     }
 
-    private void startInspection(boolean resumeWeb) {
-        final int selectedPort;
-        try { selectedPort = !rootAllowed.isChecked() && WirelessAdb.selected(this) ? 0 : LocalPolicy.port(port.getText().toString()); }
-        catch (IllegalArgumentException error) { port.setError(error.getMessage()); return; }
-        if (selectedPort != 0) preferences.edit().putString("port", Integer.toString(selectedPort)).putString("transport","legacy").apply();
-        final boolean rootPermission = rootAllowed.isChecked();
-        final int request = ++operation;
-        verifiedSelf = false;
-        setBusy(true);
-        diagnostics.setText(selectedPort == 0 ? "이 폰의 무선 ADB 연결을 자동으로 찾는 중…"
-                : "이 폰의 ADB 주소 확인 중 · 포트 " + selectedPort + "\n처음 연결하면 Android의 디버깅 허용 창을 확인하세요.");
-        backendStatus.setText("기기 연결 확인 중…");
-        pending = worker.submit(() -> {
+    private void detectRootAccess() {
+        if (accessProbe != null && !accessProbe.isDone()) return;
+        rootStatus.setText("기기 관리 기능 확인 중…");
+        accessProbe = accessWorker.submit(() -> {
+            boolean available = false;
             try (SelfAdbClient client = new SelfAdbClient(getApplicationContext())) {
-                activeClient = client;
-                SelfAdbClient.Result result = client.inspect(selectedPort, rootPermission);
-                runOnUiThread(() -> {
-                    if (isDestroyed() || request != operation) return;
-                    verifiedSelf = result.verifiedSelf;
-                    diagnostics.setText(result.transcript);
-                    backendStatus.setText(verifiedSelf ? "자기 기기 연결 확인 완료"
-                            : "선택한 Android 권한을 확인하지 못했습니다. 상세 결과는 진단 정보에 있습니다.");
-                    setBusy(false);
-                    if (resumeWeb && verifiedSelf) checkBackend();
-                });
-            } catch (Exception error) {
-                String detail = error instanceof IOException || error instanceof IllegalArgumentException
-                        ? error.getMessage() : error.getClass().getSimpleName();
-                runOnUiThread(() -> {
-                    if (isDestroyed() || request != operation) return;
-                    diagnostics.setText("선택 사항인 ADB 연결을 확인하지 못했습니다.\n"
-                            + "Fedora 준비와 대화에는 ADB나 Root가 필요하지 않습니다.\n\n" + detail
-                            + (rootPermission ? "\n\nRoot 기능을 사용할 때만 root ADB 설정을 확인하세요."
-                                              : "\n\nADB 기능을 사용할 때만 TCP ADB 포트와 디버깅 허용을 확인하세요."));
-                    backendStatus.setText("ADB 연결 안 됨 · Fedora 환경 준비는 별도로 진행할 수 있습니다.");
-                    setBusy(false);
-                });
-            } finally { activeClient = null; }
+                rootProbeClient = client;
+                int detected = SelfAdbClient.discoverPort(this);
+                if (detected != 0 || WirelessAdb.selected(this)) available = client.inspect(detected, true).verifiedSelf;
+            } catch (Exception ignored) { }
+            finally { rootProbeClient = null; }
+            final boolean measured = available;
+            preferences.edit().putBoolean("rootAvailable", measured).putLong("rootMeasuredAt", System.currentTimeMillis()).apply();
+            runOnUiThread(() -> {
+                if (isDestroyed()) return;
+                rootStatus.setText(measured ? "Root 기기 관리 사용 가능 · 자기 기기 UID 0 확인"
+                        : "기본 기능 사용 가능 · Root 연결은 감지되지 않았습니다.");
+            });
         });
     }
 
@@ -330,7 +303,7 @@ public final class AppActivity extends Activity {
         HttpURLConnection health = healthConnection;
         if (health != null) health.disconnect();
         verifiedSelf = false;
-        diagnostics.setText("연결 확인을 중단했습니다. 다시 확인할 수 있습니다.");
+        updateConnectionStatus();
         backendStatus.setText("연결 확인을 중단했습니다.");
         setBusy(false);
     }
@@ -395,6 +368,8 @@ public final class AppActivity extends Activity {
                     backendStatus.setText("로컬 백엔드 확인 실패: " + detail
                             + "\n환경 준비를 눌러 백엔드를 다시 연결한 뒤 확인하세요.");
                     setBusy(false);
+                    connecting.setVisibility(View.GONE);
+                    showSettings();
                 });
             } finally {
                 if (connection != null) connection.disconnect();
@@ -563,6 +538,7 @@ public final class AppActivity extends Activity {
     }
 
     private void showWeb() {
+        connecting.setVisibility(View.GONE);
         if (webView == null) createWebView();
         showingWeb = true;
         settings.setVisibility(View.GONE);
@@ -580,6 +556,8 @@ public final class AppActivity extends Activity {
     }
 
     private void showSettings() {
+        if (connecting.getVisibility() == View.VISIBLE) cancelInspection();
+        connecting.setVisibility(View.GONE);
         showingWeb = false;
         if (webView != null) webView.setVisibility(View.GONE);
         settings.setVisibility(View.VISIBLE);
@@ -599,6 +577,8 @@ public final class AppActivity extends Activity {
                 if (isDestroyed() || current != webView || !showingWeb || "true".equals(consumed)) return;
                 if (current.canGoBack()) current.goBack(); else showSettings();
             });
+        } else if (connecting.getVisibility() == View.VISIBLE) {
+            showSettings();
         } else if (pending != null && !pending.isDone()) {
             cancelInspection();
         } else { finish(); }
@@ -610,7 +590,7 @@ public final class AppActivity extends Activity {
 
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
-        state.putBoolean("showingWeb", showingWeb);
+        state.putBoolean("showingWeb", showingWeb || connecting.getVisibility() == View.VISIBLE);
         state.putString("diagnostics", diagnostics.getText().toString());
         Bundle saved = new Bundle();
         if (webView != null && webView.saveState(saved) != null) state.putBundle("web", saved);
@@ -618,6 +598,7 @@ public final class AppActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        preferences.unregisterOnSharedPreferenceChangeListener(connectionListener);
         runtimePreferences.unregisterOnSharedPreferenceChangeListener(runtimeListener);
         if (webView != null) webView.onPause();
         super.onPause();
@@ -625,6 +606,9 @@ public final class AppActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        preferences.registerOnSharedPreferenceChangeListener(connectionListener);
+        updateConnectionStatus();
+        detectRootAccess();
         runtimePreferences.registerOnSharedPreferenceChangeListener(runtimeListener);
         updateRuntimeStatus();
         if (webView != null) webView.onResume();
@@ -638,6 +622,8 @@ public final class AppActivity extends Activity {
         HttpURLConnection health = healthConnection;
         if (health != null) health.disconnect();
         worker.shutdownNow();
+        if (rootProbeClient != null) rootProbeClient.close();
+        accessWorker.shutdownNow();
         if (Build.VERSION.SDK_INT >= 33 && backCallback != null) Api33Back.unregister(this, backCallback);
         if (webView != null) { content.removeView(webView); webView.destroy(); }
         super.onDestroy();
@@ -666,7 +652,8 @@ public final class AppActivity extends Activity {
         preparationBar.setProgress(Math.max(0, percent));
         if (LocalPolicy.RUNTIME_READY.equals(status) && backendStatus != null) backendStatus.setText("");
         prepare.setText(status.startsWith("환경 준비 실패") ? "환경 준비 다시 시도" : "환경 준비하기");
-        runtimeDetails.setText(status);
+        String previousExit = runtimePreferences.getString("previousProcessExit", "");
+        runtimeDetails.setText(status + (previousExit.isEmpty() ? "" : "\n\n" + previousExit));
         runtimeStatus.setText(status.startsWith("Fedora 설치 완료") && !new java.io.File(getNoBackupFilesDir(), "stock-backend-auth").isFile()
                 ? "앱 내부 환경을 준비하세요. 이전 관리자 환경의 파일은 보관되어 있습니다."
                 : status.startsWith("Fedora 설치 완료") ? "환경 준비 완료 · 대화를 시작할 수 있습니다."

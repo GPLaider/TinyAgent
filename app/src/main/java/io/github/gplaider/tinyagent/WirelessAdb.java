@@ -107,24 +107,16 @@ final class WirelessAdb extends AbsAdbConnectionManager {
         } finally { mdns.stop(); }
     }
     String shell(String command) throws Exception {
+        var result = execute(command);
+        if (result.exitCode() != 0) throw new IOException("ADB 명령 실패 · exit=" + result.exitCode());
+        return result.stdout() + result.stderr();
+    }
+    AdbShellResult execute(String command) throws Exception {
         var connection = getAdbConnection();
         var timer = Executors.newSingleThreadScheduledExecutor();
         timer.schedule(() -> { try { connection.close(); } catch (IOException ignored) { } },60,TimeUnit.SECONDS);
         try (var stream = openStream("shell,v2,raw:" + command)) {
-            var input = new DataInputStream(stream.openInputStream());
-            var output = new ByteArrayOutputStream();
-            while (true) {
-                int kind = input.readUnsignedByte();
-                int length = Integer.reverseBytes(input.readInt());
-                if (length < 0 || length > 1024*1024 || output.size()+length > 1024*1024) throw new IOException("ADB 출력 한도 초과");
-                byte[] bytes = new byte[length]; input.readFully(bytes);
-                if (kind == 3) {
-                    if (length != 1 || bytes[0] != 0) throw new IOException("ADB 명령 실패 · exit=" + (length == 1 ? Byte.toUnsignedInt(bytes[0]) : "invalid"));
-                    return new String(output.toByteArray(),StandardCharsets.UTF_8);
-                }
-                if (kind == 1 || kind == 2) output.write(bytes);
-                else throw new IOException("예상하지 못한 ADB shell frame");
-            }
+            return AdbShellResult.read(stream.openInputStream());
         } finally { timer.shutdownNow(); }
     }
     void install(File apk) throws Exception {

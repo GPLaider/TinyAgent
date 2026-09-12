@@ -1,0 +1,29 @@
+{
+  "model": {"providerID": "opencode-go", "modelID": "deepseek-v4.1-flash"},
+  "start_requires": ["verified dnfast product deployment", "successful exact-model provider response"],
+  "common_prompt": "Perform the assigned Android APK build inside this phone's Fedora as TinyAgent's coding agent. Read the installed fixed harness and measured environment first. Preserve the user's existing work, credentials and caches. Inspect the actual checkout, revision, toolchain and existing processes before starting. Use the installed dnfast package client for missing host packages; never substitute another package manager silently. No external PC build, ADB or Android root is required for Fedora work. Diagnose the first real failing command, make the smallest justified source or environment correction, and rerun that same failing step. Report meaningful progress and concrete failures, not just thinking. Record command, directory, exit status, cause, changed files and retest evidence. Do not claim an APK until its build has finished and the actual artifact is verified; report its path, size, SHA256 and signer status using TinyAgent's accessible artifact actions. Do not install apps, push or publish. Do not inspect auth files. Do not terminate another session's work. A timeout is an uncertain observation: inspect the original process and logs before any retry. Your supervisor is observing your decisions and will separately record its own interventions.",
+  "devices": [
+    {
+      "name": "pacman",
+      "hardware_serial": "000501423003390",
+      "concurrency": 2,
+      "jobs": ["antennapod", "termux"]
+    },
+    {
+      "name": "lyriq1",
+      "hardware_serial": "ZY22J58799",
+      "concurrency": 2,
+      "jobs": ["tailscale-android", "organic-maps"]
+    },
+    {
+      "name": "lyriq2",
+      "hardware_serial": "ZY22HZPLL8",
+      "concurrency": 1,
+      "jobs": ["vlc-android", "appflowy"]
+    }
+  ],
+  "parallel_prompt": "The owner explicitly authorized two independent app sessions on this phone. Work only in your assigned project's directory. Start with one worker per build and observe shared memory/process pressure. Do not change shared toolchains while the sibling build uses them. Package writes remain serialized through dnfast's existing root lock. Record contention as evidence rather than cancelling the sibling task.",
+  "sequential_prompt": "This phone runs VLC first, then AppFlowy. Do not launch the second job yourself. The supervisor will dispatch it after the first job is terminal.",
+  "record_fields": ["device", "installed_apk_sha256", "dnfast_revision", "model", "session_id", "project_revision", "messages_and_tool_results", "first_failure", "agent_recovery", "supervisor_intervention", "retest", "artifact_and_signer_evidence"],
+  "release": "After all six assigned jobs finish and observed defects are addressed with relevant retests, publish the private GitHub prerelease with actual outcomes. No separate three-round device-journey gate. Historical builds do not count as these DeepSeek runs."
+}

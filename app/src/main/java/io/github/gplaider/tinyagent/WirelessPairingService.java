@@ -43,7 +43,7 @@ public final class WirelessPairingService extends Service {
                     try (var client = new WirelessAdb(this)) { pairing = client; client.pairLocal(code); }
                     finally { pairing = null; }
                 }
-                getSharedPreferences("connection",0).edit().putString("transport","wireless").putBoolean("rootAllowed",false).apply();
+                getSharedPreferences("connection",0).edit().putString("transport","wireless").remove("rootAllowed").putBoolean("rootAvailable",false).apply();
                 save("무선 ADB 연결과 자기 기기 UID 확인 중…");
                 try (var client = new SelfAdbClient(this)) {
                     verification = client;

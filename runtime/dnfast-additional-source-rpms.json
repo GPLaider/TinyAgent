@@ -1,0 +1,16 @@
+[
+  {
+    "source_rpm": "acl-2.4.0-1.fc44.src.rpm",
+    "url": "https://kojipkgs.fedoraproject.org/packages/acl/2.4.0/1.fc44/src/acl-2.4.0-1.fc44.src.rpm",
+    "bytes": 614655,
+    "sha256": "8e5f0cda4f992e8fe8c8628ace8bc69e962174b8ca170444f6d286151c9fab87",
+    "signature_verified": false
+  },
+  {
+    "source_rpm": "zlib-ng-2.3.3-3.fc44.src.rpm",
+    "url": "https://kojipkgs.fedoraproject.org/packages/zlib-ng/2.3.3/3.fc44/src/zlib-ng-2.3.3-3.fc44.src.rpm",
+    "bytes": 2467915,
+    "sha256": "d224a30988f1f17548d70d8b32af13cb10611ce0a234242db486b3c5fa89d7af",
+    "signature_verified": false
+  }
+]

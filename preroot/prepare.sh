@@ -50,7 +50,7 @@ done
 cp "$fedora" "$stage/fedora.tar.gz"
 cp "$opencode" "$stage/opencode.tar.gz"
 verify "$stage/fedora.tar.gz" 3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125
-verify "$stage/opencode.tar.gz" 5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2
+verify "$stage/opencode.tar.gz" 44b0ed95667386c902072118442404b048bf95799b75f2743c7f447654c07e59
 printf 'phase=verified\n'
 # Failures retain staging for diagnosis; they never erase data or prior versions.
 mkdir "$stage/rootfs"

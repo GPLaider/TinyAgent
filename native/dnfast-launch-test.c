@@ -32,7 +32,12 @@ int main(void) {
     assert(!strcmp(first, second) && hex64(first));
     int state = state_directory(root, first); close(state);
     int memory = sealed_context("{\"schema_version\":1}", 20);
-    assert(fcntl(memory, F_GET_SEALS) == 47);
+    int probe = (int)syscall(SYS_memfd_create, "noexec-probe", 11U);
+    int legacy = probe < 0 && errno == EINVAL;
+    assert(probe >= 0 || legacy);
+    if (probe >= 0) close(probe);
+    assert(fcntl(memory, F_GET_SEALS) == (legacy ? 15 : 47));
+    assert((metadata(memory).st_mode & 07777) == (legacy ? 0777 : 0666));
     assert(pwrite(memory, "x", 1, 0) == -1 && errno == EPERM);
     assert(ftruncate(memory, 0) == -1 && errno == EPERM); close(memory);
     assert(symlinkat("/tmp", root, "link") == 0); rejected(bad_link);
@@ -40,5 +45,5 @@ int main(void) {
     int id = openat(root, ".tinyagent-root-id", O_WRONLY | O_TRUNC); assert(id >= 0); close(id);
     rejected(bad_id); /* Interrupted/corrupt identity is never silently replaced. */
     close(root);
-    printf("PASS root_lock stable_id nofollow mode corrupt_id nonexec_immutable_context; fixture=%s\n", path);
+    printf("PASS root_lock stable_id nofollow mode corrupt_id immutable_context; fixture=%s\n", path);
 }

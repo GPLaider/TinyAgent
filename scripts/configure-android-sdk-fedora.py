@@ -22,11 +22,15 @@ aapt2 = tools[0]
 header = aapt2.read_bytes()[:64]
 assert header[:4] == b'\x7fELF' and int.from_bytes(header[18:20], 'little') == 183
 subprocess.run([str(aapt2), 'version'], check=True)
+zipalign = aapt2.with_name('zipalign')
+header = zipalign.read_bytes()[:64]
+assert header[:4] == b'\x7fELF' and int.from_bytes(header[18:20], 'little') == 183
 adb = sdk/'platform-tools/adb'
 header = adb.read_bytes()[:64]
 assert header[:4] == b'\x7fELF' and int.from_bytes(header[18:20], 'little') == 183
 subprocess.run([str(adb), 'version'], check=True)
-config = dict(android_home=str(sdk), aapt2=str(aapt2), java_home=str(base/'jdk-17.0.20.1+1'))
+config = dict(android_home=str(sdk), aapt2=str(aapt2), zipalign=str(zipalign), java_home=str(base/'jdk-17.0.20.1+1'))
 (base/'android-build.json').write_text(json.dumps(config, indent=2)+'\n')
+subprocess.run(['/usr/bin/python3', str(Path(__file__).with_name('configure-arm-aidl.py'))], check=True)
 print(json.dumps(config, indent=2))
 print('sdk_config_exit=0')

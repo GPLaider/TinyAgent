@@ -44,4 +44,5 @@ with (base / '.prepare.lock').open('a') as lock:
                   ndk_origin='HomuHomu833 custom ARM64 musl rebuild; not Google Linux host binaries',
                   inputs=[dict(name=n,url=u,algorithm=a,checksum=h,size=s) for n,u,a,h,s in pins])
     (base/'toolchains.json').write_text(json.dumps(config, indent=2)+'\n')
+    subprocess.run(['/usr/bin/python3', '/shared/configure-arm-aidl.py'], check=True)
     print('extra_toolchains_exit=0', flush=True)

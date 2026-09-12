@@ -15,7 +15,7 @@ val bootstrapAssets = tasks.register<Sync>("bootstrapAssets") {
     from("../third_party/libadb/LICENSES") { into("licenses/libadb") }
     from("../third_party/libadb/PROVENANCE.md") { into("licenses/libadb") }
     from("../scripts") {
-        include("prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py")
+        include("prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py", "configure-arm-aidl.py", "tinyagent-packages.py", "upgrade-dnfast-empty.py", "upgrade-dnfast-checked.py", "tinyagent-android.py", "android-job.sh")
         into("bootstrap")
     }
     into(layout.buildDirectory.dir("generated/bootstrap-assets"))
@@ -28,8 +28,8 @@ android {
         applicationId = "io.github.gplaider.tinyagent"
         minSdk = 30
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1.0-preview.5"
+        versionCode = 5
+        versionName = "0.0.1-alpha.1"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

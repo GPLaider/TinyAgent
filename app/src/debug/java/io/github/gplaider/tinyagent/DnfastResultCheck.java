@@ -5,6 +5,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 final class DnfastResultCheck {
+    public static void main(String[] args) {
+        try { run(); System.out.println("PASS: dnfast terminal result validation"); }
+        catch (Throwable failure) { failure.printStackTrace(); System.exit(1); }
+    }
     static void run() throws Exception {
         JSONObject value = new JSONObject().put("schema", "dnfast.cli.v1").put("exit_code", 0)
                 .put("command", "install").put("status", "planned")
@@ -28,11 +32,35 @@ final class DnfastResultCheck {
         value.put("command", "repo").put("status", "planned");
         DnfastResult.require("refresh", 0, value.toString());
         value.put("command", "app-runtime");
-        for (String action : new String[]{"check", "recover", "verify"}) DnfastResult.require(action, 0, value.toString());
+        for (String action : new String[]{"check", "recover", "migrate"}) {
+            DnfastResult.require(action, 0, value.toString());
+            reject(action, 1, value.toString());
+            reject(action, 0, new JSONObject(value.toString()).put("errors", new JSONArray().put("pending transaction")).toString());
+        }
+        value.put("message", "[]");
+        DnfastResult.require("verify", 0, value.toString());
+        for (String action : new String[]{"verify", "upgrade-check"}) {
+            value.put("message", "[[\"old-success\",\"reconciled\",false],[\"old-failure\",\"reconciled\",false]]");
+            DnfastResult.require(action, 0, value.toString());
+            for (String state : new String[]{"started", "rpm_result", "unknown"}) {
+                value.put("message", "[[\"pending\",\"" + state + "\",true]]");
+                reject(action, 0, value.toString());
+            }
+            value.put("message", "[[\"same\",\"reconciled\",false],[\"same\",\"reconciled\",true]]");
+            reject(action, 0, value.toString());
+        }
+        value.put("message", "[[\"prepared\",\"prepared\",false]]");
+        DnfastResult.require("upgrade-check", 0, value.toString());
+        reject("verify", 0, value.toString());
+        for (String malformed : new String[]{"not-json", "{}", "[[\"id\",\"reconciled\",\"false\"]]", "[[\"id\",0,false]]"}) {
+            value.put("message", malformed);
+            reject("verify", 0, value.toString());
+        }
     }
     private static void reject(String action, int exit, String output) throws Exception {
         try { DnfastResult.require(action, exit, output); }
         catch (IOException expected) { return; }
+        catch (org.json.JSONException expected) { return; }
         throw new AssertionError("Invalid terminal result accepted");
     }
 }

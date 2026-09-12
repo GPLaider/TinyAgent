@@ -1,0 +1,32 @@
+{
+  "version": "1.18.29-tinyagent.5",
+  "upstream_commit": "16747470f976aca3d362ad730bcd3fe82ecc2c9a",
+  "source_tree": "8f0b45db165ee59c0b5d58a09dd0f8aea030f8db",
+  "architecture": "ELF64 little-endian AArch64",
+  "binary_bytes": 148023440,
+  "binary_sha256": "0e3c1f383300842b6e5817cc379c2f743e6d003b8b43e5550825f9ba643b63df",
+  "patch_file": "runtime/opencode-snapshot-5.patch",
+  "patch_sha256": "ac13833c149bfd4e59ab50abb15905c76cba55d52f337dfa175f01cdc4198031",
+  "models_sha256": "17e2596628cc81c869e115727c7f14e84a48eb7799d75f74cd6aa2691c0bbad3",
+  "bun_version": "1.3.14",
+  "source_paths": [
+    "packages/opencode/script/build.ts",
+    "packages/opencode/src/cli/cmd/serve.ts",
+    "packages/opencode/src/config/config.ts",
+    "packages/opencode/src/server/routes/instance/httpapi/groups/session.ts",
+    "packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts",
+    "packages/opencode/src/session/processor.ts",
+    "packages/opencode/src/session/prompt.ts",
+    "packages/opencode/src/session/startup-recovery.ts",
+    "packages/opencode/src/session/status.ts",
+    "packages/opencode/src/snapshot/index.ts",
+    "packages/opencode/test/session/prompt.test.ts",
+    "packages/opencode/test/session/status-all.test.ts",
+    "packages/opencode/test/snapshot/diff-writer.test.ts",
+    "packages/opencode/test/snapshot/snapshot.test.ts"
+  ],
+  "shipped": false,
+  "scope": "Unpublished completed snapshot reuse candidate; ARM execution and APK integration pending",
+  "archive_sha256": "b688bc6b897e9aefe7c3edf6533da495aba21a3445f87a1955465faa9d1c1d99",
+  "archive_bytes": 49796314
+}

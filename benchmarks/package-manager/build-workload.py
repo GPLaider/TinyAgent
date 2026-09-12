@@ -66,7 +66,7 @@ if args.workload == 'vlc-android':
     env.update(GIT_AUTHOR_NAME='TinyAgent build', GIT_AUTHOR_EMAIL='build@localhost',
                GIT_COMMITTER_NAME='TinyAgent build', GIT_COMMITTER_EMAIL='build@localhost')
     command = ['/usr/bin/bash', 'buildsystem/compile.sh', '-a', 'arm64']
-    patterns = ['application/vlc-android/build/outputs/apk/**/*.apk']
+    patterns = ['application/app/build/outputs/apk/**/*.apk']
 if args.workload == 'tailscale-android':
     strip = Path(extra['ndk_home'])/'toolchains/llvm/prebuilt/linux-arm64/bin/llvm-objcopy'
     assert strip.is_file()
@@ -78,6 +78,9 @@ env['PWD'] = str(cwd)
 with lock:
     # ponytail: one build per phone; keep memory contention out of acceptance runs.
     print('Phone build slot acquired', flush=True)
+    subprocess.run(['/usr/bin/python3', '/shared/configure-arm-aidl.py'], env=env, check=True)
+    if args.workload == 'vlc-android':
+        subprocess.run(['/usr/bin/python3', '/shared/prepare-vlc-arm.py'], cwd=source, env=env, check=True)
     if args.workload == 'tailscale-android':
         subprocess.run(['/usr/bin/python3', '/shared/prepare-tailscale-arm.py'], cwd=source, env=env, check=True)
         # gomobile invokes plain go; use the same pinned toolchain as tool/go.

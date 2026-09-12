@@ -57,6 +57,14 @@ public final class DnfastProbeActivity extends Activity {
         try {
             String action = getIntent().getStringExtra("action");
             if (action == null) action = "check";
+            if (action.equals("memfd")) {
+                log("actual_uid=" + android.os.Process.myUid());
+                log("context=" + new String(Files.readAllBytes(Paths.get("/proc/self/attr/current")), StandardCharsets.UTF_8).trim());
+                runtime = new LocalLinuxRuntime(this);
+                run(new ProcessBuilder(getApplicationInfo().nativeLibraryDir + "/libmemfdprobe.so"), 15);
+                log("PASS action=memfd");
+                return;
+            }
             if (action.equals("result-contract")) {
                 DnfastResultCheck.run();
                 log("PASS action=result-contract");
@@ -157,7 +165,7 @@ public final class DnfastProbeActivity extends Activity {
             String bindsHash = hex(MessageDigest.getInstance("SHA-256").digest(binds.getBytes(StandardCharsets.UTF_8)));
             String nativeDir = getApplicationInfo().nativeLibraryDir;
             String runtimeHash = hash(new File(nativeDir, "libproot.so"));
-            List<String> launch = new ArrayList<>(List.of(nativeDir + "/libdnfastlaunch.so", runtime.rootfs.toString(),
+            List<String> launch = new ArrayList<>(List.of(nativeDir + "/libdnfastlaunch.so", runtime.rootfs.getCanonicalPath(),
                     Integer.toString(android.os.Process.myUid()), runtimeHash, bindsHash, cli, executor, "--"));
             launch.addAll(proot);
             log("root=" + runtime.rootfs + "\ndnfast_sha256=" + cli + "\nexecutor_sha256=" + executor

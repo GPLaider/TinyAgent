@@ -46,3 +46,23 @@ Evidence: `evidence/lyriq1-luna-reconnect-{1,2,3}.json`, visually inspected `lyr
 Video link touch → play → close/reopen also passed three transitions on this candidate: `evidence/lyriq1-video-navigation-8f39db6f.json`. The native menu was dismissed back to the conversation afterward. This does not test model completion while the native video activity covers the WebView.
 
 Remaining scope: actual Wi-Fi/mobile network transitions, native-activity return during model work with an uninterrupted SSE connection, draft/scroll preservation, prolonged background/Doze, full seven journeys. An additional discrepancy is visible in the new API-created QA sessions: the approval control shows “기본” although creation explicitly requested allow-all permissions; investigate displayed mode versus actual backend policy. The bottom DEV/tab bar remains dense. No private prerelease was published in this verification step; Lyriq2 was not operated.
+
+## Installed-runtime-input candidate: three consecutive passes
+
+APK `6dd6715457d7ec2355e0656a206f6bf1ffafd73dc4512bc14670476aa4885d73`
+on Lyriq1 ZY22J58799 passed the same real Luna/WebView-only reconnect test.
+This is the installed candidate, not the published Preview 5 APK.
+
+| Round | Session | WebView offline | Result |
+|---|---|---:|---|
+| 1 | ses_f75422d30ffe8D6aHTT2ZteGTt | 30,830 ms | pass |
+| 2 | ses_f753c6a29ffedA5LL8yJjlHbAu | 30,893 ms | pass |
+| 3 | ses_f753b62d4ffeSLqHyI3xeDRZMW | 31,150 ms | pass |
+
+Each used openai/gpt-5.6-luna, one bash invocation, exit 0, and finished its
+response during the offline interval. Final response appeared without reload
+or navigation. Evidence: lyriq1-luna-reconnect-6dd6715457d7-{1,2,3}.json and
+visually inspected lyriq1-reconnect-6dd671-round3.png. The concurrent phone
+self-build continued through node/esbuild under app UID10042 and completed
+its Vite GUI build in 3m48s. This did not disconnect Android networking.
+Real transport changes and the wider seven-journey gate remain unverified.

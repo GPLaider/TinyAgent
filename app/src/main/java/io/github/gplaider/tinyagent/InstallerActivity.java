@@ -184,10 +184,7 @@ public final class InstallerActivity extends Activity {
         if (selected == 1 && "stock".equals(WirelessAdb.transport(this))) {
             message("Stock 모드입니다. Developer 연결 설정에서 먼저 권한을 연결하세요."); return;
         }
-        final int port;
-        try { port = selected == 2 || (selected == 1 && !WirelessAdb.selected(this)) ? LocalPolicy.port(connection.getString("port", "")) : 0; }
-        catch (Exception error) { message(error.getMessage()); return; }
-        if (selected == 2 && !connection.getBoolean("rootAllowed", false)) { message("작업 환경에서 Root 실행을 명시적으로 허용하세요."); return; }
+        final int port = 0; // Discover on the worker, then verify the actual device and UID.
         if (selected == 3 && checkSelfPermission("android.permission.INSTALL_PACKAGES") != PackageManager.PERMISSION_GRANTED) {
             message("이 APK에는 INSTALL_PACKAGES 권한이 없습니다. ROM 통합·실제 권한 부여가 필요합니다."); return;
         }

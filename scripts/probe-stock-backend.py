@@ -19,7 +19,9 @@ parser.add_argument('--save-session', action='store_true', help='Save all messag
 parser.add_argument('--abort', action='store_true', help='Abort the explicitly selected test session through the real backend')
 parser.add_argument('--check-harness', action='store_true')
 parser.add_argument('--catalog', action='store_true', help='Only report connected provider IDs and zero-cost model IDs; never credentials')
-parser.add_argument('--prompt', help='Run an actual inference with the connected zero-cost opencode/big-pickle model')
+parser.add_argument('--prompt', help='Run an actual inference with --model (default: zero-cost opencode/big-pickle)')
+parser.add_argument('--model', choices=['opencode/big-pickle', 'opencode-go/deepseek-flash', 'opencode-go/deepseek-v4.1-flash'], default='opencode/big-pickle', help='Explicit model for --prompt; Go uses the owner-authorized prepaid account')
+parser.add_argument('--yolo', action='store_true', help='Apply owner-authorized tool permission to this new diagnostic session')
 parser.add_argument('--permissions', action='store_true', help='Inspect pending permission requests')
 parser.add_argument('--approve-diagnostic-once', help='Approve only the exact Fedora identity probe in the specified --session')
 parser.add_argument('--approve-harness-once', action='store_true', help='Approve only pending measured harness reads and the exact identity command, once')
@@ -84,7 +86,7 @@ if args.catalog:
         if provider['id'] in connected:
             models = provider.get('models', {})
             free = [key for key, value in models.items() if value.get('cost', {}).get('input') == 0 and value.get('cost', {}).get('output') == 0]
-            print(json.dumps(dict(provider=provider['id'], models=len(models), zero_cost_models=free), ensure_ascii=False))
+            print(json.dumps(dict(provider=provider['id'], models=len(models), model_ids=sorted(models), zero_cost_models=free), ensure_ascii=False))
     raise SystemExit(0)
 if args.check_harness:
     instructions = request('/config')['instructions']
@@ -102,16 +104,22 @@ if args.session:
                 state = part.get('state', {})
                 print(state.get('status'), json.dumps(state.get('input', {}), ensure_ascii=False), str(state.get('output', state.get('metadata', {}).get('output', '')))[-1800:])
     raise SystemExit(0)
-session = request('/session', {'title': '검증 · Fedora 직접 실행'})
-print('Session created: ' + session['id'], flush=True)
 if args.prompt:
     catalog = request('/provider')
-    provider = next(p for p in catalog['all'] if p['id'] == 'opencode')
-    assert 'opencode' in catalog['connected'] and provider['models']['big-pickle']['cost']['input'] == 0 and provider['models']['big-pickle']['cost']['output'] == 0
-    result = request('/session/' + session['id'] + '/message', {'agent': 'build', 'model': {'providerID': 'opencode', 'modelID': 'big-pickle'}, 'parts': [{'type': 'text', 'text': args.prompt}]})
+    provider_id, model_id = args.model.split('/')
+    provider = next(p for p in catalog['all'] if p['id'] == provider_id)
+    assert provider_id in catalog['connected'] and model_id in provider['models']
+    if args.model == 'opencode/big-pickle':
+        assert provider['models'][model_id]['cost']['input'] == 0 and provider['models'][model_id]['cost']['output'] == 0
+session_request={'title': '검증 · 모델 도구 실행' if args.prompt else '검증 · Fedora 직접 실행'}
+if args.yolo:session_request['permission']=[{'permission':'*','pattern':'*','action':'allow'}]
+session = request('/session', session_request)
+print('Session created: ' + session['id'], flush=True)
+if args.prompt:
+    result = request('/session/' + session['id'] + '/message', {'agent': 'build', 'model': {'providerID': provider_id, 'modelID': model_id}, 'parts': [{'type': 'text', 'text': args.prompt}]})
 else:
     result = request('/session/' + session['id'] + '/shell', {'agent': 'build', 'command': args.command})
-report = dict(serial=SERIAL, session_id=session['id'], result=result, scope='Actual opencode/big-pickle inference' if args.prompt else 'User-triggered shell API; no model inference tested')
+report = dict(serial=SERIAL, session_id=session['id'], result=result, scope='Actual '+args.model+' inference' if args.prompt else 'User-triggered shell API; no model inference tested')
 if args.prompt: report['messages'] = request('/session/' + session['id'] + '/message')
 (ROOT / ('evidence/' + args.output + '.json')).write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
 if args.prompt:

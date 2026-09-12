@@ -1,5 +1,47 @@
 # TinyAgent implementation status
 
+## Current checkpoint — 2026-09-12
+
+The current private release candidate is `0.0.1-alpha.1`, versionCode 5, runtime
+`1.18.29-tinyagent.12`, Harness 20. The exact production APK is
+`artifacts/TinyAgent-0.0.1-alpha.1-android-arm64.apk`, 145216194 bytes, SHA-256
+`013f05727575620cb04aa9c3aec00098bf137d8652dd0d77ae6e3db3a04e1462`.
+
+A clean release build and lint passed 55 tasks. Packaged runtime, 952 GUI files,
+PRoot, dnfast, native/source notices and ten bootstrap scripts passed. Independent
+`aapt` and `apksigner` checks confirmed package `io.github.gplaider.tinyagent`,
+API 30–36, ARM64, non-debug release output, APK Signature Scheme v2 and the existing
+RSA-4096 production certificate. The 468-file source snapshot passed its internal
+hashes, binds this APK hash and was generated from a private repository checkout.
+
+The same runtime in the debug package passed Edge 40 ARM health, an actual model/tool
+request and a managed LADB Developer UID 2000 shell request. Developer streaming
+installation then reinstalled an identical harmless fixture under UID 2000. Aborting
+the Fedora observer did not stop the Android worker; the same UUID later returned
+completed. A separate running 120-second job was explicitly cancelled, its worker PID
+disappeared, and the same UUID remained `cancelled`.
+
+The exact production APK was clean-installed on Lyriq1; installed `base.apk` matched
+the candidate SHA-256, the package reported code 5 / `0.0.1-alpha.1`, and a cold start
+reached resumed `AppActivity`. Clean production completed its first Fedora preparation
+under app UID 10000. The default Big Pickle model used one bash tool call and returned
+`/workspace`, `aarch64` and Fedora 44 after one-time `/etc/*` approval. The release
+WebView exposed no debug socket and no development credential was copied.
+
+Production signing material now has a byte-checked local recovery copy on a separate
+physical E: NVMe. Plaintext properties were not copied; CurrentUser DPAPI restore and
+backed-up PKCS12 alias opening passed. Original and backup ACLs contain only the current
+Windows account. This is not off-host disaster recovery because it still depends on
+the Windows user profile.
+
+RADB/Tailscale cellular transport remains research and is not part of Alpha 1. LADB
+requires local Wi-Fi and Android Wireless debugging. Paid-provider production auth,
+long-running production recovery, same-signer update and production phone self-build
+remain unverified. The local release commit and tag are prepared, but no
+`v0.0.1-alpha.1` release or tag has been pushed or published.
+
+## Historical bring-up record (not current installed-state evidence)
+
 Last inventory: 2026-09-07, Asia/Seoul. Continued: 2026-09-08.
 This is a development workspace, not a release candidate.
 

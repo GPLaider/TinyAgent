@@ -25,12 +25,13 @@ def main():
     assets = ROOT / 'app/src/main/assets'
     pins = {
         'fedora-44-arm64-rootfs.tar.gz': '3a3661a77d5fdb1e4bd10be484142683630c1ffb4c371931d46a42459fd4c125',
-        'opencode-linux-arm64.tar.gz': '5139469d4fa9b7371129a956765d7ede425232c4d6bdbb07ab86f966c56fe2a2',
+        'opencode-linux-arm64.tar.gz': 'b877f7baa8d60611b9a638209c84868e5dea9139c8dec622943d25f29c07f205',
     }
     for name, digest in pins.items():
         with (assets / (name + '.bin')).open('rb') as stream:
             assert hashlib.file_digest(stream, 'sha256').hexdigest() == digest, name
-        assert digest in source
+        stock = (ROOT / 'app/src/main/java/io/github/gplaider/tinyagent/LocalLinuxRuntime.java').read_text(encoding='utf-8')
+        assert digest in stock
     print('Bundled archive SHA256: 2 passed', flush=True)
     for script in (ROOT / 'preroot').glob('*.sh'):
         run([BASH, '-n', str(script)])

@@ -44,17 +44,42 @@ final class SelfAdbClient implements AutoCloseable {
         }
     }
 
+    static int discoverPort(Context context) {
+        for (String property : new String[] {"service.adb.tcp.port", "persist.adb.tcp.port", "service.adb.listen_addrs"}) {
+            java.lang.Process process = null;
+            try {
+                process = new ProcessBuilder("/system/bin/getprop", property).start();
+                if (!process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) continue;
+                String value = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream())).readLine();
+                if(property.equals("service.adb.listen_addrs")) {
+                    int port=LocalPolicy.listenPort(value);
+                    if(port>0)return port;
+                }
+                if (value != null && value.trim().matches("[0-9]{1,5}")) {
+                    int port = Integer.parseInt(value.trim());
+                    if (port > 0 && port <= 65535) return port;
+                }
+            } catch (Exception ignored) { }
+            finally { if (process != null) process.destroy(); }
+        }
+        // Keep an existing user's endpoint during migration; never assume port 5555.
+        try { return LocalPolicy.port(context.getSharedPreferences("connection", 0).getString("port", "")); }
+        catch (IllegalArgumentException ignored) { return 0; }
+    }
+
     Result inspect(int port, boolean rootAllowed) throws Exception {
         if (!rootAllowed && "stock".equals(WirelessAdb.transport(context)))
             throw new IOException("Stock 모드입니다. Developer 연결 설정에서 권한을 연결하세요.");
         verifiedRoot = false;
         verifiedUid = -1;
         String connectedHost;
-        if (!rootAllowed && WirelessAdb.selected(context)) {
+        if (port == 0 && (rootAllowed || !WirelessAdb.selected(context))) port = discoverPort(context);
+        if (WirelessAdb.selected(context) && (!rootAllowed || port == 0)) {
             wireless = new WirelessAdb(context);
             ensureOpen();
             connectedHost = wireless.connectLocal();
         } else {
+        if (port == 0) throw new IOException("사용 가능한 기기 관리 연결을 찾지 못했습니다. 기본 기능은 계속 사용할 수 있습니다.");
         // Some root-adbd deployments bind only the phone's VPN address, not loopback.
         // Probe only addresses assigned to this phone; never discover remote devices.
         LinkedHashSet<String> addresses = new LinkedHashSet<>();
@@ -150,6 +175,21 @@ final class SelfAdbClient implements AutoCloseable {
             throw new IOException("연결이 중단되었습니다.");
         }
         connection = candidate;
+    }
+
+    AdbShellResult execute(String command, boolean root) throws Exception {
+        ensureOpen();
+        if (command == null || command.isBlank() || command.length() > 65536 || command.indexOf('\0') >= 0)
+            throw new IllegalArgumentException("유효한 Android 명령이 필요합니다.");
+        LocalPolicy.verifyInstallerUid(verifiedUid, LocalPolicy.uid(read("id", null)), root);
+        if (wireless != null) {
+            var result = wireless.execute(command);
+            ensureOpen();
+            return result;
+        }
+        var response = connection.shell(command);
+        ensureOpen();
+        return new AdbShellResult(response.getOutput(), response.getErrorOutput(), response.getExitCode());
     }
 
     void install(File apk, boolean root) throws Exception {

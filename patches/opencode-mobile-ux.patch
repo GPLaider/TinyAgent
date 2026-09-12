@@ -1,3 +1,94 @@
+diff --git a/packages/app/e2e/performance/timeline-stability/tools.spec.ts b/packages/app/e2e/performance/timeline-stability/tools.spec.ts
+index d28fdaa..918893d 100644
+--- a/packages/app/e2e/performance/timeline-stability/tools.spec.ts
++++ b/packages/app/e2e/performance/timeline-stability/tools.spec.ts
+@@ -20,6 +20,86 @@ import {
+ } from "./fixture"
+ 
+ test.describe("timeline tool state stability", () => {
++  test("recovers an answer missed during disconnect without reloading the page", async ({ page }) => {
++    const user = userMessage()
++    const timeline = await setupTimeline(page, {
++      messages: [user, assistantMessage([], { completed: false })],
++      protocol: "v1",
++      viewport: { width: 412, height: 915 },
++    })
++    const origin = await page.evaluate(() => performance.timeOrigin)
++    const recovered = assistantMessage([textPart("prt_recovered_answer", "재연결 후 복구된 응답")])
++    await page.route(`**/session/${sessionID}/message?*`, route => route.fulfill({
++      contentType: "application/json", body: JSON.stringify([user, recovered]),
++    }))
++    const connection = await timeline.transport.waitForConnection()
++    await timeline.transport.disconnect("Lost response stream")
++    await timeline.transport.waitForConnection({ after: connection.id })
++    await expect(page.getByText("재연결 후 복구된 응답", { exact: true })).toBeVisible()
++    expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin)
++  })
++
++  test("follows live shell output and preserves the reader's scroll position", async ({ page }) => {
++    const id = "prt_live_shell_scroll"
++    const input = { command: Array.from({ length: 30 }, (_, i) => `export BUILD_OPTION_${i}=enabled`).join("\n") }
++    const timeline = await setupTimeline(page, {
++      messages: [userMessage(), assistantMessage([toolPart(id, "bash", "running", input)], { completed: false })],
++      settings: { shellToolPartsExpanded: true, showReasoningSummaries: false },
++      viewport: { width: 412, height: 915 },
++      cpuRate: 1,
++    })
++    const scroll = page.locator(`[data-timeline-part-id="${id}"] [data-slot="bash-scroll"]`)
++    await expect(scroll).toBeVisible()
++    const output = Array.from({ length: 80 }, (_, i) => `Compiling source ${i}`).join("\n")
++    await timeline.send(partUpdated(toolPart(id, "bash", "running", input, { metadata: { output } })), 120)
++    await expect(scroll).toContainText("Compiling source 79")
++    await expect.poll(() => scroll.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2)
++    await scroll.hover()
++    await page.mouse.wheel(0, -10000)
++    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeLessThan(2)
++    await timeline.send(partUpdated(toolPart(id, "bash", "running", input, { metadata: { output: output + "\nLinking next" } })), 120)
++    await expect(scroll).toContainText("Linking next")
++    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeLessThan(2)
++    await scroll.evaluate(el => { el.scrollTop = el.scrollHeight; el.dispatchEvent(new Event("scroll")) })
++    await timeline.send(partUpdated(toolPart(id, "bash", "completed", input, { output: output + "\nBuild finished" })), 120)
++    await expect(scroll).toContainText("Build finished")
++    await expect.poll(() => scroll.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2)
++  })
++
++  test("shows actual command activity and clears it after completion", async ({ page }, testInfo) => {
++    const errors: string[] = []
++    page.on("pageerror", (error) => errors.push(error.message))
++    const id = "prt_activity_bash"
++    const input = { command: "printf ready" }
++    const timeline = await setupTimeline(page, {
++      messages: [userMessage(), assistantMessage([toolPart(id, "bash", "running", input)], { completed: false })],
++      settings: { showReasoningSummaries: false },
++      viewport: { width: 412, height: 915 },
++      cpuRate: 1,
++    })
++    await timeline.send(status("busy"), 120)
++    const activity = page.locator('[data-slot="session-turn-thinking"]')
++    await expect(activity.locator('[data-component="text-shimmer"]')).toHaveAttribute("aria-label", "Running commands")
++    const output = activity.locator('[data-slot="session-turn-live-output"]')
++    await expect(output).toHaveCount(0)
++    await timeline.send(partUpdated(toolPart(id, "bash", "running", input, {
++      metadata: { output: "Downloading\n\u001b[33m전송 중단 — 재시도 2\u001b[0m\n" },
++    })), 120)
++    await expect(output).toHaveText("전송 중단 — 재시도 2")
++    await expect(output).toBeVisible()
++    const bounds = await output.boundingBox()
++    expect(bounds).not.toBeNull()
++    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(412)
++    expect(bounds!.height).toBeLessThanOrEqual(40)
++    await page.screenshot({ path: testInfo.outputPath("running-command.png") })
++    await timeline.send(partUpdated(toolPart(id, "bash", "completed", input, { output: "ready" })), 120)
++    await expect(activity.locator('[data-component="text-shimmer"]')).toHaveAttribute("aria-label", "Considering next steps")
++    await expect(output).toHaveCount(0)
++    await timeline.send(status("idle"), 120)
++    await expect(activity).toHaveCount(0)
++    expect(errors).toEqual([])
++  })
++
+   test("moves lightweight tools through pending, running, and completed without replacing rows", async ({
+     page,
+   }, testInfo) => {
 diff --git a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts b/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
 index 9b74c7d..ecb471e 100644
 --- a/packages/app/e2e/performance/timeline/home-tab-navigation-benchmark.spec.ts
@@ -53,295 +144,203 @@ index 9b74c7d..ecb471e 100644
    benchmark("opens a home session and paints its titlebar tab", async ({ page, report }) => {
      await setup(page, [])
      await page.goto("/")
-diff --git a/packages/app/e2e/regression/mobile-session-actions.spec.ts b/packages/app/e2e/regression/mobile-session-actions.spec.ts
-new file mode 100644
-index 0000000..7f3c3f8
---- /dev/null
-+++ b/packages/app/e2e/regression/mobile-session-actions.spec.ts
-@@ -0,0 +1,149 @@
-+import { expect, test } from "@playwright/test"
-+import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
-+import { installStressSessionTabs, installTimelineSettings } from "../performance/timeline/timeline-test-helpers"
-+import { mockOpenCodeServer } from "../utils/mock-server"
-+
-+test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
-+
-+test("swipe reveals pin and delete without opening the session", async ({ page }) => {
-+  await mockOpenCodeServer(page, { ...fixture, pageMessages })
-+  await installTimelineSettings(page)
-+  await installStressSessionTabs(page, { sessionIDs: [] })
-+  await page.goto("/")
-+  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
-+  const row = page.locator('[data-component="home-session-row"]').filter({ hasText: fixture.expected.targetTitle })
-+  await expect(row).toBeVisible()
-+  const box = (await row.boundingBox())!
-+  const touch = await page.context().newCDPSession(page)
-+  const x = box.x + box.width - 70
-+  const y = box.y + box.height / 2
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
-+  for (const distance of [15, 40, 80, 140]) {
-+    await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - distance, y }] })
+diff --git a/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts b/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts
+index a86a55c..4538bf2 100644
+--- a/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts
++++ b/packages/app/e2e/performance/timeline/session-timeline-benchmark.fixture.ts
+@@ -1,6 +1,7 @@
+ import { base64Encode } from "@opencode-ai/core/util/encode"
+ import type { Page } from "@playwright/test"
+ import { mockOpenCodeServer } from "../../utils/mock-server"
++import { installSseTransport } from "../../utils/sse-transport"
+ import { expectAppVisible, expectSessionTitle } from "../../utils/waits"
+ import { expect } from "../benchmark"
+ 
+@@ -103,8 +104,13 @@ export async function setupTimelineBenchmark(
+     turnDiffs?: unknown[]
+   },
+ ) {
+-  const events: EventPayload[] = []
+-  let eventBatch = options.eventBatch
++  const transport = await installSseTransport<EventPayload>(page, {
++    server: `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`,
++  })
++  let pending = 0
++  let persistedText: string | undefined
++  const eventBatch = options.eventBatch
++  if (!Number.isSafeInteger(eventBatch) || eventBatch < 1) throw new Error("eventBatch must be a positive integer")
+   const currentUserMessage = options.turnDiffs
+     ? { ...userMessage, info: { ...userMessage.info, summary: { diffs: options.turnDiffs } } }
+     : userMessage
+@@ -118,11 +124,14 @@ export async function setupTimelineBenchmark(
+       items: [
+         ...Array.from({ length: options.historyTurns }, (_, index) => performanceTurn(index)).flat(),
+         currentUserMessage,
+-        assistantMessage,
++        {
++          ...assistantMessage,
++          parts: persistedText === undefined
++            ? assistantMessage.parts
++            : [...assistantMessage.parts, { ...streamedTextPart, text: persistedText }],
++        },
+       ],
+     }),
+-    events: () => events.splice(0, eventBatch),
+-    eventRetry: 16,
+   })
+   await page.addInitScript(
+     (input) => {
+@@ -150,14 +159,27 @@ export async function setupTimelineBenchmark(
+     scroller,
+     text,
+     transport: {
+-      enqueue(payload: EventPayload | EventPayload[]) {
+-        events.push(...(Array.isArray(payload) ? payload : [payload]))
++      async enqueue(payload: EventPayload | EventPayload[]) {
++        const events = Array.isArray(payload) ? payload : [payload]
++        pending += events.length
++        for (let offset = 0; offset < events.length; offset += eventBatch) {
++          const batch = events.slice(offset, offset + eventBatch)
++          for (const event of batch) {
++            const properties = event.payload.properties as {
++              part?: { id: string; text?: string }; partID?: string; field?: string; delta?: string
++            }
++            // Reconnect GETs include every event already committed for delivery.
++            if (event.payload.type === "message.part.updated" && properties.part?.id === textPartID)
++              persistedText = properties.part.text
++            if (event.payload.type === "message.part.delta" && properties.partID === textPartID && properties.field === "text")
++              persistedText = (persistedText ?? "") + (properties.delta ?? "")
++          }
++          await transport.burst(batch)
++          pending -= batch.length
++        }
+       },
+       pendingCount() {
+-        return events.length
+-      },
+-      releaseAll() {
+-        eventBatch = events.length
++        return pending
+       },
+     },
+     async scrollToBottom() {
+@@ -169,6 +191,14 @@ export async function setupTimelineBenchmark(
+       await expect
+         .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop))
+         .toBeLessThanOrEqual(1)
++      console.info("TIMELINE_GEOMETRY", await scroller.evaluate((element, partID) => ({
++        height: element.scrollHeight,
++        client: element.clientHeight,
++        top: element.scrollTop,
++        targetPresent: !!element.querySelector(`[data-timeline-part-id="${partID}"]`),
++        mountedParts: [...element.querySelectorAll('[data-timeline-part-id]')]
++          .map((part) => part.getAttribute('data-timeline-part-id')).slice(-12),
++      }), textPartID))
+       await page.waitForFunction((partID) => {
+         const root = [...document.querySelectorAll<HTMLElement>(".scroll-view__viewport")].find((element) =>
+           element.querySelector(`[data-timeline-part-id="${partID}"]`),
+@@ -182,7 +212,7 @@ export async function setupTimelineBenchmark(
+             ),
+           )
+         })
+-      }, textPartID)
++      }, textPartID, { timeout: 15_000 })
+     },
+   }
+ }
+diff --git a/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts b/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts
+index 1a52bc8..01a8e41 100644
+--- a/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts
++++ b/packages/app/e2e/performance/timeline/session-timeline-benchmark.spec.ts
+@@ -76,7 +76,7 @@ benchmark.describe("performance: review pane", () => {
+       vcsDiff: diffs,
+     })
+ 
+-    fixture.transport.enqueue(buildInitialStreamEvent(1))
++    await fixture.transport.enqueue(buildInitialStreamEvent(1))
+     await expect(fixture.text).toBeVisible()
+     await expect(fixture.text).toContainText("Implementation plan")
+     await fixture.scrollToBottom()
+@@ -119,7 +119,7 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
+     vcsDiff: options.reviewPane ? diffs : undefined,
+   })
+ 
+-  fixture.transport.enqueue(buildInitialStreamEvent(deltaCount))
++  await fixture.transport.enqueue(buildInitialStreamEvent(deltaCount))
+   const contentStart = performance.now()
+   await expect(fixture.text).toBeVisible()
+   await expect(fixture.text).toContainText("Implementation plan")
+@@ -134,9 +134,9 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
+   await installTimelineStreamProbe(page, { textPartID, finalIndex: deltaCount, profileVisual, minimal })
+   const deltas = buildStreamDeltaEvents(deltaCount)
+   await startTimelineStreamProbe(page)
+-  fixture.transport.enqueue(deltas)
+-
+-  await page.waitForFunction(
++  try {
++    await fixture.transport.enqueue(deltas)
++    await page.waitForFunction(
+     (finalIndex) =>
+       (
+         window as Window & {
+@@ -145,7 +145,28 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
+       ).__timelineStreamBenchmark?.applied.some((value) => value.index === finalIndex),
+     deltaCount,
+     { timeout: completionTimeoutMs },
+-  )
++    )
++  } finally {
++    // Reset throttling before failure diagnostics so the probe cannot consume
++    // the remaining test budget on an already overloaded renderer.
++    await profile.reset()
++    await profile.stop()
++    console.info("TIMELINE_STREAM_STATE", JSON.stringify({
++      queued: deltas.length,
++      pending: fixture.transport.pendingCount(),
++      browser: await page.evaluate((partID) => {
++        const state = (window as Window & {
++          __timelineStreamBenchmark?: { applied: { at: number; index: number }[] }
++        }).__timelineStreamBenchmark
++        const node = document.querySelector(`[data-timeline-part-id="${partID}"]`)
++        return {
++          applied: state?.applied.slice(-5),
++          targetPresent: !!node,
++          textEnd: node?.textContent?.slice(-400),
++        }
++      }, textPartID),
++    }))
 +  }
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-+  const item = page.locator(".home-session-item").filter({ hasText: fixture.expected.targetTitle })
-+  await expect(item.getByRole("button", { name: "Pin", exact: true })).toBeVisible()
-+  await expect(item.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
-+  await expect(page).toHaveURL("/")
-+  await item.getByRole("button", { name: "Pin", exact: true }).click()
-+  await expect(page.getByText("Pinned", { exact: true })).toBeVisible()
-+  await page.reload()
-+  await expect(page.getByText("Pinned", { exact: true })).toBeVisible()
-+  await expect(page.locator('[data-component="home-session-row"]').first()).toContainText(fixture.expected.targetTitle)
-+  await item.getByRole("button", { name: "More options", exact: true }).click()
-+  await item.getByRole("button", { name: "Delete", exact: true }).click()
-+  await expect(page.getByRole("dialog")).toHaveCount(0)
-+  await expect(row).toHaveCount(0)
-+  await page.getByRole("button", { name: "Undo", exact: true }).click()
-+  await expect(row).toBeVisible()
-+  await item.getByRole("button", { name: "More options", exact: true }).click()
-+  const removed = page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes("ses_smoke_target"))
-+  await item.getByRole("button", { name: "Delete", exact: true }).click()
-+  await removed
-+  await expect(row).toHaveCount(0)
-+  await expect(page.getByRole("dialog")).toHaveCount(0)
-+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0)
-+})
-+
-+test("long press selects multiple sessions and bulk deletion can be undone", async ({ page }) => {
-+  const errors: string[] = []
-+  page.on("pageerror", (error) => errors.push(error.message))
-+  const deleted: string[] = []
-+  page.on("request", (request) => { if (request.method() === "DELETE") deleted.push(request.url()) })
-+  await mockOpenCodeServer(page, { ...fixture, pageMessages })
-+  await installTimelineSettings(page)
-+  await installStressSessionTabs(page, { sessionIDs: [] })
-+  await page.goto("/")
-+  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
-+  const rows = page.locator('[data-component="home-session-row"]')
-+  const target = rows.filter({ hasText: fixture.expected.targetTitle })
-+  const source = rows.filter({ hasText: fixture.sessions.find((item) => item.id === fixture.sourceID)!.title })
-+  await expect(target).toBeVisible()
-+  const box = (await target.boundingBox())!
-+  const touch = await page.context().newCDPSession(page)
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 90, y: box.y + box.height / 2 }] })
-+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible()
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-+  await expect(target).toHaveAttribute("aria-pressed", "true")
-+  await source.tap()
-+  await expect(page.getByText("2 selected", { exact: true })).toBeVisible()
-+  await page.screenshot({ path: "e2e/test-results/session-multiselect.png" })
-+  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
-+  await expect(page.getByRole("dialog")).toContainText("Delete 2 selected items?")
-+  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click()
-+  await expect(target).toBeVisible()
-+  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
-+  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
-+  await expect(target).toHaveCount(0)
-+  await expect(source).toHaveCount(0)
-+  await page.screenshot({ path: "e2e/test-results/session-undo.png" })
-+  await page.getByRole("button", { name: "Undo", exact: true }).click()
-+  await expect(target).toBeVisible()
-+  await expect(source).toBeVisible()
-+  expect(deleted).toEqual([])
-+  expect(errors).toEqual([])
-+  await target.focus()
-+  await page.keyboard.press("Shift+Space")
-+  await source.tap()
-+  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
-+  const committed = Promise.all([fixture.targetID, fixture.sourceID].map((id) =>
-+    page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes(id))))
-+  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
-+  await committed
-+  await expect(target).toHaveCount(0)
-+  await expect(source).toHaveCount(0)
-+})
-+
-+test("project swipe removal offers undo without a confirmation dialog", async ({ page }) => {
-+  await mockOpenCodeServer(page, { ...fixture, pageMessages })
-+  await installTimelineSettings(page)
-+  await installStressSessionTabs(page, { sessionIDs: [] })
-+  await page.goto("/")
-+  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
-+  await page.locator(".home-project-picker > summary").click()
-+  const row = page.locator('[data-component="home-project-row"]')
-+  await expect(row).toHaveCount(1)
-+  await expect(row).toBeVisible()
-+  const box = (await row.boundingBox())!
-+  const touch = await page.context().newCDPSession(page)
-+  const x = box.x + 100, y = box.y + box.height / 2
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - 65, y }] })
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-+  await page.locator(".home-project-item").getByRole("button", { name: "Delete", exact: true }).click()
-+  await expect(row).toHaveCount(0)
-+  await expect(page.getByRole("dialog")).toHaveCount(0)
-+  await page.getByRole("button", { name: "Undo", exact: true }).click()
-+  await expect(row).toBeVisible()
-+  const restored = (await row.boundingBox())!
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: restored.x + 80, y: restored.y + restored.height / 2 }] })
-+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible()
-+  await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-+  await expect(row).toHaveAttribute("aria-pressed", "true")
-+  await page.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Delete", exact: true }).click()
-+  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
-+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0)
-+  await expect(row).toHaveCount(0)
-+  // The stress init script deliberately re-seeds projects on every reload.
-+  // Check the persisted close flag before that fixture overwrites it.
-+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("opencode.global.dat:server")!).projects.local)).toEqual([])
-+})
-+
-+test("failed deletion restores the session instead of losing it", async ({ page }) => {
-+  await mockOpenCodeServer(page, { ...fixture, pageMessages })
-+  await page.route("**/session/" + fixture.targetID + "**", async (route) => {
-+    if (route.request().method() !== "DELETE") return route.fallback()
-+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Test deletion rejected" }) })
-+  })
-+  await installTimelineSettings(page)
-+  await installStressSessionTabs(page, { sessionIDs: [] })
-+  await page.goto("/")
-+  await page.getByRole("button", { name: "Dismiss Tabs information" }).click()
-+  const item = page.locator(".home-session-item").filter({ hasText: fixture.expected.targetTitle })
-+  await item.getByRole("button", { name: "More options", exact: true }).click()
-+  await item.getByRole("button", { name: "Delete", exact: true }).click()
-+  await expect(item).toHaveCount(0)
-+  await expect(item).toBeVisible()
-+  await expect(page.getByText("Failed to delete session", { exact: true })).toBeVisible()
-+})
-diff --git a/packages/app/e2e/regression/mobile-settings.spec.ts b/packages/app/e2e/regression/mobile-settings.spec.ts
-new file mode 100644
-index 0000000..e142604
---- /dev/null
-+++ b/packages/app/e2e/regression/mobile-settings.spec.ts
-@@ -0,0 +1,56 @@
-+import { expect, test } from "@playwright/test"
-+import { installTimelineSettings, mockStressTimeline } from "../performance/timeline/timeline-test-helpers"
-+
-+for (const width of [320, 390]) {
-+  test(`settings use one readable panel at ${width}px`, async ({ page }, info) => {
-+    await page.setViewportSize({ width, height: 844 })
-+    await page.emulateMedia({ colorScheme: "light" })
-+    await mockStressTimeline(page)
-+    await installTimelineSettings(page)
-+    await page.goto("/")
-+    await page.keyboard.press("Control+,")
-+    const dialog = page.locator(".settings-v2-dialog")
-+    await expect(dialog.getByRole("heading", { name: "Settings", exact: true })).toBeVisible()
-+    const general = dialog.getByRole("tab", { name: /^General/ })
-+    await expect(general).toBeVisible()
-+    await expect(dialog.getByRole("tab", { name: /^Shortcuts/ })).toBeHidden()
-+    expect((await general.boundingBox())!.height).toBeGreaterThanOrEqual(48)
-+    await page.screenshot({ path: info.outputPath("settings-menu.png") })
-+    for (const name of ["General", "Providers", "Models", "Servers"]) {
-+      await dialog.getByRole("tab", { name: new RegExp(`^${name}`) }).click()
-+      await expect(dialog.getByRole("tablist")).toBeHidden()
-+      const panel = dialog.locator('[data-slot="tabs-v2-content"]:visible')
-+      await expect(panel).toHaveCount(1)
-+      expect((await panel.boundingBox())!.width).toBeGreaterThanOrEqual(width - 2)
-+      expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
-+      if (name === "General") {
-+        const language = panel.getByRole("button", { name: "English", exact: true })
-+        await expect(language).toBeVisible()
-+        expect((await language.boundingBox())!.height).toBeGreaterThanOrEqual(48)
-+        expect((await language.boundingBox())!.width).toBeGreaterThanOrEqual(width - 50)
-+      }
-+      await page.screenshot({ path: info.outputPath(`settings-${name.toLowerCase()}.png`) })
-+      if (name === "Providers") {
-+        const custom = dialog.locator(".settings-v2-provider-row").filter({ hasText: "Custom provider" })
-+        await custom.getByRole("button", { name: "Connect", exact: true }).click()
-+        const form = page.locator(".provider-connect-dialog")
-+        const endpoint = form.getByRole("textbox", { name: "Base URL", exact: true })
-+        await expect(endpoint).toBeVisible()
-+        expect((await form.boundingBox())!.width).toBe(width)
-+        expect((await form.boundingBox())!.height).toBe(844)
-+        expect((await endpoint.boundingBox())!.height).toBeGreaterThanOrEqual(48)
-+        await endpoint.fill("https://example.invalid/v1")
-+        await expect(endpoint).toHaveValue("https://example.invalid/v1")
-+        await expect(page.getByText("Something went wrong", { exact: true })).toHaveCount(0)
-+        expect(await form.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
-+        await page.screenshot({ path: info.outputPath("settings-custom-provider.png") })
-+        await form.getByRole("button", { name: "Navigate back", exact: true }).click()
-+        await expect(dialog.getByRole("heading", { name: "Providers", exact: true })).toBeVisible()
-+      }
-+      await dialog.getByRole("button", { name: "Settings", exact: true }).click()
-+      await expect(general).toBeVisible()
-+    }
-+    await dialog.getByRole("button", { name: "Close", exact: true }).click()
-+    await expect(dialog).toHaveCount(0)
-+  })
-+}
-diff --git a/packages/app/e2e/regression/session-access.spec.ts b/packages/app/e2e/regression/session-access.spec.ts
-new file mode 100644
-index 0000000..c11bd2d
---- /dev/null
-+++ b/packages/app/e2e/regression/session-access.spec.ts
-@@ -0,0 +1,26 @@
-+import { expect, test } from "@playwright/test"
-+import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
-+import { installStressSessionTabs, installTimelineSettings, stressSessionHref } from "../performance/timeline/timeline-test-helpers"
-+import { mockOpenCodeServer } from "../utils/mock-server"
-+
-+for (const restricted of [false, true]) test(`API-created permission displays ${restricted ? "custom restrictions" : "full access"}`, async ({ page }) => {
-+  const changes: string[] = []
-+  page.on("request", request => {
-+    const path = new URL(request.url()).pathname
-+    if ((request.method() === "PATCH" && path.startsWith("/session/")) || path.includes("/reply")) changes.push(request.url())
-+  })
-+  const permission = [
-+    { permission: "*", pattern: "*", action: "allow" },
-+    ...(restricted ? [{ permission: "bash", pattern: "rm *", action: "deny" }] : []),
-+  ]
-+  await mockOpenCodeServer(page, {
-+    ...fixture,
-+    sessions: fixture.sessions.map(session => ({ ...session, permission })),
-+    pageMessages,
-+  })
-+  await installTimelineSettings(page)
-+  await installStressSessionTabs(page)
-+  await page.goto(stressSessionHref(fixture.targetID))
-+  await expect(page.getByRole("combobox", { name: "에이전트 승인 모드" })).toHaveValue(restricted ? "custom" : "yolo")
-+  expect(changes).toEqual([])
-+})
-diff --git a/packages/app/e2e/regression/session-reconnect.spec.ts b/packages/app/e2e/regression/session-reconnect.spec.ts
-new file mode 100644
-index 0000000..a2c8f41
---- /dev/null
-+++ b/packages/app/e2e/regression/session-reconnect.spec.ts
-@@ -0,0 +1,34 @@
-+import { expect, test } from "@playwright/test"
-+import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
-+import { installStressSessionTabs, installTimelineSettings, stressSessionHref } from "../performance/timeline/timeline-test-helpers"
-+import { mockOpenCodeServer } from "../utils/mock-server"
-+
-+test("reconnect recovers a final answer missed by the event stream without navigation", async ({ page }) => {
-+  let completed = false
-+  let connections = 0
-+  const id = fixture.targetID
-+  const final = "Recovered final answer after disconnected stream"
-+  await mockOpenCodeServer(page, {
-+    ...fixture,
-+    sessionStatus: () => completed ? {} : { [id]: { type: "busy" } },
-+    events: () => { connections++; return [] },
-+    eventRetry: 250,
-+    pageMessages: (sessionID, limit, before) => {
-+      const result = pageMessages(sessionID, limit, before)
-+      if (!completed || sessionID !== id) return result
-+      const items = structuredClone(result.items)
-+      const last = items.at(-1)!
-+      last.parts = [{ id: "prt_recovered_final", sessionID: id, messageID: last.info.id, type: "text", text: final }]
-+      return { ...result, items }
-+    },
-+  })
-+  await installTimelineSettings(page)
-+  await installStressSessionTabs(page)
-+  await page.goto(stressSessionHref(id))
-+  await expect(page.locator('[data-message-id]').last()).toBeVisible()
-+  const before = connections
-+  completed = true
-+  await expect.poll(() => connections).toBeGreaterThan(before)
-+  await expect(page.getByText(final, { exact: true })).toBeVisible()
-+  await expect(page).toHaveURL(stressSessionHref(id))
-+})
+   await expect(fixture.text).toContainText("benchmark-complete")
+   await expect(fixture.text).toContainText("Streaming")
+   await fixture.waitForStableGeometry()
+@@ -155,7 +176,6 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
+     navigations: benchmarkDiagnostics(page).navigations,
+   })
+   const delivered = deltas.length - fixture.transport.pendingCount()
+-  await profile.stop()
+ 
+   const result = {
+     metrics: {
+@@ -179,7 +199,6 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
+     },
+   }
+ 
+-  await profile.reset()
+   return result
+ }
+ 
+diff --git a/packages/app/e2e/performance/timeline/session-timeline-profile.ts b/packages/app/e2e/performance/timeline/session-timeline-profile.ts
+index e168949..e10daa7 100644
+--- a/packages/app/e2e/performance/timeline/session-timeline-profile.ts
++++ b/packages/app/e2e/performance/timeline/session-timeline-profile.ts
+@@ -25,6 +25,7 @@ export async function startTimelineProfile(page: Page, options: { cpuThrottle: n
+               function: node.callFrame.functionName || "(anonymous)",
+               url: node.callFrame.url,
+               line: node.callFrame.lineNumber + 1,
++              column: node.callFrame.columnNumber,
+               selfMs: self.get(node.id) ?? 0,
+             }))
+             .filter((node) => node.selfMs > 1)
 diff --git a/packages/app/e2e/utils/mock-server.ts b/packages/app/e2e/utils/mock-server.ts
 index a581eda..b8ecdf4 100644
 --- a/packages/app/e2e/utils/mock-server.ts
@@ -388,10 +387,18 @@ index d715351..81308b0 100644
    </body>
  </html>
 diff --git a/packages/app/src/components/dialog-connect-provider.tsx b/packages/app/src/components/dialog-connect-provider.tsx
-index 1081310..b9648fd 100644
+index 1081310..8e57d33 100644
 --- a/packages/app/src/components/dialog-connect-provider.tsx
 +++ b/packages/app/src/components/dialog-connect-provider.tsx
-@@ -38,6 +38,7 @@ import { useSettings } from "@/context/settings"
+@@ -19,6 +19,7 @@ import {
+   createEffect,
+   createMemo,
+   createResource,
++  createSignal,
+   createUniqueId,
+   For,
+   Match,
+@@ -38,6 +39,7 @@ import { useSettings } from "@/context/settings"
  import { popularProviders, useProviders } from "@/hooks/use-providers"
  import { CustomProviderForm } from "./dialog-custom-provider"
  import { decode64 } from "@/utils/base64"
@@ -399,7 +406,7 @@ index 1081310..b9648fd 100644
  
  const CUSTOM_ID = "_custom"
  type ConnectMethod = Extract<IntegrationMethod, { type: "key" | "oauth" }>
-@@ -122,8 +123,8 @@ export const DialogConnectProvider: Component<{
+@@ -122,8 +124,8 @@ export const DialogConnectProvider: Component<{
        }
      >
        <DialogV2
@@ -410,7 +417,7 @@ index 1081310..b9648fd 100644
        >
          <DialogHeader closeLabel={language.t("common.close")}>
            <Show
-@@ -132,7 +133,8 @@ export const DialogConnectProvider: Component<{
+@@ -132,7 +134,8 @@ export const DialogConnectProvider: Component<{
            >
              <button
                type="button"
@@ -420,6 +427,168 @@ index 1081310..b9648fd 100644
                onClick={() => back.current()}
                aria-label={language.t("common.goBack")}
              >
+@@ -416,15 +419,24 @@ function ProviderConnection(props: {
+       label: language.t("provider.connect.method.apiKey"),
+     },
+   ])
+-  const [integration] = createResource(
++  const [integrationError, setIntegrationError] = createSignal<string>()
++  const [integration, { refetch: retryIntegration }] = createResource(
+     () => ({ provider: props.provider, directory: directory() }),
+-    (input) =>
+-      serverSDK()
++    (input) => {
++      setIntegrationError(undefined)
++      return serverSDK()
+         .api.integration.get({
+           integrationID: input.provider,
+           location: input.directory ? { directory: input.directory } : undefined,
+         })
+-        .then((result) => result.data),
++        .then((result) => result.data)
++        .catch((error) => {
++          setIntegrationError(error instanceof Error && error.name === "TimeoutError"
++            ? language.t("provider.connect.methodsTimeout")
++            : formatError(error, language.t("common.requestFailed")))
++          return undefined
++        })
++    },
+   )
+   const loading = createMemo(() => integration.loading)
+   const methods = createMemo<ConnectMethod[]>(() => {
+@@ -709,6 +721,7 @@ function ProviderConnection(props: {
+   createEffect(() => {
+     if (auto) return
+     if (loading()) return
++    if (integrationError()) return
+     if (methods().length === 1) {
+       auto = true
+       void selectMethod(0)
+@@ -716,16 +729,16 @@ function ProviderConnection(props: {
+   })
+ 
+   async function complete() {
+-    await serverSync()
+-      .refreshProviders()
+-      .catch(() => undefined)
++    const sync = serverSync()
++    const name = provider().name
+     dialog.close()
+     showToast({
+       variant: "success",
+       icon: "circle-check",
+-      title: language.t("provider.connect.toast.connected.title", { provider: provider().name }),
+-      description: language.t("provider.connect.toast.connected.description", { provider: provider().name }),
++      title: language.t("provider.connect.toast.connected.title", { provider: name }),
++      description: language.t("provider.connect.toast.connected.description", { provider: name }),
+     })
++    void sync.refreshProviders().catch(() => undefined)
+   }
+ 
+   function goBack() {
+@@ -807,6 +820,7 @@ function ProviderConnection(props: {
+     const errorID = createUniqueId()
+     const [formStore, setFormStore] = createStore({
+       value: "",
++      saving: false,
+       error: undefined as string | undefined,
+     })
+ 
+@@ -817,6 +831,7 @@ function ProviderConnection(props: {
+ 
+     async function handleSubmit(e: SubmitEvent) {
+       e.preventDefault()
++      if (formStore.saving) return
+ 
+       const form = e.currentTarget as HTMLFormElement
+       const formData = new FormData(form)
+@@ -827,13 +842,19 @@ function ProviderConnection(props: {
+         return
+       }
+ 
+-      setFormStore("error", undefined)
+-      await serverSDK().api.integration.connect.key({
+-        integrationID: props.provider,
+-        location: location(),
+-        key: apiKey,
+-      })
+-      await complete()
++      setFormStore({ error: undefined, saving: true })
++      try {
++        await serverSDK().api.integration.connect.key({
++          integrationID: props.provider,
++          location: location(),
++          key: apiKey.trim(),
++        })
++        if (alive.value) await complete()
++      } catch (error) {
++        if (alive.value) setFormStore("error", formatError(error, language.t("common.requestFailed")))
++      } finally {
++        if (alive.value) setFormStore("saving", false)
++      }
+     }
+ 
+     if (newLayout())
+@@ -865,6 +886,8 @@ function ProviderConnection(props: {
+                 ref={apiKey}
+                 class="!w-full"
+                 name="apiKey"
++                type="password"
++                disabled={formStore.saving}
+                 data-input="provider-api-key"
+                 placeholder={language.t("provider.connect.apiKey.placeholder")}
+                 value={formStore.value}
+@@ -882,8 +905,8 @@ function ProviderConnection(props: {
+                 </div>
+               )}
+             </Show>
+-            <ButtonV2 type="submit" variant="contrast" data-action="provider-connect-submit">
+-              {language.t("common.continue")}
++            <ButtonV2 type="submit" variant="contrast" data-action="provider-connect-submit" disabled={formStore.saving} aria-busy={formStore.saving}>
++              {language.t(formStore.saving ? "common.saving" : "common.continue")}
+             </ButtonV2>
+           </form>
+         </div>
+@@ -915,7 +938,8 @@ function ProviderConnection(props: {
+           <TextField
+             autofocus={!newLayout()}
+             ref={apiKey}
+-            type="text"
++            type="password"
++            disabled={formStore.saving}
+             label={language.t("provider.connect.apiKey.label", { provider: provider().name })}
+             placeholder={language.t("provider.connect.apiKey.placeholder")}
+             name="apiKey"
+@@ -924,8 +948,8 @@ function ProviderConnection(props: {
+             validationState={formStore.error ? "invalid" : undefined}
+             error={formStore.error}
+           />
+-          <Button class="w-auto" type="submit" size="large" variant="primary">
+-            {language.t("common.continue")}
++          <Button class="w-auto" type="submit" size="large" variant="primary" disabled={formStore.saving} aria-busy={formStore.saving}>
++            {language.t(formStore.saving ? "common.saving" : "common.continue")}
+           </Button>
+         </form>
+       </div>
+@@ -1140,11 +1164,17 @@ function ProviderConnection(props: {
+           autofocus={!newLayout() && store.methodIndex === undefined ? true : undefined}
+         >
+           <Switch>
++            <Match when={integrationError()}>
++              <div class="flex flex-col gap-4 px-3" role="alert">
++                <span>{language.t("provider.connect.status.failed", { error: integrationError() ?? "" })}</span>
++                <Button type="button" onClick={() => retryIntegration()}>{language.t("provider.connect.retry")}</Button>
++              </div>
++            </Match>
+             <Match when={loading()}>
+               <div class="text-14-regular text-text-base">
+                 <div class="flex items-center gap-x-2">
+                   <Spinner />
+-                  <span>{language.t("provider.connect.status.inProgress")}</span>
++                  <span>{language.t("provider.connect.loadingMethods")}</span>
+                 </div>
+               </div>
+             </Match>
 diff --git a/packages/app/src/components/dialog-custom-provider.tsx b/packages/app/src/components/dialog-custom-provider.tsx
 index e3c11c3..79c6f80 100644
 --- a/packages/app/src/components/dialog-custom-provider.tsx
@@ -433,6 +602,45 @@ index e3c11c3..79c6f80 100644
        <div class="px-2.5 flex gap-4 items-center">
          <ProviderIcon id="synthetic" class="size-5 shrink-0 icon-strong-base" />
          <div class="text-16-medium text-text-strong">{language.t("provider.custom.title")}</div>
+diff --git a/packages/app/src/components/dialog-select-directory-v2.tsx b/packages/app/src/components/dialog-select-directory-v2.tsx
+index f3376ad..50b9f3d 100644
+--- a/packages/app/src/components/dialog-select-directory-v2.tsx
++++ b/packages/app/src/components/dialog-select-directory-v2.tsx
+@@ -12,6 +12,7 @@ import type { Path } from "@opencode-ai/sdk/v2/client"
+ import {
+   absoluteTreePath,
+   activeTreeNavigation,
++  pickerLegacyListLocation,
+   advanceTreePreload,
+   nextSuggestionIndex,
+   nextTreeScrollTop,
+@@ -125,11 +126,13 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
+     if (existing && !eager) loads.promote(`${generation}:${key}`)
+     const request =
+       existing ??
+-      loads.schedule(`${generation}:${key}`, eager ? "background" : "user", () => {
+-        if (!activeTreeNavigation(generation, navigation)) return Promise.resolve(undefined)
+-        return sdk.api.file
++      loads.schedule(`${generation}:${key}`, eager ? "background" : "user", async () => {
++        if (!activeTreeNavigation(generation, navigation)) return undefined
++        const request = (await sdk.protocol) === "v1"
++          ? sdk.client.file.list(pickerLegacyListLocation(sync.data.path.directory, absolute)).then(result => ({ data: result.data ?? [] }))
++          : sdk.api.file
+           .list({ location: { directory: absolute } })
+-          .then((result) =>
++        return request.then((result) =>
+             result.data.map((entry) => ({
+               name: getFilename(entry.path.replace(/[\\/]+$/, "")),
+               type: entry.type,
+@@ -146,7 +149,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
+       return false
+     }
+     tree?.batch(policy.entries(key, nodes).map((item) => ({ type: "add", path: item })))
+-    if (!eager && advanceTreePreload(advanced, key)) {
++    if (!eager && !window.matchMedia("(pointer: coarse)").matches && advanceTreePreload(advanced, key)) {
+       for (const directory of preloadTreeDirectories(key, nodes)) void load(directory, generation, true)
+     }
+     return true
 diff --git a/packages/app/src/components/dialog-select-directory.tsx b/packages/app/src/components/dialog-select-directory.tsx
 index fc248d8..f32343a 100644
 --- a/packages/app/src/components/dialog-select-directory.tsx
@@ -469,6 +677,86 @@ index fc248d8..f32343a 100644
        <List
          class="px-3"
          search={{ placeholder: language.t("dialog.directory.search.placeholder"), autofocus: true }}
+diff --git a/packages/app/src/components/directory-picker-domain.test.ts b/packages/app/src/components/directory-picker-domain.test.ts
+index aeaaafd..cf69990 100644
+--- a/packages/app/src/components/directory-picker-domain.test.ts
++++ b/packages/app/src/components/directory-picker-domain.test.ts
+@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
+ import {
+   absoluteTreePath,
+   activeTreeNavigation,
++  pickerLegacyListLocation,
+   advanceTreePreload,
+   nextSuggestionIndex,
+   nextTreeScrollTop,
+@@ -302,6 +303,14 @@ test("wraps autocomplete keyboard navigation", () => {
+   expect(nextSuggestionIndex(0, 1, 0)).toBe(-1)
+ })
+ 
++test("legacy folder browsing reuses workspace scope without prefix confusion", () => {
++  expect(pickerLegacyListLocation("/workspace", "/workspace/project/src")).toEqual({ directory: "/workspace", path: "project/src" })
++  expect(pickerLegacyListLocation("/workspace/", "/workspace")).toEqual({ directory: "/workspace", path: "" })
++  expect(pickerLegacyListLocation("/workspace", "/workspace-other")).toEqual({ directory: "/workspace-other", path: "" })
++  expect(pickerLegacyListLocation("/", "/workspace")).toEqual({ directory: "/", path: "workspace" })
++  expect(pickerLegacyListLocation("/workspace", "/workspace/../etc")).toEqual({ directory: "/workspace/../etc", path: "" })
++})
++
+ test("returns absolute directories and relative files", () => {
+   expect(selectedTreePath("/home/luke/repo", "src/", "directory")).toBe("/home/luke/repo/src")
+   expect(selectedTreePath("/home/luke/repo", "src/index.ts", "file")).toBe("src/index.ts")
+diff --git a/packages/app/src/components/directory-picker-domain.ts b/packages/app/src/components/directory-picker-domain.ts
+index dfd8ee7..f670141 100644
+--- a/packages/app/src/components/directory-picker-domain.ts
++++ b/packages/app/src/components/directory-picker-domain.ts
+@@ -138,6 +138,14 @@ export function activeTreeNavigation(request: number, current: number) {
+   return request === current
+ }
+ 
++export function pickerLegacyListLocation(base: string, target: string) {
++  const directory = base.replace(/\/+$/, "") || "/"
++  if (!base || target.split("/").includes("..")) return { directory: target, path: "" }
++  if (target === directory) return { directory, path: "" }
++  const prefix = directory === "/" ? "/" : directory + "/"
++  return target.startsWith(prefix) ? { directory, path: target.slice(prefix.length) } : { directory: target, path: "" }
++}
++
+ export function createPriorityTaskQueue<T>(concurrency: number) {
+   type Job = {
+     key: string
+diff --git a/packages/app/src/components/prompt-input.tsx b/packages/app/src/components/prompt-input.tsx
+index 41cf7d3..a83a2fb 100644
+--- a/packages/app/src/components/prompt-input.tsx
++++ b/packages/app/src/components/prompt-input.tsx
+@@ -1316,6 +1316,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+       return
+     }
+ 
++    if (event.key === "Enter" && navigator.userAgent.includes(" TinyAgent/")) {
++      event.preventDefault()
++      addPart({ type: "text", content: "\n", start: 0, end: 0 })
++      return
++    }
++
+     const ctrl = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+ 
+     if (store.popover) {
+@@ -1517,6 +1523,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+               ref={bindEditorRef}
+               role="textbox"
+               aria-multiline="true"
++              enterkeyhint="enter"
+               aria-label={placeholder()}
+               contenteditable="true"
+               autocapitalize={store.mode === "normal" ? "sentences" : "off"}
+@@ -1645,7 +1652,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+                   {language.t("common.cancel")}
+                 </Button>
+               </div>
+-              <div class="flex items-center gap-1.5 min-w-0 flex-1 h-7">
++              <div data-component="prompt-selection-row" class="flex items-center gap-1.5 min-w-0 flex-1 h-7">
+                 <Show when={!agentsLoading()}>
+                   <div
+                     data-component="prompt-agent-control"
 diff --git a/packages/app/src/components/settings-providers.tsx b/packages/app/src/components/settings-providers.tsx
 index 080e6c5..9921230 100644
 --- a/packages/app/src/components/settings-providers.tsx
@@ -551,165 +839,27 @@ index 4116f4a..7bc1da9 100644
            <div class="flex flex-col justify-between h-full w-full">
              <div class="flex flex-col gap-3 w-full">
                <div class="flex flex-col gap-3">
-diff --git a/packages/app/src/components/settings-v2/mobile.css b/packages/app/src/components/settings-v2/mobile.css
-new file mode 100644
-index 0000000..63a78dd
---- /dev/null
-+++ b/packages/app/src/components/settings-v2/mobile.css
-@@ -0,0 +1,153 @@
-+/* Phone settings use a menu followed by one full-width panel. Desktop keeps tabs. */
-+.settings-mobile-header { display: none; }
-+[data-component="dialog-v2"] [data-slot="dialog-container"].provider-connect-container {
-+  width: min(calc(100vw - 16px), 640px);
-+  height: min(calc(100vh - 16px), 512px);
-+}
-+
-+@media (max-width: 767px) {
-+  .settings-v2 [data-slot="tabs-v2-trigger-wrapper"][data-value="shortcuts"] { display: none; }
-+  [data-component="dialog-v2"] [data-slot="dialog-container"].provider-connect-container {
-+    width: 100%;
-+    height: 100dvh;
-+    max-height: 100%;
-+    border-radius: 0;
-+    background: var(--v2-background-bg-base);
-+  }
-+  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-header"] {
-+    min-height: 64px;
-+    padding: 8px 16px !important;
-+    align-items: center;
-+    border-bottom: 1px solid var(--v2-border-border-base);
-+  }
-+  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-header-title"] {
-+    font-size: 20px !important;
-+    line-height: 28px;
-+    padding-inline: 8px;
-+  }
-+  [data-component="dialog-v2"] .provider-connect-dialog [data-slot="dialog-close-button"] {
-+    width: 48px;
-+    height: 48px;
-+    margin: 0 0 0 auto;
-+  }
-+  .provider-connect-dialog :is(input, textarea, button) { min-height: 48px; font-size: 16px; }
-+  .provider-connect-dialog [data-slot="input-label"] { font-size: 15px; line-height: 24px; }
-+  .provider-connect-dialog [data-component="input"] { min-width: 0; }
-+  .provider-connect-dialog [data-slot="input-input"] { min-height: 48px; font-size: 16px; }
-+  .provider-connect-dialog :is([data-slot="input-description"], [data-slot="input-error"]) {
-+    font-size: 14px;
-+    line-height: 22px;
-+    overflow-wrap: anywhere;
-+  }
-+  .provider-connect-dialog form [data-row] { display: grid; grid-template-columns: minmax(0, 1fr) 48px; }
-+  .provider-connect-dialog form [data-row] > div { grid-column: 1; min-width: 0; }
-+  .provider-connect-dialog form [data-row] > button { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
-+  .provider-connect-dialog form { font-size: 16px; line-height: 24px; }
-+  .provider-connect-dialog .custom-provider-form { max-height: none; min-height: 0; flex: 1; }
-+  .provider-connect-dialog [data-slot="dialog-body"] { padding: 16px 8px; }
-+  [data-component="dialog-v2"][data-variant="settings"] [data-slot="dialog-container"] {
-+    width: 100%;
-+    height: 100dvh;
-+    max-height: 100%;
-+    border-radius: 0;
-+  }
-+  .settings-mobile-header {
-+    display: flex;
-+    align-items: center;
-+    justify-content: space-between;
-+    flex: none;
-+    width: 100%;
-+    min-height: 64px;
-+    padding: 8px 16px;
-+    border-bottom: 1px solid var(--v2-border-border-base);
-+  }
-+  .settings-mobile-header h1 { padding-inline: 8px; font-size: 24px; font-weight: 640; }
-+  .settings-mobile-header button {
-+    display: flex;
-+    align-items: center;
-+    justify-content: center;
-+    gap: 8px;
-+    min-width: 48px;
-+    min-height: 48px;
-+    font-size: 16px;
-+  }
-+  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] {
-+    height: auto;
-+    min-height: 0;
-+    flex: 1;
-+  }
-+  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-list"] {
-+    width: 100%;
-+    min-width: 0;
-+    padding: 16px 24px;
-+    background: var(--v2-background-bg-base);
-+    overflow-y: auto;
-+  }
-+  .settings-v2[data-mobile-detail="true"] [data-slot="tabs-v2-list"],
-+  .settings-v2[data-mobile-detail="false"] .settings-v2-panel { display: none !important; }
-+  .settings-v2 [data-slot="tabs-v2-section-title"] { display: none; }
-+  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger-wrapper"] {
-+    height: auto;
-+    min-height: 56px;
-+    border-bottom: 1px solid var(--v2-border-border-base);
-+    background: transparent;
-+  }
-+  .settings-v2[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger"] {
-+    width: 100%;
-+    min-height: 56px;
-+    padding: 12px 0;
-+    font-size: 16px;
-+    background: transparent;
-+  }
-+  .settings-v2 [data-slot="tabs-v2-trigger"]::after { content: "›"; margin-inline-start: auto; font-size: 24px; }
-+  .settings-v2-nav-footer { padding-block: 24px; }
-+  .settings-v2-panel { min-width: 0; overscroll-behavior: contain; }
-+  .settings-v2-dialog .settings-v2-tab-header { position: static; padding: 24px 24px 20px; background: none; }
-+  .settings-v2-dialog .settings-v2-tab-title { font-size: 24px; line-height: 32px; }
-+  .settings-v2-dialog .settings-v2-tab-body { padding: 0 24px 32px; gap: 32px; }
-+  .settings-v2-dialog [data-component="settings-v2-list"] {
-+    padding-inline: 0;
-+    border-radius: 0;
-+    background: none;
-+    box-shadow: none;
-+  }
-+  .settings-v2-dialog [data-component="settings-v2-row"] { gap: 12px; padding-block: 20px; }
-+  .settings-v2-dialog [data-slot="settings-v2-row-copy"] { flex-basis: 100%; gap: 6px; }
-+  .settings-v2-dialog [data-slot="settings-v2-row-title"],
-+  .settings-v2-dialog .settings-v2-provider-name,
-+  .settings-v2-dialog .settings-v2-section-title { font-size: 16px; line-height: 24px; }
-+  .settings-v2-dialog [data-slot="settings-v2-row-description"],
-+  .settings-v2-dialog .settings-v2-provider-description { font-size: 14px; line-height: 22px; margin: 0; }
-+  .settings-v2-dialog [data-slot="settings-v2-row-control"] { width: 100%; justify-content: stretch; }
-+  .settings-v2-dialog [data-component="settings-v2-row"]:has([data-component="switch"]) {
-+    flex-wrap: nowrap;
-+    align-items: flex-start;
-+  }
-+  .settings-v2-dialog [data-component="settings-v2-row"]:has([data-component="switch"]) [data-slot="settings-v2-row-control"] {
-+    width: auto;
-+    flex: none;
-+    min-width: 48px;
-+    min-height: 48px;
-+    align-items: center;
-+  }
-+  .settings-v2-dialog [data-component="select-v2-root"],
-+  .settings-v2-dialog [data-slot="settings-v2-row-control"] > div { width: 100% !important; }
-+  .settings-v2-dialog [data-component="select-v2"],
-+  .settings-v2-dialog [data-slot="text-input-v2-input"],
-+  .settings-v2-dialog [data-component="button-v2"] { min-height: 48px; font-size: 16px; }
-+  .settings-v2-dialog [data-component="select-v2"] {
-+    width: 100%;
-+    justify-content: space-between;
-+    border: 1px solid var(--v2-border-border-base);
-+    border-radius: 8px;
-+    padding-inline: 12px;
-+  }
-+  .settings-v2-dialog [data-slot="select-v2-value-text"] { font-size: 16px; line-height: 24px; }
-+  .settings-v2-dialog .settings-v2-provider-row { gap: 12px; }
-+  .settings-v2-dialog .settings-v2-provider-lead { flex-basis: 100%; }
-+  .settings-v2-dialog .settings-v2-provider-row > [data-component="button-v2"] { width: 100%; }
-+  .settings-v2-dialog .settings-v2-provider-empty { font-size: 14px; line-height: 22px; }
-+  .settings-v2-dialog .settings-v2-models-group-trigger { min-height: 48px; }
-+  .settings-v2-dialog .settings-v2-models [data-slot="settings-v2-row-title"] { white-space: normal; overflow-wrap: anywhere; }
-+  .settings-v2-dialog button:focus-visible { outline: 2px solid var(--v2-border-border-focus); outline-offset: 2px; }
-+}
+diff --git a/packages/app/src/components/settings-v2/general.tsx b/packages/app/src/components/settings-v2/general.tsx
+index b41da10..d07bf2a 100644
+--- a/packages/app/src/components/settings-v2/general.tsx
++++ b/packages/app/src/components/settings-v2/general.tsx
+@@ -329,9 +329,14 @@ export const SettingsGeneralV2: Component<{
+       <SettingsListV2>
+         <LanguageSetting />
+ 
+-        <PermissionScopeSetting controller={permissionScope} />
++        <Show when={!navigator.userAgent.includes(" TinyAgent/")}>
++          <PermissionScopeSetting controller={permissionScope} />
++        </Show>
+ 
+-        <ShellSetting controller={shell} />
++        <details class="py-3">
++          <summary class="min-h-11 flex items-center cursor-pointer text-text-base">터미널 고급 설정</summary>
++          <ShellSetting controller={shell} />
++        </details>
+ 
+         <SettingsRowV2
+           title={language.t("settings.general.row.reasoningSummaries.title")}
 diff --git a/packages/app/src/components/settings-v2/providers.tsx b/packages/app/src/components/settings-v2/providers.tsx
 index acd73dd..40d749f 100644
 --- a/packages/app/src/components/settings-v2/providers.tsx
@@ -752,6 +902,151 @@ index acd73dd..40d749f 100644
                  >
                    {language.t("common.connect")}
                  </ButtonV2>
+diff --git a/packages/app/src/components/titlebar-tab-nav.css b/packages/app/src/components/titlebar-tab-nav.css
+index 93834b5..288ff1a 100644
+--- a/packages/app/src/components/titlebar-tab-nav.css
++++ b/packages/app/src/components/titlebar-tab-nav.css
+@@ -39,6 +39,20 @@
+   gap: 6px;
+ }
+ 
++@media (pointer: coarse) {
++  [data-slot="titlebar-v2"] { height: 48px; }
++  [data-slot="titlebar-tabs-scroll"] { touch-action: pan-x; overscroll-behavior-x: contain; }
++  [data-titlebar-tab] { height: 44px; }
++  [data-titlebar-tab] [data-slot="tab-link"] { padding-inline-end: 44px !important; }
++  [data-titlebar-tab] [data-slot="tab-close"] {
++    top: 0;
++    inset-inline-end: 0;
++    width: 44px;
++    height: 44px;
++  }
++  [data-titlebar-tab] [data-slot="tab-close"] button { opacity: 1; width: 44px; height: 44px; }
++}
++
+ [data-titlebar-tab-slot] {
+   --tab-separator: var(--v2-background-bg-layer-03);
+   position: relative;
+diff --git a/packages/app/src/components/titlebar-tab-strip.tsx b/packages/app/src/components/titlebar-tab-strip.tsx
+index 0a4b4da..2ea0f73 100644
+--- a/packages/app/src/components/titlebar-tab-strip.tsx
++++ b/packages/app/src/components/titlebar-tab-strip.tsx
+@@ -49,7 +49,7 @@ function SessionTabSlot(props: {
+       data-titlebar-tab-slot
+       data-tab-key={props.id}
+       data-active={props.active()}
+-      class="relative flex w-56 min-w-7 max-w-56 flex-shrink"
++      class="relative flex w-56 min-w-56 max-w-56 shrink-0"
+     >
+       <TabNavItem
+         ref={(el) => {
+@@ -192,7 +192,7 @@ function DraftTabSlot(props: {
+       data-titlebar-tab-slot
+       data-tab-key={props.id}
+       data-active={props.active()}
+-      class="relative flex w-56 min-w-7 max-w-56 flex-shrink"
++      class="relative flex w-56 min-w-56 max-w-56 shrink-0"
+     >
+       <DraftTabItem
+         ref={(el) => {
+@@ -332,7 +332,7 @@ export function TitlebarTabStrip(props: {
+             }
+           }}
+         >
+-          <div data-titlebar-tab-list class="flex w-full min-w-0 flex-row items-center" ref={listRef}>
++          <div data-titlebar-tab-list class="flex w-max min-w-full shrink-0 flex-row items-center" ref={listRef}>
+             <For each={props.tabs}>
+               {(tab) => {
+                 const id = tabKey(tab)
+diff --git a/packages/app/src/components/titlebar.tsx b/packages/app/src/components/titlebar.tsx
+index 15d963a..42c4b7f 100644
+--- a/packages/app/src/components/titlebar.tsx
++++ b/packages/app/src/components/titlebar.tsx
+@@ -647,6 +647,7 @@ function TitlebarUpdateIconButton(props: { state: TitlebarUpdatePillState }) {
+ 
+ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () => void } }) {
+   const channel = import.meta.env.VITE_OPENCODE_CHANNEL
++  if (channel === "dev" && !import.meta.env.DEV) return null
+   if (channel === "dev" && props.debugTools) {
+     return (
+       <button
+diff --git a/packages/app/src/context/file.tsx b/packages/app/src/context/file.tsx
+index fbbef3a..d51ebad 100644
+--- a/packages/app/src/context/file.tsx
++++ b/packages/app/src/context/file.tsx
+@@ -1,6 +1,7 @@
+-import { batch, createEffect, createMemo, onCleanup } from "solid-js"
++import { batch, createEffect, createMemo, lazy, onCleanup } from "solid-js"
+ import { createStore, produce, reconcile } from "solid-js/store"
+ import { createSimpleContext } from "@opencode-ai/ui/context"
++import { useDialog } from "@opencode-ai/ui/context/dialog"
+ import { showToast } from "@/utils/toast"
+ import { useParams } from "@solidjs/router"
+ import { base64Encode } from "@opencode-ai/core/util/encode"
+@@ -36,6 +37,7 @@ import {
+ 
+ export type { FileSelection, SelectedLineRange, FileViewState, FileState }
+ export { selectionFromLines }
++const DirectoryBrowser = lazy(() => import("@/components/dialog-select-directory-v2").then(m => ({ default: m.DialogSelectDirectoryV2 })))
+ export {
+   evictContentLru,
+   getFileContentBytesTotal,
+@@ -62,6 +64,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
+     const serverSDK = useServerSDK()
+     const language = useLanguage()
+     const layout = useLayout()
++    const dialog = useDialog()
+ 
+     const scope = createMemo(() => sdk().directory)
+     const path = createPathHelpers(scope)
+@@ -180,10 +183,28 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
+ 
+       setLoading(file)
+ 
+-      const promise = sdk()
+-        .client.file.read({ path: file })
++      const promise = (async () => {
++          // Resolve the entry type before calling the file-only content API.
++          const entry = await tree.resolveNode(file)
++          if (scope() !== directory) return
++          if (entry?.type === "directory") {
++            setStore("file", file, "loading", false)
++            tabs.close(path.tab(file))
++            const server = serverSDK().server
++            dialog.show(() => <DirectoryBrowser server={server} mode="file" start={entry.absolute} title={language.t("session.header.searchFiles")} onSelect={selected => {
++              if (scope() !== directory || typeof selected !== "string") return
++              const target = path.normalize(`${entry.absolute}/${selected}`)
++              tabs.open(path.tab(target))
++              tabs.setActive(path.tab(target))
++              void load(target)
++            }} />)
++            return
++          }
++          return sdk().client.file.read({ path: file })
++        })()
+         .then((x) => {
+           if (scope() !== directory) return
++          if (!x) return
+           const content = x.data
+           setLoaded(file, content)
+ 
+diff --git a/packages/app/src/context/file/tree-store.ts b/packages/app/src/context/file/tree-store.ts
+index 5769c31..60c75f1 100644
+--- a/packages/app/src/context/file/tree-store.ts
++++ b/packages/app/src/context/file/tree-store.ts
+@@ -162,6 +162,12 @@ export function createFileTreeStore(options: TreeStoreOptions) {
+   }
+ 
+   return {
++    async resolveNode(input: string) {
++      const target = input.replace(/\/$/, "")
++      const parent = target.includes("/") ? target.slice(0, target.lastIndexOf("/")) : ""
++      await listDir(parent)
++      return children(parent).find(node => node.path.replace(/\/$/, "") === target)
++    },
+     listDir,
+     expandDir,
+     collapseDir,
 diff --git a/packages/app/src/context/layout.tsx b/packages/app/src/context/layout.tsx
 index 6235f35..6ad9994 100644
 --- a/packages/app/src/context/layout.tsx
@@ -773,6 +1068,192 @@ index 6235f35..6ad9994 100644
          setSelection(selection: HomeProjectSelection) {
            setStore("home", "selection", reconcile(selection))
          },
+diff --git a/packages/app/src/context/permission-auto-respond.test.ts b/packages/app/src/context/permission-auto-respond.test.ts
+index 794e03a..2152a75 100644
+--- a/packages/app/src/context/permission-auto-respond.test.ts
++++ b/packages/app/src/context/permission-auto-respond.test.ts
+@@ -15,6 +15,21 @@ const permission = (sessionID: string) =>
+   }) as Pick<PermissionRequest, "sessionID">
+ 
+ describe("autoRespondsPermission", () => {
++  test("TinyAgent backend policy overrides every legacy auto-accept flag", () => {
++    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator")
++    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent: "Android TinyAgent/0.1" } })
++    try {
++      const directory = "/workspace"
++      const flags = { root: true, [`${base64Encode(directory)}/*`]: true }
++      const sessions = [session({ id: "root" }), session({ id: "child", parentID: "root" })]
++      expect(autoRespondsPermission(flags, sessions, permission("child"), directory)).toBe(false)
++      expect(sessionAutoAccept(flags, sessions, permission("root"), directory)).toBe(false)
++      expect(isDirectoryAutoAccepting(flags, directory)).toBe(false)
++    } finally {
++      if (descriptor) Object.defineProperty(globalThis, "navigator", descriptor)
++      else Reflect.deleteProperty(globalThis, "navigator")
++    }
++  })
+   test("uses a parent session's directory-scoped auto-accept", () => {
+     const directory = "/tmp/project"
+     const sessions = [session({ id: "root" }), session({ id: "child", parentID: "root" })]
+diff --git a/packages/app/src/context/permission-auto-respond.ts b/packages/app/src/context/permission-auto-respond.ts
+index 8fff6d7..d3a1a33 100644
+--- a/packages/app/src/context/permission-auto-respond.ts
++++ b/packages/app/src/context/permission-auto-respond.ts
+@@ -15,6 +15,7 @@ function accepted(autoAccept: Record<string, boolean>, sessionID: string, direct
+ }
+ 
+ export function isDirectoryAutoAccepting(autoAccept: Record<string, boolean>, directory: string) {
++  if (typeof navigator !== "undefined" && navigator.userAgent.includes(" TinyAgent/")) return false
+   const key = directoryAcceptKey(directory)
+   return autoAccept[key] ?? false
+ }
+@@ -54,6 +55,8 @@ export function sessionAutoAccept(
+   permission: { sessionID: string },
+   directory?: string,
+ ) {
++  // TinyAgent persists approval rules on the backend; legacy browser flags must not bypass them.
++  if (typeof navigator !== "undefined" && navigator.userAgent.includes(" TinyAgent/")) return false
+   return sessionLineage(session, permission.sessionID)
+     .map((id) => accepted(autoAccept, id, directory))
+     .find((item): item is boolean => item !== undefined)
+diff --git a/packages/app/src/context/server-sdk.test.ts b/packages/app/src/context/server-sdk.test.ts
+index 57e1cd8..b357dd7 100644
+--- a/packages/app/src/context/server-sdk.test.ts
++++ b/packages/app/src/context/server-sdk.test.ts
+@@ -1,8 +1,17 @@
+ import { describe, expect, test } from "bun:test"
+-import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
++import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow, recoverStalledStream } from "./server-sdk"
+ import type { OpenCodeEvent } from "@opencode-ai/client/promise"
+ import type { Event } from "@opencode-ai/sdk/v2/client"
+ 
++test("recovers a silent open stream after three missed heartbeats, without hidden-page reconnect loops", () => {
++  let restarts = 0
++  const restart = () => restarts++
++  expect(recoverStalledStream(false, 0, 60_000, restart)).toBe(false)
++  expect(recoverStalledStream(true, 20_000, 49_999, restart)).toBe(false)
++  expect(recoverStalledStream(true, 20_000, 50_000, restart)).toBe(true)
++  expect(restarts).toBe(1)
++})
++
+ describe("resumeStreamAfterPageShow", () => {
+   test("restarts a stream only after a back-forward cache restore", () => {
+     let starts = 0
+diff --git a/packages/app/src/context/server-sdk.tsx b/packages/app/src/context/server-sdk.tsx
+index 7dd2a6e..a4db653 100644
+--- a/packages/app/src/context/server-sdk.tsx
++++ b/packages/app/src/context/server-sdk.tsx
+@@ -164,6 +164,13 @@ export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: ()
+   start()
+ }
+ 
++export function recoverStalledStream(visible: boolean, lastEvent: number, now: number, restart: () => void) {
++  // Both server protocols emit a heartbeat every 10 seconds, even during model/tool work.
++  if (!visible || now - lastEvent < 30_000) return false
++  restart()
++  return true
++}
++
+ type ServerEventEmitter = ReturnType<typeof createGlobalEmitter<{ [key: string]: ServerEvent }>>
+ type ServerSDKBase = {
+   server: ServerConnection.Any
+@@ -256,6 +263,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
+   let run: Promise<void> | undefined
+   let started = false
+   let generation = 0
++  let lastEvent = Date.now()
+ 
+   const start = () => {
+     if (started) return run
+@@ -267,6 +275,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
+       // oxlint-disable-next-line no-unmodified-loop-condition -- `started` is set to false by stop() which also aborts; both flags are checked to allow graceful exit
+       while (!abort.signal.aborted && started && generation === active) {
+         attempt = new AbortController()
++        lastEvent = Date.now()
+         const onAbort = () => {
+           attempt?.abort()
+         }
+@@ -279,6 +288,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
+               : eventApi.event.subscribe({ signal: attempt.signal })
+           let yielded = Date.now()
+           for await (const event of events) {
++            lastEvent = Date.now()
+             streamErrorLogged = false
+             const legacy = "payload" in event
+             if (legacy && event.payload.type === "sync") continue
+@@ -323,8 +333,21 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
+   }
+ 
+   onMount(() => {
++    const reconnect = () => {
++      lastEvent = Date.now()
++      if (started) attempt?.abort()
++      else void start()
++    }
+     makeEventListener(window, "pagehide", stop)
+     makeEventListener(window, "pageshow", (event) => resumeStreamAfterPageShow(event, start))
++    makeEventListener(document, "visibilitychange", () => {
++      if (document.visibilityState === "visible") reconnect()
++    })
++    makeEventListener(window, "online", reconnect)
++    const watchdog = setInterval(() => {
++      recoverStalledStream(document.visibilityState === "visible", lastEvent, Date.now(), reconnect)
++    }, 5_000)
++    onCleanup(() => clearInterval(watchdog))
+   })
+ 
+   onCleanup(() => {
+diff --git a/packages/app/src/context/server-session.test.ts b/packages/app/src/context/server-session.test.ts
+index 2ebf5f8..14ca31c 100644
+--- a/packages/app/src/context/server-session.test.ts
++++ b/packages/app/src/context/server-session.test.ts
+@@ -95,6 +95,26 @@ function messageClient(...responses: Array<MessageResponse | Promise<MessageResp
+   })
+ }
+ 
++test("reconnect restores missed messages for the open session without reloading the app", async () => {
++  const user = userMessage("message-1")
++  const answer = assistantMessage("message-2", user.id)
++  const client = messageClient(response([{ info: user, parts: [] }]),
++    response([{ info: user, parts: [] }, { info: answer, parts: [textPart(answer.id, { text: "Recovered answer" })] }]))
++  const store = createServerSession(client)
++  store.pin("child")
++  await store.sync("child")
++  store.apply({ type: "server.connected" })
++  await new Promise((resolve) => setTimeout(resolve, 20))
++  expect(client.requests).toHaveLength(2)
++  await store.sync("child")
++  expect(store.data.message.child?.map((message) => message.id)).toEqual([user.id, answer.id])
++  expect(store.data.part[answer.id]?.[0]).toMatchObject({ text: "Recovered answer" })
++  store.unpin("child")
++  store.apply({ type: "server.connected" })
++  await Promise.resolve()
++  expect(client.requests).toHaveLength(2)
++})
++
+ function rootMessageClient(
+   pages: Array<MessageResponse | Promise<MessageResponse>>,
+   roots: Array<SingleMessageResponse | Promise<SingleMessageResponse>>,
+diff --git a/packages/app/src/context/server-session.ts b/packages/app/src/context/server-session.ts
+index c5d9868..e961b77 100644
+--- a/packages/app/src/context/server-session.ts
++++ b/packages/app/src/context/server-session.ts
+@@ -996,6 +996,16 @@ export function createServerSession(
+         void resolve(eventID).catch(() => {})
+     }
+     switch (event.type) {
++      case "server.connected":
++        // Reopening SSE does not replay messages emitted while disconnected.
++        // Refresh only mounted sessions, using the existing race-safe page merge.
++        for (const sessionID of pinned.keys()) {
++          if (data.message[sessionID] === undefined) continue
++          void Promise.resolve(inflight.get(sessionID))
++            .then(() => pinned.has(sessionID) ? sync(sessionID, { force: true }) : undefined)
++            .catch(() => {})
++        }
++        return
+       case "session.created":
+         remember((event.properties as { info: Session }).info)
+         return
 diff --git a/packages/app/src/context/server-sync.test.ts b/packages/app/src/context/server-sync.test.ts
 index 7821a09..1596fa7 100644
 --- a/packages/app/src/context/server-sync.test.ts
@@ -921,13 +1402,16 @@ index 6e5f63f..17cf1b9 100644
        () => (
          <PlatformProvider value={platform}>
 diff --git a/packages/app/src/i18n/en.ts b/packages/app/src/i18n/en.ts
-index 62d4dc1..cab80dc 100644
+index 62d4dc1..03936a8 100644
 --- a/packages/app/src/i18n/en.ts
 +++ b/packages/app/src/i18n/en.ts
-@@ -1,6 +1,16 @@
+@@ -1,6 +1,19 @@
  import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
  
  export const dict = {
++  "provider.connect.retry": "Try again",
++  "provider.connect.loadingMethods": "Loading sign-in options…",
++  "provider.connect.methodsTimeout": "The local backend did not return sign-in options within 20 seconds. Try again.",
 +  "home.list.selection": "Selection",
 +  "home.list.selected": "{{count}} selected",
 +  "home.list.deleteSelected": "Delete {{count}} selected items?",
@@ -942,11 +1426,14 @@ index 62d4dc1..cab80dc 100644
    "command.category.suggested": "Suggested",
    "command.category.view": "View",
 diff --git a/packages/app/src/i18n/ko.ts b/packages/app/src/i18n/ko.ts
-index b96fb4c..a367687 100644
+index b96fb4c..d4e1feb 100644
 --- a/packages/app/src/i18n/ko.ts
 +++ b/packages/app/src/i18n/ko.ts
-@@ -1,4 +1,14 @@
+@@ -1,4 +1,17 @@
  export const dict = {
++  "provider.connect.retry": "다시 시도",
++  "provider.connect.loadingMethods": "연결 방법 확인 중…",
++  "provider.connect.methodsTimeout": "로컬 백엔드가 20초 안에 연결 방법을 응답하지 않았습니다. 다시 시도해 주세요.",
 +  "home.list.selection": "항목 선택",
 +  "home.list.selected": "{{count}}개 선택",
 +  "home.list.deleteSelected": "선택한 {{count}}개를 삭제할까요?",
@@ -960,6 +1447,17 @@ index b96fb4c..a367687 100644
    "command.category.suggested": "추천",
    "command.category.view": "보기",
    "command.category.project": "프로젝트",
+@@ -1020,8 +1033,8 @@ export const dict = {
+   "settings.general.section.advanced": "고급",
+   "settings.general.row.shell.title": "터미널 셸",
+   "settings.general.row.shell.description":
+-    "터미널에서 사용할 셸을 선택하세요. 호환되는 셸은 에이전트 도구 호출에도 사용됩니다.",
+-  "settings.general.row.shell.autoDefault": "자동 (기본값)",
++    "보통은 자동으로 두면 됩니다.",
++  "settings.general.row.shell.autoDefault": "자동",
+   "settings.general.row.shell.terminalOnly": "터미널 전용",
+   "settings.general.row.showFileTree.title": "파일 트리",
+   "settings.general.row.showFileTree.description": "세션에 파일 트리 패널 표시",
 diff --git a/packages/app/src/index.css b/packages/app/src/index.css
 index 78a9e10..354168c 100644
 --- a/packages/app/src/index.css
@@ -1129,137 +1627,6 @@ index 8b67533..ee8251b 100644
    createEffect(() => {
      const list = global.servers.list()
      if (list.some((conn) => ServerConnection.key(conn) === selection().server)) return
-diff --git a/packages/app/src/pages/home/home-list-actions.tsx b/packages/app/src/pages/home/home-list-actions.tsx
-new file mode 100644
-index 0000000..ff85061
---- /dev/null
-+++ b/packages/app/src/pages/home/home-list-actions.tsx
-@@ -0,0 +1,125 @@
-+import { createMemo, onCleanup, Show } from "solid-js"
-+import { createStore } from "solid-js/store"
-+import { Portal } from "solid-js/web"
-+import { useDialog } from "@opencode-ai/ui/context/dialog"
-+import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-+import { useLanguage } from "@/context/language"
-+import { errorMessage } from "@/pages/layout/helpers"
-+import { showToast } from "@/utils/toast"
-+
-+export function createListActions<T>(options: { key: (item: T) => string; remove: (item: T) => Promise<void> }) {
-+  const language = useLanguage()
-+  const dialog = useDialog()
-+  const [state, setState] = createStore({ selected: [] as T[], pending: [] as T[], removing: [] as T[] })
-+  let timer: ReturnType<typeof setTimeout> | undefined
-+  const contains = (items: T[], item: T) => items.some((entry) => options.key(entry) === options.key(item))
-+  const undo = () => { clearTimeout(timer); setState("pending", []) }
-+  // Leaving the list during the undo window cancels uncommitted deletion.
-+  onCleanup(undo)
-+  const queue = (items: T[]) => {
-+    clearTimeout(timer)
-+    setState("pending", (pending) => [...pending, ...items.filter((item) => !contains(pending, item))])
-+    setState("selected", [])
-+    timer = setTimeout(() => {
-+      const pending = [...state.pending]
-+      setState("removing", (items) => [...items, ...pending])
-+      setState("pending", [])
-+      void Promise.all(pending.map(async (item) => {
-+        await options.remove(item).catch((cause) => showToast({
-+          title: language.t("session.delete.failed.title"),
-+          description: errorMessage(cause, language.t("common.requestFailed")),
-+        }))
-+        setState("removing", (items) => items.filter((entry) => options.key(entry) !== options.key(item)))
-+      }))
-+    }, 6000)
-+  }
-+  const confirm = async () => {
-+    const selected = [...state.selected]
-+    if (!selected.length) return
-+    const { DialogV2, DialogHeader, DialogTitleGroup, DialogFooter } = await import("@opencode-ai/ui/v2/dialog-v2")
-+    dialog.show(() => <DialogV2 fit>
-+      <DialogHeader><DialogTitleGroup title={language.t("home.list.deleteSelected", { count: selected.length })}
-+        description={language.t("home.list.deleteDescription")} /></DialogHeader>
-+      <DialogFooter>
-+        <ButtonV2 variant="ghost" onClick={() => dialog.close()}>{language.t("common.cancel")}</ButtonV2>
-+        <ButtonV2 variant="danger" onClick={() => { queue(selected); dialog.close() }}>{language.t("common.delete")}</ButtonV2>
-+      </DialogFooter>
-+    </DialogV2>)
-+  }
-+  return {
-+    count: () => state.selected.length,
-+    pending: () => state.pending.length,
-+    selected: (item: T) => contains(state.selected, item),
-+    hidden: (item: T) => contains(state.pending, item) || contains(state.removing, item),
-+    toggle: (item: T) => setState("selected", (items) => contains(items, item)
-+      ? items.filter((entry) => options.key(entry) !== options.key(item)) : [...items, item]),
-+    clear: () => setState("selected", []),
-+    reset: () => { undo(); setState("selected", []) },
-+    queue: (item: T) => queue([item]),
-+    confirm,
-+    undo,
-+  }
-+}
-+
-+export function ListActionBars(props: { actions: Pick<ReturnType<typeof createListActions>, "count" | "pending" | "clear" | "confirm" | "undo"> }) {
-+  const language = useLanguage()
-+  return <>
-+    <Show when={props.actions.count()}>
-+      <div class="home-selection-bar" role="toolbar" aria-label={language.t("home.list.selection")}>
-+        <button type="button" onClick={props.actions.clear}>{language.t("common.cancel")}</button>
-+        <strong aria-live="polite">{language.t("home.list.selected", { count: props.actions.count() })}</strong>
-+        <button type="button" class="home-selection-delete" onClick={props.actions.confirm}>{language.t("common.delete")}</button>
-+      </div>
-+    </Show>
-+    <Show when={props.actions.pending()}>
-+      <Portal><div class="home-undo-bar" role="status">
-+        <span>{language.t("home.list.removed", { count: props.actions.pending() })}</span>
-+        <button type="button" onClick={props.actions.undo}>{language.t("home.list.undo")}</button>
-+      </div></Portal>
-+    </Show>
-+  </>
-+}
-+
-+export function createRowGesture(options: { hold: () => void; selecting: () => boolean; width: number }) {
-+  const [state, setState] = createStore({ offset: 0, open: false, dragging: false, pressed: false })
-+  const start = { x: 0, y: 0, active: false, moved: false }
-+  let timer: ReturnType<typeof setTimeout> | undefined
-+  const releaseClickGuard = () => {
-+    document.removeEventListener("click", suppressClick, true)
-+    document.removeEventListener("pointerdown", releaseClickGuard, true)
-+  }
-+  const suppressClick = (event: MouseEvent) => { event.preventDefault(); event.stopImmediatePropagation(); releaseClickGuard() }
-+  const close = () => setState({ open: false, offset: 0, dragging: false, pressed: false })
-+  const cancel = () => { clearTimeout(timer); start.active = false; setState({ dragging: false, pressed: false, offset: state.open ? -options.width : 0 }) }
-+  onCleanup(() => { clearTimeout(timer); releaseClickGuard() })
-+  return {
-+    state, close,
-+    reveal: () => setState({ open: true, offset: -options.width }),
-+    style: createMemo(() => ({ transform: `translateX(${state.offset}px)`, transition: state.dragging ? "none" : undefined })),
-+    down: (event: PointerEvent) => {
-+      if (event.button !== 0) return
-+      start.x = event.clientX; start.y = event.clientY; start.active = true; start.moved = false
-+      setState("pressed", true)
-+      timer = setTimeout(() => {
-+        start.moved = true; start.active = false; close()
-+        // Android can retarget touch-release click after the selection toolbar moves rows.
-+        document.addEventListener("click", suppressClick, true)
-+        document.addEventListener("pointerdown", releaseClickGuard, true)
-+        options.hold()
-+      }, 450)
-+      ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-+    },
-+    move: (event: PointerEvent) => {
-+      if (!start.active) return
-+      const x = event.clientX - start.x
-+      const y = event.clientY - start.y
-+      if (Math.hypot(x, y) > 8) { clearTimeout(timer); setState("pressed", false); start.moved = true }
-+      if (Math.abs(y) > 10 && Math.abs(y) > Math.abs(x)) { cancel(); return }
-+      if (options.selecting() || Math.abs(x) < 8 || Math.abs(x) < Math.abs(y)) return
-+      setState({ dragging: true, offset: Math.max(-options.width - 18, Math.min(0, (state.open ? -options.width : 0) + x)) })
-+    },
-+    up: () => { clearTimeout(timer); start.active = false; const open = state.offset < -40; setState({ open, dragging: false, pressed: false, offset: open ? -options.width : 0 }) },
-+    cancel: () => { start.moved = true; cancel() },
-+    consumed: () => { if (start.moved) { start.moved = false; return true }; if (state.open) { close(); return true }; return false },
-+  }
-+}
 diff --git a/packages/app/src/pages/home/home-projects-controller.tsx b/packages/app/src/pages/home/home-projects-controller.tsx
 index 18c58bd..f5316bb 100644
 --- a/packages/app/src/pages/home/home-projects-controller.tsx
@@ -1840,166 +2207,231 @@ index 600ff41..51e2357 100644
  
          <Show when={controller.showComposer()}>
            <Show when={controller.dock()}>
-diff --git a/packages/app/src/pages/session/composer/tinyagent-access.test.ts b/packages/app/src/pages/session/composer/tinyagent-access.test.ts
+diff --git a/packages/app/src/pages/session/timeline/message-timeline.tsx b/packages/app/src/pages/session/timeline/message-timeline.tsx
+index e083882..a0dcf95 100644
+--- a/packages/app/src/pages/session/timeline/message-timeline.tsx
++++ b/packages/app/src/pages/session/timeline/message-timeline.tsx
+@@ -40,6 +40,7 @@ import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@opencod
+ import { InlineInput } from "@opencode-ai/ui/inline-input"
+ import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+ import { SessionRetry } from "@opencode-ai/session-ui/session-retry"
++import { turnStatus, turnOutput } from "@opencode-ai/session-ui/session-turn-status"
+ import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@opencode-ai/ui/scroll-view"
+ import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
+ import { TextField } from "@opencode-ai/ui/text-field"
+@@ -129,13 +130,21 @@ const markBoundaryGesture = (input: {
+   }
+ }
+ 
+-function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSummaries: boolean }) {
++function TimelineThinkingRow(props: {
++  activity: ReturnType<typeof turnStatus>
++  output?: string
++  reasoningHeading?: string
++  showReasoningSummaries: boolean
++}) {
+   const language = useLanguage()
+ 
+   return (
+     <div data-slot="session-turn-thinking">
+-      <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
+-      <Show when={!props.showReasoningSummaries}>
++      <TextShimmer text={language.t(props.activity)} />
++      <Show when={props.output}>
++        <span data-slot="session-turn-live-output" dir="auto">{props.output}</span>
++      </Show>
++      <Show when={!props.showReasoningSummaries && props.activity === "ui.sessionTurn.status.thinking"}>
+         <TextReveal text={props.reasoningHeading} class="session-turn-thinking-heading" travel={25} duration={700} />
+       </Show>
+     </div>
+@@ -1180,10 +1189,19 @@ export function MessageTimeline(props: {
+       }
+       case "Thinking": {
+         const thinkingRow = row as Accessor<TimelineRowByTag<"Thinking">>
++        const activityParts = createMemo(() => sessionMessages().flatMap((message) =>
++          message.role === "assistant" && message.parentID === thinkingRow().userMessageID
++            ? getMsgParts(message.id)
++            : [],
++        ))
++        const activity = createMemo(() => turnStatus(activityParts()))
++        const output = createMemo(() => turnOutput(activityParts()))
+         return (
+           <TimelineRowFrame row={thinkingRow}>
+             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+               <TimelineThinkingRow
++                activity={activity()}
++                output={output()}
+                 reasoningHeading={thinkingRow().reasoningHeading}
+                 showReasoningSummaries={settings.general.showReasoningSummaries()}
+               />
+diff --git a/packages/app/src/pages/session/timeline/timeline-row.test.ts b/packages/app/src/pages/session/timeline/timeline-row.test.ts
 new file mode 100644
-index 0000000..eb91c7d
+index 0000000..0aa9238
 --- /dev/null
-+++ b/packages/app/src/pages/session/composer/tinyagent-access.test.ts
-@@ -0,0 +1,15 @@
++++ b/packages/app/src/pages/session/timeline/timeline-row.test.ts
+@@ -0,0 +1,29 @@
 +import { expect, test } from "bun:test"
-+import { accessMode, accessRules } from "./tinyagent-access"
++import { TimelineRow as Row } from "./timeline-row"
 +
-+test("permission modes honor blanket ordering without escalating custom restrictions", () => {
-+  const allow = { permission: "*", pattern: "*", action: "allow" } as const
-+  const deny = { permission: "bash", pattern: "rm *", action: "deny" } as const
-+  expect(accessMode([])).toBe("basic")
-+  for (const mode of ["basic", "read", "yolo"] as const) expect(accessMode(accessRules(mode))).toBe(mode)
-+  expect(accessMode([allow])).toBe("yolo")
-+  expect(accessMode([deny, allow])).toBe("yolo")
-+  expect(accessMode([allow, deny])).toBe("custom")
-+  expect(accessMode([deny])).toBe("custom")
-+  expect(accessMode([...accessRules("yolo"), { permission: "doom_loop", pattern: "*", action: "ask" }])).toBe("custom")
-+  expect(accessMode([{ permission: "*", pattern: "*", action: "deny" }])).toBe("custom")
++test("row equality preserves every display field and user boundary", () => {
++  const pairs: [Row.TimelineRow, Row.TimelineRow][] = [
++    [new Row.UserMessage({ userMessageID: "u", anchor: true }), new Row.UserMessage({ userMessageID: "u", anchor: false })],
++    [new Row.Thinking({ userMessageID: "u" }), new Row.Thinking({ userMessageID: "u", reasoningHeading: "Next" })],
++    [new Row.Error({ userMessageID: "u", text: "a" }), new Row.Error({ userMessageID: "u", text: "b" })],
++    [new Row.TurnDivider({ userMessageID: "u", label: "compaction" }), new Row.TurnDivider({ userMessageID: "u", label: "interrupted" })],
++    [new Row.Retry({ userMessageID: "u" }), new Row.Retry({ userMessageID: "v" })],
++    [new Row.TurnGap({ userMessageID: "u" }), new Row.CommentStrip({ userMessageID: "u" })],
++  ]
++  for (const [a, b] of pairs) {
++    expect(Row.equals(a, a)).toBe(true)
++    expect(Row.equals(a, b)).toBe(false)
++    expect(Row.equals(b, a)).toBe(false)
++  }
 +})
-diff --git a/packages/app/src/pages/session/composer/tinyagent-access.tsx b/packages/app/src/pages/session/composer/tinyagent-access.tsx
-new file mode 100644
-index 0000000..867396e
---- /dev/null
-+++ b/packages/app/src/pages/session/composer/tinyagent-access.tsx
-@@ -0,0 +1,133 @@
-+import { createEffect, createSignal, onCleanup, Show } from "solid-js"
-+import { useParams } from "@solidjs/router"
-+import { useSDK } from "@/context/sdk"
-+import { useLanguage } from "@/context/language"
-+import { SessionPermissionDock } from "./session-permission-dock"
-+import type { PermissionRequest } from "@opencode-ai/sdk/v2"
 +
-+type Mode = "basic" | "read" | "yolo"
-+type Rule = { permission: string; pattern: string; action: "allow" | "ask" | "deny" }
-+export function accessRules(mode: Mode): Rule[] {
-+  const rule = (permission: string, action: "allow" | "ask", pattern = "*"): Rule => ({ permission, pattern, action })
-+  const rules = [rule("*", mode === "read" ? "ask" : "allow"), rule("external_directory", mode === "yolo" ? "allow" : "ask"), rule("doom_loop", mode === "yolo" ? "allow" : "ask")]
-+  for (const name of ["read", "glob", "grep", "list"]) rules.push(rule(name, "allow"))
-+  // The directory includes signing material; allow only known harness reads via
-+  // one-time replies below, never grant broad /root access in the basic modes.
-+  return rules
-+}
-+export function accessMode(rules: Rule[]): Mode | "custom" {
-+  if (!rules.length) return "basic"
-+  // OpenCode evaluates the last matching rule. A blanket rule supersedes all earlier rules.
-+  const index = rules.findLastIndex(rule => rule.permission === "*" && rule.pattern === "*")
-+  if (index < 0) return "custom"
-+  const remaining = rules.slice(index)
-+  if (remaining.every(rule => rule.action === "allow")) return "yolo"
-+  if (remaining.some(rule => rule.pattern !== "*")) return "custom"
-+  const actual = new Map(remaining.map(rule => [rule.permission, rule.action]))
-+  for (const mode of ["basic", "read"] as const) {
-+    const expected = accessRules(mode)
-+    if (actual.size === expected.length && expected.every(rule => actual.get(rule.permission) === rule.action)) return mode
-+  }
-+  return "custom"
-+}
-+const safeReads = new Set(["AGENTS.md", "STOCK.md", "ADB.md", "ROOT.md", "TINYAGENT_ENVIRONMENT.md", "ANDROID_TOOL.md"].map(x => "/root/.tinyagent/" + x))
-+for (const x of ["prepare-development.sh", "prepare-self-build.sh", "prepare-android-sdk-fedora.py", "configure-android-sdk-fedora.py"]) safeReads.add("/root/.tinyagent/bootstrap/" + x)
-+safeReads.add("/etc/os-release")
-+safeReads.add("/etc/fedora-release")
-+
-+export function TinyAgentAccess() {
-+  const params = useParams()
-+  const sdk = useSDK()
-+  const language = useLanguage()
-+  const [mode, setMode] = createSignal<Mode | "custom">()
-+  const [pending, setPending] = createSignal<PermissionRequest[]>([])
-+  const [busy, setBusy] = createSignal(false)
-+  const [error, setError] = createSignal("")
-+  let policyVersion = 0
-+  let refresh = async () => {}
-+  async function request(path: string, method = "GET", body?: unknown) {
-+    const response = await fetch(path, { method, headers: { "Content-Type": "application/json", "x-opencode-directory": sdk().directory }, body: body === undefined ? undefined : JSON.stringify(body) })
-+    if (!response.ok) throw new Error(`권한 설정 요청 실패 (${response.status})`)
-+    return response.json()
-+  }
-+  createEffect(() => {
-+    const id = params.id
-+    sdk().directory
-+    setPending([])
-+    setMode(undefined)
-+    if (!id) return
-+    let disposed = false, loading = false
-+    refresh = async () => {
-+      if (loading || disposed) return
-+      loading = true
-+      const version = policyVersion
-+      try {
-+        const [session, requests] = await Promise.all([request(`/session/${id}`), request("/permission")])
-+        if (disposed || version !== policyVersion) return
-+        const rules: Rule[] = session.permission ?? []
-+        setMode(accessMode(rules))
-+        const selected: PermissionRequest[] = requests.filter((r: PermissionRequest) => r.sessionID === id)
-+        setPending(selected)
-+        setError("")
-+        // Reconcile initial events and reconnects using the backend's actual queue.
-+        // Only verify bundled, read-only environment requests automatically.
-+        for (const p of selected) {
-+          if (disposed || busy() || version !== policyVersion) break
-+          const path = p.metadata?.filepath
-+          if (mode() === "yolo") {
-+            await request(`/permission/${p.id}/reply`, "POST", { reply: "once" })
-+          } else if (p.permission === "external_directory" && typeof path === "string" && safeReads.has(path)) {
-+            const messages = await request(`/session/${id}/message`)
-+            const read = messages.flatMap((m: { parts: any[] }) => m.parts).some((part: any) => part.tool === "read" && part.callID === p.tool?.callID && part.state?.input?.filePath === path)
-+            if (!disposed && !busy() && version === policyVersion && read) await request(`/permission/${p.id}/reply`, "POST", { reply: "once" })
-+          }
-+        }
-+      } catch (e) { if (!disposed) setError(e instanceof Error ? e.message : "권한 상태 확인 실패") }
-+      finally { loading = false }
-+    }
-+    void refresh()
-+    const timer = setInterval(() => void refresh(), 2000)
-+    onCleanup(() => { disposed = true; clearInterval(timer) })
++test("assistant equality compares ordered references and previous-part flag", () => {
++  const part = (messageID = "m", partID = "p", previousAssistantPart = false) => new Row.AssistantPart({
++    userMessageID: "u", previousAssistantPart,
++    group: { key: "k", type: "part", ref: { messageID, partID } },
 +  })
-+  async function change(value: Mode) {
-+    const id = params.id
-+    if (!id || busy()) return
-+    policyVersion++
-+    setBusy(true)
++  expect(Row.equals(part(), part())).toBe(true)
++  expect(Row.equals(part(), part("other"))).toBe(false)
++  expect(Row.equals(part(), part("m", "other"))).toBe(false)
++  expect(Row.equals(part(), part("m", "p", true))).toBe(false)
++})
+diff --git a/packages/app/src/pages/session/timeline/timeline-row.ts b/packages/app/src/pages/session/timeline/timeline-row.ts
+index 3905254..2bc6ee5 100644
+--- a/packages/app/src/pages/session/timeline/timeline-row.ts
++++ b/packages/app/src/pages/session/timeline/timeline-row.ts
+@@ -75,6 +75,31 @@ export namespace TimelineRow {
+   }
+ 
+   export function equals(a: TimelineRow, b: TimelineRow) {
+-    return Equal.equals(a, b)
++    if (a === b) return true
++    if (a._tag !== b._tag || a.userMessageID !== b.userMessageID) return false
++    switch (a._tag) {
++      case "AssistantPart": {
++        if (b._tag !== "AssistantPart" || a.previousAssistantPart !== b.previousAssistantPart ||
++          a.group.key !== b.group.key || a.group.type !== b.group.type) return false
++        const left = a.group.type === "part" ? [a.group.ref] : a.group.refs
++        const right = b.group.type === "part" ? [b.group.ref] : b.group.refs
++        return left.length === right.length && left.every((ref, index) =>
++          ref.messageID === right[index]!.messageID && ref.partID === right[index]!.partID)
++      }
++      case "UserMessage":
++        return b._tag === "UserMessage" && a.anchor === b.anchor
++      case "TurnDivider":
++        return b._tag === "TurnDivider" && a.label === b.label
++      case "Thinking":
++        return b._tag === "Thinking" && a.reasoningHeading === b.reasoningHeading
++      case "Error":
++        return b._tag === "Error" && a.text === b.text
++      case "DiffSummary":
++        return b._tag === "DiffSummary" && Equal.equals(a.diffs, b.diffs)
++      case "TurnGap":
++      case "CommentStrip":
++      case "Retry":
++        return true
++    }
+   }
+ }
+diff --git a/packages/app/src/utils/server-compat.test.ts b/packages/app/src/utils/server-compat.test.ts
+index 52e5ec6..abaeecc 100644
+--- a/packages/app/src/utils/server-compat.test.ts
++++ b/packages/app/src/utils/server-compat.test.ts
+@@ -4,13 +4,15 @@ import { createCompatibleApi } from "./server-compat"
+ 
+ function setup(
+   protocol: "v1" | "v2" | Promise<"v1" | "v2">,
+-  responses?: { vcs?: { branch: string; default_branch: string } },
++  responses?: { vcs?: { branch: string; default_branch: string }; authSetStatus?: number },
+ ) {
+   const requests: Request[] = []
+   const fetcher = Object.assign(
+     async (input: string | URL | Request, init?: RequestInit) => {
+       const request = new Request(input, init)
+       requests.push(request)
++      if (request.method === "PUT" && new URL(request.url).pathname.startsWith("/auth/") && responses?.authSetStatus)
++        return Response.json({ message: "Key save failed" }, { status: responses.authSetStatus })
+       if (request.method === "PATCH") {
+         return Response.json({
+           id: "ses_1",
+@@ -157,6 +159,23 @@ describe("createCompatibleApi", () => {
+   })
+   */
+ 
++  test("bounds V1 auth method lookup and propagates cancellation", async () => {
++    const original = AbortSignal.timeout
++    const controller = new AbortController()
++    let duration = 0
++    AbortSignal.timeout = (ms) => { duration = ms; return controller.signal }
 +    try {
-+      await request(`/session/${id}`, "PATCH", { permission: accessRules(value) })
-+      if (params.id !== id) return
-+      setMode(value)
-+      await refresh()
-+    } catch (e) { setError(e instanceof Error ? e.message : "권한 설정 실패") }
-+    finally { setBusy(false) }
-+  }
-+  async function decide(reply: "once" | "always" | "reject") {
-+    const p = pending()[0]
-+    if (!p || busy()) return
-+    setBusy(true)
-+    try { await request(`/permission/${p.id}/reply`, "POST", { reply }); await refresh() }
-+    catch (e) { setError(e instanceof Error ? e.message : "승인 응답 실패") }
-+    finally { setBusy(false) }
-+  }
-+  return <Show when={params.id}>
-+    <div data-component="tinyagent-access" class="rounded-lg border border-border-weak-base bg-background-base px-3 py-1 mb-2 text-text-base">
-+      <div class="flex items-start justify-between gap-2">
-+        <details class="min-w-0 flex-1 text-12-regular text-text-weak">
-+          <summary class="min-h-11 flex items-center cursor-pointer text-14-medium text-text-base">에이전트 승인 ⓘ</summary>
-+          <p class="pb-2">이 세션에 저장됩니다. Android의 Stock·Developer·Root 권한은 바뀌지 않습니다.</p>
-+        </details>
-+        <select aria-label="에이전트 승인 모드" value={mode() ?? ""} disabled={busy() || mode() === undefined} onChange={e => void change(e.currentTarget.value as Mode)} class="min-h-11 rounded-md bg-background-stronger px-3 text-text-base">
-+          <Show when={mode() === undefined}><option value="" disabled>{language.t("common.loading")}</option></Show>
-+          <option value="basic">기본</option><option value="read">읽기 전용</option><option value="yolo">전체 허용 · YOLO</option>
-+          <Show when={mode() === "custom"}><option value="custom" disabled>{language.t("settings.providers.tag.custom")}</option></Show>
-+        </select>
-+      </div>
-+      <Show when={error()}><p role="alert" class="text-13-regular mt-2">{error()}</p></Show>
-+      <Show when={pending()[0]} keyed>{p => <div class="mt-2" role="region" aria-label="승인 대기">
-+        <p role="status" class="text-14-medium">승인 대기 · {pending().length}건 — 허용 또는 거부를 선택하세요.</p>
-+        <SessionPermissionDock request={p} responding={busy()} onDecide={reply => void decide(reply)} />
-+      </div>}</Show>
-+    </div>
-+  </Show>
-+}
++      const { api, requests } = setup("v1")
++      await api.integration.get({ integrationID: "opencode-go" })
++      expect(duration).toBe(20_000)
++      expect(new URL(requests[0]!.url).pathname).toBe("/provider/auth")
++      controller.abort()
++      expect(requests[0]!.signal.aborted).toBe(true)
++    } finally {
++      AbortSignal.timeout = original
++    }
++  })
++
+   test("uses the global V1 session search endpoint", async () => {
+     const { api, requests } = setup("v1")
+     await api.session.list({ parentID: null, search: "session", limit: 50 })
+@@ -215,6 +234,12 @@ describe("createCompatibleApi", () => {
+     expect(requests[2]!.headers.get("x-opencode-directory")).toBeNull()
+   })
+ 
++  test("does not report key connection or dispose runtime when key save fails", async () => {
++    const { api, requests } = setup("v1", { authSetStatus: 500 })
++    await expect(api.integration.connect.key({ integrationID: "openrouter", key: "test-key" })).rejects.toMatchObject({ message: "Key save failed" })
++    expect(requests.map(r => new URL(r.url).pathname)).toEqual(["/auth/openrouter"])
++  })
++
+   test("disposes the V1 instance after completing provider OAuth", async () => {
+     const { api, requests } = setup("v1")
+ 
+diff --git a/packages/app/src/utils/server-compat.ts b/packages/app/src/utils/server-compat.ts
+index 1df1338..d9dafec 100644
+--- a/packages/app/src/utils/server-compat.ts
++++ b/packages/app/src/utils/server-compat.ts
+@@ -378,7 +378,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
+     integration: {
+       ...input.current.integration,
+       async get(value: Parameters<ServerApi["integration"]["get"]>[0]) {
+-        const methods = ((await legacy(value.location).provider.auth()).data?.[value.integrationID] ?? []).map(
++        const methods = ((await legacy(value.location).provider.auth(undefined, { signal: AbortSignal.timeout(20_000), throwOnError: true })).data?.[value.integrationID] ?? []).map(
+           (method, index) =>
+             method.type === "api"
+               ? { type: "key" as const, label: method.label }
+@@ -400,9 +400,9 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
+           await legacy(value.location).auth.set({
+             providerID: value.integrationID,
+             auth: { type: "api", key: value.key },
+-          })
+-          await legacy(value.location).instance.dispose()
+-          await input.legacy().instance.dispose()
++          }, { throwOnError: true, signal: AbortSignal.timeout(20_000) })
++          await legacy(value.location).instance.dispose(undefined, { throwOnError: true, signal: AbortSignal.timeout(30_000) })
++          await input.legacy().instance.dispose(undefined, { throwOnError: true, signal: AbortSignal.timeout(30_000) })
+         },
+       },
+       oauth: {
+diff --git a/packages/session-ui/package.json b/packages/session-ui/package.json
+index 0c1c656..f7dde99 100644
+--- a/packages/session-ui/package.json
++++ b/packages/session-ui/package.json
+@@ -7,6 +7,7 @@
+   "exports": {
+     "./*": "./src/components/*.tsx",
+     "./session-diff": "./src/components/session-diff.ts",
++    "./session-turn-status": "./src/components/session-turn-status.ts",
+     "./message-file": "./src/components/message-file.ts",
+     "./message-part-text": "./src/components/message-part-text.ts",
+     "./markdown-stream": "./src/components/markdown-stream.ts",
 diff --git a/packages/session-ui/src/components/markdown.tsx b/packages/session-ui/src/components/markdown.tsx
 index 95894ba..9df5585 100644
 --- a/packages/session-ui/src/components/markdown.tsx
@@ -2020,3 +2452,273 @@ index 95894ba..9df5585 100644
    const href = text.trim().replace(/[),.;!?]+$/, "")
    if (!urlPattern.test(href)) return
    try {
+diff --git a/packages/session-ui/src/components/message-part.tsx b/packages/session-ui/src/components/message-part.tsx
+index d2a00b9..e5b6260 100644
+--- a/packages/session-ui/src/components/message-part.tsx
++++ b/packages/session-ui/src/components/message-part.tsx
+@@ -32,6 +32,7 @@ import {
+   QuestionInfo,
+ } from "@opencode-ai/sdk/v2"
+ import { useData } from "../context"
++import { createAutoScroll } from "@opencode-ai/ui/hooks"
+ import { useFileComponent } from "@opencode-ai/ui/context/file"
+ import { useDialog } from "@opencode-ai/ui/context/dialog"
+ import { type UiI18n, useI18n } from "@opencode-ai/ui/context/i18n"
+@@ -2087,6 +2088,7 @@ ToolRegistry.register({
+   render(props) {
+     const i18n = useI18n()
+     const pending = () => props.status === "pending" || props.status === "running"
++    const autoScroll = createAutoScroll({ working: pending })
+     const sawPending = pending()
+     const text = createMemo(() => {
+       const cmd = props.input.command ?? props.metadata.command ?? ""
+@@ -2136,13 +2138,16 @@ ToolRegistry.register({
+             </TooltipV2>
+           </div>
+           <div
++            ref={autoScroll.scrollRef}
++            onScroll={autoScroll.handleScroll}
++            onClick={autoScroll.handleInteraction}
+             data-slot="bash-scroll"
+             data-scrollable
+             tabIndex={0}
+             role="region"
+             aria-label={i18n.t("ui.scrollView.ariaLabel")}
+           >
+-            <pre data-slot="bash-pre">
++            <pre ref={autoScroll.contentRef} data-slot="bash-pre">
+               <code>{text()}</code>
+             </pre>
+           </div>
+diff --git a/packages/session-ui/src/components/session-turn-status.test.ts b/packages/session-ui/src/components/session-turn-status.test.ts
+new file mode 100644
+index 0000000..e6fae6d
+--- /dev/null
++++ b/packages/session-ui/src/components/session-turn-status.test.ts
+@@ -0,0 +1,28 @@
++import { expect, test } from "bun:test"
++import type { Part } from "@opencode-ai/sdk/v2/client"
++import { turnStatus, turnOutput } from "./session-turn-status"
++
++test("busy turn exposes only actual latest shell output, without inventing download status", () => {
++  const tool = (status: "running" | "completed", output: unknown) =>
++    ({ id: "part", sessionID: "session", messageID: "message", callID: "call", type: "tool", tool: "bash",
++      state: { status, input: {}, time: { start: 1, end: 2 }, title: "fetch", output: "", metadata: { output } } }) as Part
++  expect(turnOutput([tool("running", "fetching\n\u001b[33mretry 2\u001b[0m\r\n")])).toBe("retry 2")
++  expect(turnOutput([tool("completed", "old error"), tool("running", "")])).toBeUndefined()
++  expect(turnOutput([tool("completed", "done")])).toBeUndefined()
++  expect(turnOutput([tool("running", { invalid: true })])).toBeUndefined()
++  expect(turnOutput([tool("running", "x".repeat(400))])?.length).toBe(241)
++})
++
++test("activity follows tool transitions instead of labeling every busy turn as thinking", () => {
++  const tool = (name: string, status: "pending" | "running" | "completed" | "error") =>
++    ({ type: "tool", tool: name, state: { status } }) as Part
++  expect(turnStatus([])).toBe("ui.sessionTurn.status.thinking")
++  expect(turnStatus([tool("bash", "pending")])).toBe("ui.sessionTurn.status.thinking")
++  expect(turnStatus([tool("bash", "running")])).toBe("ui.sessionTurn.status.runningCommands")
++  expect(turnStatus([tool("bash", "completed")])).toBe("ui.sessionTurn.status.consideringNextSteps")
++  expect(turnStatus([tool("bash", "error")])).toBe("ui.sessionTurn.status.consideringNextSteps")
++  expect(turnStatus([tool("bash", "completed"), tool("edit", "running")])).toBe("ui.sessionTurn.status.makingEdits")
++  expect(turnStatus([tool("bash", "running"), tool("read", "completed")])).toBe("ui.sessionTurn.status.runningCommands")
++  expect(turnStatus([tool("grep", "running")])).toBe("ui.sessionTurn.status.searchingCodebase")
++  expect(turnStatus([tool("bash", "completed"), { type: "reasoning", text: "next" } as Part])).toBe("ui.sessionTurn.status.thinking")
++})
+diff --git a/packages/session-ui/src/components/session-turn-status.ts b/packages/session-ui/src/components/session-turn-status.ts
+new file mode 100644
+index 0000000..64e60c4
+--- /dev/null
++++ b/packages/session-ui/src/components/session-turn-status.ts
+@@ -0,0 +1,29 @@
++import type { Part } from "@opencode-ai/sdk/v2/client"
++import stripAnsi from "strip-ansi"
++
++export function turnOutput(parts: readonly Part[]) {
++  const part = parts.findLast((part) => part.type === "tool" && part.state.status === "running")
++  if (part?.type !== "tool" || part.state.status !== "running" || !["bash", "shell"].includes(part.tool)) return
++  const output = part.state.metadata?.output
++  if (typeof output !== "string") return
++  const line = stripAnsi(output.slice(-4096)).split(/[\r\n]/).findLast((line) => line.trim())?.trim()
++  if (!line) return
++  return line.length > 240 ? line.slice(0, 240) + "…" : line
++}
++
++export function turnStatus(parts: readonly Part[]) {
++  const running = parts.findLast((part) => part.type === "tool" && part.state.status === "running")
++  if (running?.type === "tool") {
++    if (["bash", "shell"].includes(running.tool)) return "ui.sessionTurn.status.runningCommands"
++    if (["edit", "write", "apply_patch"].includes(running.tool)) return "ui.sessionTurn.status.makingEdits"
++    if (["grep", "glob"].includes(running.tool)) return "ui.sessionTurn.status.searchingCodebase"
++    if (["webfetch", "websearch"].includes(running.tool)) return "ui.sessionTurn.status.searchingWeb"
++    if (running.tool === "task") return "ui.sessionTurn.status.delegating"
++    return "ui.sessionTurn.status.gatheringContext"
++  }
++  const last = parts.findLast((part) => ["tool", "text", "reasoning"].includes(part.type))
++  if (last?.type === "tool" && ["completed", "error"].includes(last.state.status)) {
++    return "ui.sessionTurn.status.consideringNextSteps"
++  }
++  return "ui.sessionTurn.status.thinking"
++}
+diff --git a/packages/session-ui/src/components/session-turn.css b/packages/session-ui/src/components/session-turn.css
+index 2c9aeb9..6da14d5 100644
+--- a/packages/session-ui/src/components/session-turn.css
++++ b/packages/session-ui/src/components/session-turn.css
+@@ -45,6 +45,7 @@
+ 
+   [data-slot="session-turn-thinking"] {
+     display: flex;
++    flex-wrap: wrap;
+     align-items: center;
+     gap: 8px;
+     margin-top: 12px;
+@@ -63,6 +64,18 @@
+     }
+   }
+ 
++  [data-slot="session-turn-live-output"] {
++    flex-basis: 100%;
++    min-width: 0;
++    overflow-wrap: anywhere;
++    color: var(--text-base);
++    font-weight: var(--font-weight-regular);
++    display: -webkit-box;
++    -webkit-line-clamp: 2;
++    -webkit-box-orient: vertical;
++    overflow: hidden;
++  }
++
+   [data-component="text-reveal"].session-turn-thinking-heading {
+     flex: 1 1 auto;
+     min-width: 0;
+diff --git a/packages/session-ui/src/components/session-turn.tsx b/packages/session-ui/src/components/session-turn.tsx
+index ce5f0b5..3fabdf7 100644
+--- a/packages/session-ui/src/components/session-turn.tsx
++++ b/packages/session-ui/src/components/session-turn.tsx
+@@ -26,6 +26,7 @@ import { TextReveal } from "@opencode-ai/ui/text-reveal"
+ import { createAutoScroll } from "@opencode-ai/ui/hooks"
+ import { useI18n } from "@opencode-ai/ui/context/i18n"
+ import { normalize } from "./session-diff"
++import { turnStatus, turnOutput } from "./session-turn-status"
+ 
+ function record(value: unknown): value is Record<string, unknown> {
+   return !!value && typeof value === "object" && !Array.isArray(value)
+@@ -369,6 +370,9 @@ export function SessionTurn(
+   })
+   const assistantVisible = createMemo(() => assistantDerived().visible)
+   const reasoningHeading = createMemo(() => assistantDerived().reason)
++  const activityParts = createMemo(() => assistantMessages().flatMap((message) => list(data.store.part?.[message.id], emptyParts)))
++  const activity = createMemo(() => turnStatus(activityParts()))
++  const output = createMemo(() => turnOutput(activityParts()))
+   const showThinking = createMemo(() => {
+     if (!working() || !!error()) return false
+     if (status().type === "retry") return false
+@@ -421,8 +425,11 @@ export function SessionTurn(
+               </Show>
+               <Show when={showThinking()}>
+                 <div data-slot="session-turn-thinking">
+-                  <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} />
+-                  <Show when={!showReasoningSummaries()}>
++                  <TextShimmer text={i18n.t(activity())} />
++                  <Show when={output()}>
++                    <span data-slot="session-turn-live-output" dir="auto">{output()}</span>
++                  </Show>
++                  <Show when={!showReasoningSummaries() && activity() === "ui.sessionTurn.status.thinking"}>
+                     <TextReveal
+                       text={reasoningHeading()}
+                       class="session-turn-thinking-heading"
+diff --git a/packages/session-ui/src/v2/components/prompt-input/index.tsx b/packages/session-ui/src/v2/components/prompt-input/index.tsx
+index ff4ff0f..b0f97e0 100644
+--- a/packages/session-ui/src/v2/components/prompt-input/index.tsx
++++ b/packages/session-ui/src/v2/components/prompt-input/index.tsx
+@@ -153,6 +153,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
+             data-component="prompt-input"
+             role="textbox"
+             aria-multiline="true"
++            enterkeyhint="enter"
+             aria-label={i18n.t("ui.promptInput.label")}
+             contenteditable={!props.disabled && !props.readOnly}
+             autocapitalize={state.mode === "normal" ? "sentences" : "off"}
+@@ -170,6 +171,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
+               props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
+             }}
+             onKeyDown={(event) => {
++              if (event.key === "Enter" && navigator.userAgent.includes(" TinyAgent/")) return
+               if (props.controller.onKeyDown(event)) return
+               if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                 event.preventDefault()
+@@ -298,7 +300,7 @@ function renderPromptInputV2Editor(editor: HTMLDivElement, prompt: PromptInputV2
+   selection?.addRange(range)
+ }
+ 
+-function parsePromptInputV2Editor(editor: HTMLDivElement) {
++export function parsePromptInputV2Editor(editor: HTMLDivElement) {
+   const parts: Exclude<PromptInputV2Prompt[number], PromptInputV2Attachment>[] = []
+   let buffer = ""
+   let position = 0
+@@ -351,9 +353,13 @@ function parsePromptInputV2Editor(editor: HTMLDivElement) {
+     Array.from(node.childNodes).forEach(visit)
+   }
+ 
+-  Array.from(editor.childNodes).forEach((node, index, nodes) => {
++  let previousBlock = false
++  Array.from(editor.childNodes).forEach((node, index) => {
++    const block = node instanceof HTMLElement && ["DIV", "P"].includes(node.tagName)
++    if (index > 0 && (block || previousBlock)) buffer += "\n"
++    previousBlock = block
++    if (block && node.childNodes.length === 1 && node.firstChild instanceof HTMLBRElement) return
+     visit(node)
+-    if (node instanceof HTMLElement && ["DIV", "P"].includes(node.tagName) && index < nodes.length - 1) buffer += "\n"
+   })
+   flush()
+   if (
+diff --git a/packages/ui/src/components/dock-surface.css b/packages/ui/src/components/dock-surface.css
+index 91fe502..63ba46c 100644
+--- a/packages/ui/src/components/dock-surface.css
++++ b/packages/ui/src/components/dock-surface.css
+@@ -35,3 +35,22 @@
+   border-top-left-radius: 0;
+   border-top-right-radius: 0;
+ }
++
++@media (max-width: 767px) {
++  [data-component="prompt-selection-row"] {
++    display: flex;
++    flex-wrap: wrap;
++    height: auto !important;
++    gap: 4px;
++    width: 100%;
++  }
++  [data-component="prompt-selection-row"] > div { min-width: 0; }
++  [data-component="prompt-agent-control"],
++  [data-component="prompt-variant-control"] { flex: 0 0 auto; }
++  [data-component="prompt-model-control"] { flex: 1 1 160px; }
++  [data-component="prompt-selection-row"] [data-action] {
++    min-height: 44px;
++    max-width: 100%;
++  }
++  [data-component="prompt-model-control"] [data-action] { width: 100%; }
++}
+diff --git a/packages/ui/src/components/icon-button.css b/packages/ui/src/components/icon-button.css
+index 7a47270..24183c6 100644
+--- a/packages/ui/src/components/icon-button.css
++++ b/packages/ui/src/components/icon-button.css
+@@ -179,3 +179,19 @@
+ [data-component="icon-button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"]:hover:not(:disabled) {
+   background-color: var(--surface-raised-base-active);
+ }
++
++@media (pointer: coarse) {
++  [data-component="icon-button"][data-action="prompt-submit"] {
++    width: 44px;
++    height: 44px;
++    background-image: none !important;
++  }
++  [data-component="icon-button"][data-action="prompt-submit"]:not(:disabled) {
++    background-color: #92d5b6 !important;
++    opacity: 1;
++  }
++  [data-component="icon-button"][data-action="prompt-submit"]:not(:disabled) [data-slot="icon-svg"] {
++    color: #10251c !important;
++  }
++  [data-component="icon-button"][data-action="prompt-submit"]:disabled { opacity: .35; }
++}

@@ -46,7 +46,11 @@ static int open_root(const char *path) {
     for (char *part = strtok_r(copy, "/", &save); part; part = strtok_r(NULL, "/", &save)) {
         require(strcmp(part, ".") && strcmp(part, ".."), "root component");
         int next = openat(fd, part, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        if (next < 0) die("openat root ancestor");
+        if (next < 0) {
+            int saved = errno;
+            fprintf(stderr, "root ancestor=%s path=%s\n", part, path);
+            errno = saved; die("openat root ancestor");
+        }
         close(fd); fd = next;
     }
     int readable = openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
@@ -134,17 +138,26 @@ static void app_label(int fd) {
 static int sealed_context(const char *json, size_t size) {
     require(size > 0 && size <= 16384, "context length");
     int fd = (int)syscall(SYS_memfd_create, "tinyagent-dnfast-context", 11U);
-    if (fd < 0) die("memfd_create nonexecuting context");
+    unsigned mode = 0666;
+    int initial_seals = 32;
+    if (fd < 0 && errno == EINVAL) {
+        /* Legacy kernels seal bytes/size, but cannot freeze execution bits.
+           Same-UID app data only; no permission-error fallback or chmod. */
+        fd = (int)syscall(SYS_memfd_create, "tinyagent-dnfast-context", 3U);
+        mode = 0777;
+        initial_seals = 0;
+    }
+    if (fd < 0) die("memfd_create context");
     struct stat before = metadata(fd);
-    require(S_ISREG(before.st_mode) && (before.st_mode & 07777) == 0666 && before.st_uid == getuid() &&
-            before.st_gid == getgid() && before.st_nlink == 0 && before.st_size == 0 && fcntl(fd, F_GET_SEALS) == 32, "initial anonymous context");
+    require(S_ISREG(before.st_mode) && (before.st_mode & 07777) == mode && before.st_uid == getuid() &&
+            before.st_gid == getgid() && before.st_nlink == 0 && before.st_size == 0 && fcntl(fd, F_GET_SEALS) == initial_seals, "initial anonymous context");
     app_label(fd);
     write_all(fd, json, size);
     if (fsync(fd) || lseek(fd, 0, SEEK_SET) < 0 || fcntl(fd, F_ADD_SEALS, 15)) die("seal context");
     struct stat after = metadata(fd);
     require(before.st_dev == after.st_dev && before.st_ino == after.st_ino && after.st_size == (off_t)size &&
             after.st_uid == before.st_uid && after.st_gid == before.st_gid && after.st_mode == before.st_mode &&
-            after.st_nlink == 0 && fcntl(fd, F_GET_SEALS) == 47, "sealed context identity");
+            after.st_nlink == 0 && fcntl(fd, F_GET_SEALS) == (initial_seals | 15), "sealed context identity");
     return fd;
 }
 int main(int argc, char **argv) {

@@ -7,6 +7,8 @@ test -r "${TINYAGENT_APK:-}" || { printf 'Installed APK runtime inputs are unava
 source=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 test -f "$source/app/build.gradle.kts"
 trap 'status=$?; printf "tinyagent_self_build_exit=%s\n" "$status"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 printf 'environment=%s\ncwd=%s\npid=%s\n' "$TINYAGENT_EXECUTION_PROVIDER" "$source" "$$"
 cd "$source"
 /usr/bin/bash scripts/prepare-development.sh
@@ -15,6 +17,7 @@ git diff --stat
 # Reuse exact shipped inputs. Recompression differs across host zlib builds.
 # The APK/GUI are compiled below; the backend remains a pinned prebuilt dependency.
 python3 scripts/stage-runtime-assets.py artifacts --installed-apk "$TINYAGENT_APK"
+python3 scripts/stage-dnfast-runtime.py --installed-apk "$TINYAGENT_APK"
 python3 scripts/stage-proot.py
 python3 scripts/collect-proot-sources.py
 python3 scripts/build-dnfast-launcher.py
@@ -48,7 +51,8 @@ cd "$upstream"
 mkdir -p node_modules
 bun install --frozen-lockfile --backend copyfile --cache-dir "$tools/bun-copy-clean-cache" --filter '@opencode-ai/app' --ignore-scripts
 cd packages/app
-OPENCODE_CHANNEL=prod node node_modules/vite/bin/vite.js build
+# Match the verified host GUI channel; production Vite mode hides the DEV badge.
+OPENCODE_CHANNEL=dev node node_modules/vite/bin/vite.js build
 cd "$source"
 python3 scripts/stage-web-ui.py "$upstream"
 /usr/bin/bash scripts/build-android-fedora.sh

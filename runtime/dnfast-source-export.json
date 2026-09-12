@@ -1,0 +1,8 @@
+{
+  "source_commit": "1449710f35e1079c5999a3d6cc41800d4b432a4d",
+  "archive": "dnfast-1449710f35e1079c5999a3d6cc41800d4b432a4d.tar",
+  "archive_sha256": "02b151c0a1e0ea9481b487d89ab5b9ae51da9ecba74e906433c7fbaa67cd6098",
+  "notice": "dnfast-LICENSE.txt",
+  "notice_sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+  "scope": "Pinned source export only; not proof of binary reproducibility or dependency-source completeness"
+}

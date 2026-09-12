@@ -12,7 +12,16 @@ The key and properties are in `D:/TinyAgent-work/private-signing`, outside the
 source repositories, with inheritance disabled and access granted to the
 current Windows account. No key or password is included in the source export.
 Back up this identity securely; a replacement key cannot update installed APKs.
-No backup or phone provisioning of this production key has yet been performed.
+A verified local recovery copy now exists on a physically separate E: NVMe at
+`E:/TinyAgent-backups/release-signing/0.0.1-alpha.1`. The PKCS12, certificate and
+public metadata match the D: originals byte-for-byte. Plaintext
+`release.properties` was not copied: its bytes are protected with Windows
+CurrentUser DPAPI. In-memory restore matched the original properties and opened
+the backed-up `tinyagent-release` alias with `keytool`. Both original and backup
+ACLs contain only `USER\Administrator`; inheritance is disabled at each root.
+This protects against loss of D: while the Windows user profile survives. It is
+not an off-host disaster-recovery backup: loss of that profile also loses DPAPI
+recovery. Production key provisioning on a phone remains unperformed.
 
 `scripts/prepare-release-signing.py <new-private-directory>` provisions a new
 identity only for a genuinely new distribution. It refuses an existing
@@ -47,6 +56,35 @@ selection, and invalid variant rejection. Run
 `python scripts/check-phone-build-variant.py`. This checks dispatch and guards,
 not compilation or certificate validity; the actual host release build below
 provides separate signing evidence.
+
+## Current 0.0.1 Alpha 1 signed candidate
+
+Artifact: `artifacts/TinyAgent-0.0.1-alpha.1-android-arm64.apk`
+
+- SHA-256: `013f05727575620cb04aa9c3aec00098bf137d8652dd0d77ae6e3db3a04e1462`
+- Size: 145216194 bytes
+- Version: code 5 / `0.0.1-alpha.1`
+- Runtime/harness: `1.18.29-tinyagent.12` / 20
+- Package/API/ABI: `io.github.gplaider.tinyagent`, API 30–36, `arm64-v8a`
+- Signing: APK Signature Scheme v2, RSA-4096, production certificate above
+- Alignment/content: 16 KiB ZIP alignment; release manifest and packaged runtime,
+  PRoot, dnfast, notices, ten bootstrap scripts and 952 GUI files passed
+
+The release build ran from a clean Gradle output directory and passed 55 build/lint
+tasks. `scripts/check-packaged-runtime.py`, `apksigner verify --verbose --print-certs`
+and `aapt dump badging` independently passed. The matching source archive and external
+checksum file are generated after this exact APK is fixed. The APK is not expected to
+be byte-reproducible because signing time and ZIP metadata can differ.
+
+The production candidate is not published. The same runtime passed Edge 40 health,
+model/tool and LADB Developer shell checks in the separately signed debug package.
+The exact production APK was then clean-installed on Lyriq1: installed `base.apk`
+matched SHA-256, package version was code 5 / `0.0.1-alpha.1`, and a cold start
+reached the resumed `AppActivity`. The clean package subsequently completed first
+Fedora preparation under app UID 10000. Its default Big Pickle model invoked bash
+once and returned `/workspace`, `aarch64` and Fedora 44 after one-time `/etc/*`
+approval. No development-provider credential was copied. Evidence is retained in
+`evidence/lyriq1-alpha1-production-model-tool.json` and the matching PNG.
 
 ## First signed candidate
 

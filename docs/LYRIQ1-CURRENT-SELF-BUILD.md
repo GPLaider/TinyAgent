@@ -104,3 +104,50 @@ verification and extraction phases. Its existing self-check first failed on
 missing progress text, then passed after the change, including interrupted
 download recovery and archive traversal rejection. This source-only follow-up
 is not applied to the running 7d9c3b2 phone checkout or the installed APK.
+
+## Thirty-minute tool timeout; Gradle-only continuation
+
+The 7d9c3b2 full script reached Vite success (3m48s, 952 GUI files), downloaded
+Gradle 8.13, then was terminated at its 1800000 ms tool limit. There is no final
+APK. `tinyagent_self_build_exit=0` in its EXIT trap was misleading: the tool
+explicitly reports timeout termination. Do not use that marker alone as proof.
+Host process inspection confirmed bash8947 and Java9758/9922 were gone.
+
+Before termination, jcmd Thread.print showed the Gradle daemon worker reading
+JAR contents in RuntimeClasspathResourceHasher/ZipHasher, not an established
+deadlock. Evidence: package-bench-lyriq1-probe-1789035145124.json.
+
+The host self-build script now traps TERM/INT as 143/130. The runnable
+check-self-build-signal.py extracts its actual traps and delivers a real TERM
+signal; exit and reported status are both 143. This fix is not applied to the
+old phone checkout. Completed GUI and toolchain caches are retained.
+
+Continuation session ses_f752ecb0bffeqPGQvghSV1Q1Jf was asked to execute only
+scripts/build-android-fedora.sh --info --console=plain with a 3600000 ms limit,
+then verify the new APK and signer. A new model request is not yet evidence
+that Gradle started or that APK compilation passed.
+# Successful APK compilation and verification — 2026-09-10
+
+Resume session `ses_f752ecb0bffeqPGQvghSV1Q1Jf` completed
+`scripts/build-android-fedora.sh --info --console=plain` with
+`BUILD SUCCESSFUL in 20m 29s`, 38 actionable tasks (37 executed).
+This follows the previously recorded full-preparation timeout; 20m29s is only
+the resumed APK compilation phase, not the full clean provisioning time.
+
+- Phone: Lyriq1 ZY22J58799, app UID 10042, Fedora-local under the app's PRoot.
+- Source: `7d9c3b2bb606271d357ac8b95f399f65e5d180b8`.
+- Workspace: `/workspace/tinyagent-selfbuild-7d9c3b2`.
+- APK: `app/build/outputs/apk/debug/app-debug.apk`, 130094200 bytes.
+- SHA256: `75b7af578c17f26b661088a07ed21d15dac6dc7394a262ffe9995642bf25d2c2`.
+- Certificate SHA256: `a3ef78ae0bfdfc30307e3448e138eca29adf39d966f89af116bbce151abc1ed2`.
+- Package/version: `io.github.gplaider.tinyagent.debug`, code 3, Preview4.
+- Phone packaged-runtime check passed: harness, bootstrap, PRoot, native notices,
+  952 GUI asset hashes and both original compressed runtime archives.
+- APK transferred through a one-request loopback server and ADB forwarding.
+  Host SHA256, apksigner and package metadata agree. Forward removed afterward.
+- Before-update snapshot: 55 sessions, OpenAI/OpenCode connected, dark theme,
+  no active backend sessions. Replacement install is in progress, not yet passed.
+
+This phone-produced candidate is distinct from the published Preview5. Its
+source builds GUI/native launchers/APK locally and reuses the pinned OpenCode
+backend dependency. It does not prove a phone build of every upstream binary.

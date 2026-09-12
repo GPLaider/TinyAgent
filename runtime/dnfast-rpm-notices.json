@@ -1,0 +1,488 @@
+{
+  "source_commit": "16c6887ac6077a771f2f20892631a86c313ff422",
+  "packages": [
+    {
+      "package": "bzip2-libs-1.0.8-23.fc44.aarch64",
+      "source_rpm": "bzip2-1.0.8-23.fc44.src.rpm",
+      "license_expression": "BSD-4-Clause",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/bzip2-libs/LICENSE",
+          "owner_package": "bzip2-libs-1.0.8-23.fc44.aarch64",
+          "member": "bzip2-libs-1.0.8-23.fc44.aarch64/LICENSE",
+          "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "glib2-2.88.3-1.fc44.aarch64",
+      "source_rpm": "glib2-2.88.3-1.fc44.src.rpm",
+      "license_expression": "LGPL-2.1-or-later",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/glib2/LGPL-2.1-or-later.txt",
+          "owner_package": "glib2-2.88.3-1.fc44.aarch64",
+          "member": "glib2-2.88.3-1.fc44.aarch64/LGPL-2.1-or-later.txt",
+          "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "glibc-2.43-8.fc44.aarch64",
+      "source_rpm": "glibc-2.43-8.fc44.src.rpm",
+      "license_expression": "LGPL-2.1-or-later AND SunPro AND LGPL-2.1-or-later WITH GCC-exception-2.0 AND BSD-3-Clause AND GPL-2.0-or-later AND LGPL-2.1-or-later WITH GNU-compiler-exception AND GPL-2.0-only AND ISC AND LicenseRef-Fedora-Public-Domain AND HPND AND CMU-Mach AND LGPL-2.0-or-later AND Unicode-3.0 AND GFDL-1.1-or-later AND GPL-1.0-or-later AND FSFUL AND MIT AND Inner-Net-2.0 AND X11 AND GPL-2.0-or-later WITH GCC-exception-2.0 AND GFDL-1.3-only AND GFDL-1.1-only AND GPL-3.0-or-later AND GPL-3.0-or-later WITH Autoconf-exception-generic-3.0 AND GPL-3.0-or-later WITH Texinfo-exception",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/glibc/COPYING.LESSERv2",
+          "owner_package": "glibc-2.43-8.fc44.aarch64",
+          "member": "glibc-2.43-8.fc44.aarch64/COPYING.LESSERv2",
+          "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95"
+        },
+        {
+          "path": "/usr/share/licenses/glibc/COPYING.LIB",
+          "owner_package": "glibc-2.43-8.fc44.aarch64",
+          "member": "glibc-2.43-8.fc44.aarch64/COPYING.LIB",
+          "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95"
+        },
+        {
+          "path": "/usr/share/licenses/glibc/COPYINGv2",
+          "owner_package": "glibc-2.43-8.fc44.aarch64",
+          "member": "glibc-2.43-8.fc44.aarch64/COPYINGv2",
+          "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+        },
+        {
+          "path": "/usr/share/licenses/glibc/COPYINGv3",
+          "owner_package": "glibc-2.43-8.fc44.aarch64",
+          "member": "glibc-2.43-8.fc44.aarch64/COPYINGv3",
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+        },
+        {
+          "path": "/usr/share/licenses/glibc/LICENSES",
+          "owner_package": "glibc-2.43-8.fc44.aarch64",
+          "member": "glibc-2.43-8.fc44.aarch64/LICENSES",
+          "sha256": "b22a69aa3f80a5201818c66cb0df0f25f9fa13cf5861b0093a058dbd12d50dce"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "gmp-6.3.0-5.fc44.aarch64",
+      "source_rpm": "gmp-6.3.0-5.fc44.src.rpm",
+      "license_expression": "(LGPL-3.0-or-later OR GPL-2.0-or-later OR (LGPL-3.0-or-later AND GPL-2.0-or-later)) AND GFDL-1.3-invariants-or-later",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/gmp/COPYING",
+          "owner_package": "gmp-6.3.0-5.fc44.aarch64",
+          "member": "gmp-6.3.0-5.fc44.aarch64/COPYING",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "path": "/usr/share/licenses/gmp/COPYING.LESSERv3",
+          "owner_package": "gmp-6.3.0-5.fc44.aarch64",
+          "member": "gmp-6.3.0-5.fc44.aarch64/COPYING.LESSERv3",
+          "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c"
+        },
+        {
+          "path": "/usr/share/licenses/gmp/COPYINGv2",
+          "owner_package": "gmp-6.3.0-5.fc44.aarch64",
+          "member": "gmp-6.3.0-5.fc44.aarch64/COPYINGv2",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+        },
+        {
+          "path": "/usr/share/licenses/gmp/COPYINGv3",
+          "owner_package": "gmp-6.3.0-5.fc44.aarch64",
+          "member": "gmp-6.3.0-5.fc44.aarch64/COPYINGv3",
+          "sha256": "e6037104443f9a7829b2aa7c5370d0789a7bda3ca65a0b904cdc0c2e285d9195"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libacl-2.4.0-1.fc44.aarch64",
+      "source_rpm": "acl-2.4.0-1.fc44.src.rpm",
+      "license_expression": "LGPL-2.1-or-later",
+      "notices": [],
+      "missing": []
+    },
+    {
+      "package": "libcap-2.78-1.fc44.aarch64",
+      "source_rpm": "libcap-2.78-1.fc44.src.rpm",
+      "license_expression": "BSD-3-Clause OR GPL-2.0-only",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libcap/License",
+          "owner_package": "libcap-2.78-1.fc44.aarch64",
+          "member": "libcap-2.78-1.fc44.aarch64/License",
+          "sha256": "68467e731f4744bd6e0bb69e8df9c3a994e09cd6b203d0c41327ac6d079c581d"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libffi-3.5.2-2.fc44.aarch64",
+      "source_rpm": "libffi-3.5.2-2.fc44.src.rpm",
+      "license_expression": "MIT AND CC-PDDC AND (GPL-3.0-or-later WITH Texinfo-exception)",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libffi/LICENSE",
+          "owner_package": "libffi-3.5.2-2.fc44.aarch64",
+          "member": "libffi-3.5.2-2.fc44.aarch64/LICENSE",
+          "sha256": "d5699fa516968e3a1550e6c902b7441c78856f2603d61bedd0b0662a26655366"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libgcc-16.2.1-2.fc44.aarch64",
+      "source_rpm": "gcc-16.2.1-2.fc44.src.rpm",
+      "license_expression": "GPL-3.0-or-later AND LGPL-3.0-or-later AND (GPL-3.0-or-later WITH GCC-exception-3.1) AND (GPL-3.0-or-later WITH Texinfo-exception) AND (LGPL-2.1-or-later WITH GCC-exception-2.0) AND (GPL-2.0-or-later WITH GCC-exception-2.0) AND (GPL-2.0-or-later WITH GNU-compiler-exception) AND BSL-1.0 AND GFDL-1.3-or-later AND Linux-man-pages-copyleft-2-para AND SunPro AND BSD-1-Clause AND BSD-2-Clause AND BSD-2-Clause-Views AND BSD-3-Clause AND BSD-4-Clause AND BSD-Source-Code AND Zlib AND MIT AND Apache-2.0 AND (Apache-2.0 WITH LLVM-Exception) AND ZPL-2.1 AND ISC AND LicenseRef-Fedora-Public-Domain AND HP-1986 AND curl AND Martin-Birgmeier AND HPND-Markus-Kuhn AND dtoa AND SMLNJ AND AMD-newlib AND OAR AND HPND-merchantability-variant AND HPND-Intel",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libgcc-16.2.1-2.fc44.aarch64/COPYING",
+          "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING.LIB",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libgcc-16.2.1-2.fc44.aarch64/COPYING.LIB",
+          "sha256": "32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING.RUNTIME",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libgcc-16.2.1-2.fc44.aarch64/COPYING.RUNTIME",
+          "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING3",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libgcc-16.2.1-2.fc44.aarch64/COPYING3",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING3.LIB",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libgcc-16.2.1-2.fc44.aarch64/COPYING3.LIB",
+          "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libmodulemd-2.15.3-1.fc44.aarch64",
+      "source_rpm": "libmodulemd-2.15.3-1.fc44.src.rpm",
+      "license_expression": "MIT",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libmodulemd/COPYING",
+          "owner_package": "libmodulemd-2.15.3-1.fc44.aarch64",
+          "member": "libmodulemd-2.15.3-1.fc44.aarch64/COPYING",
+          "sha256": "40afccd95484d483800c17dd18a734518ba36e832841579a1f21dc94fb73bbdf"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libsolv-0.7.39-1.fc44.aarch64",
+      "source_rpm": "libsolv-0.7.39-1.fc44.src.rpm",
+      "license_expression": "BSD-3-Clause",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libsolv/LICENSE.BSD",
+          "owner_package": "libsolv-0.7.39-1.fc44.aarch64",
+          "member": "libsolv-0.7.39-1.fc44.aarch64/LICENSE.BSD",
+          "sha256": "57f15acfb29fbef7749779e096a5885c60b716633e34484a21bb717554c0198f"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libstdc++-16.2.1-2.fc44.aarch64",
+      "source_rpm": "gcc-16.2.1-2.fc44.src.rpm",
+      "license_expression": "GPL-3.0-or-later AND LGPL-3.0-or-later AND (GPL-3.0-or-later WITH GCC-exception-3.1) AND (GPL-3.0-or-later WITH Texinfo-exception) AND (LGPL-2.1-or-later WITH GCC-exception-2.0) AND (GPL-2.0-or-later WITH GCC-exception-2.0) AND (GPL-2.0-or-later WITH GNU-compiler-exception) AND BSL-1.0 AND GFDL-1.3-or-later AND Linux-man-pages-copyleft-2-para AND SunPro AND BSD-1-Clause AND BSD-2-Clause AND BSD-2-Clause-Views AND BSD-3-Clause AND BSD-4-Clause AND BSD-Source-Code AND Zlib AND MIT AND Apache-2.0 AND (Apache-2.0 WITH LLVM-Exception) AND ZPL-2.1 AND ISC AND LicenseRef-Fedora-Public-Domain AND HP-1986 AND curl AND Martin-Birgmeier AND HPND-Markus-Kuhn AND dtoa AND SMLNJ AND AMD-newlib AND OAR AND HPND-merchantability-variant AND HPND-Intel",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/gcc/COPYING",
+          "owner_package": "gcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/gcc-16.2.1-2.fc44.aarch64/COPYING",
+          "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c"
+        },
+        {
+          "path": "/usr/share/licenses/gcc/COPYING.LIB",
+          "owner_package": "gcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/gcc-16.2.1-2.fc44.aarch64/COPYING.LIB",
+          "sha256": "32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b"
+        },
+        {
+          "path": "/usr/share/licenses/gcc/COPYING.RUNTIME",
+          "owner_package": "gcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/gcc-16.2.1-2.fc44.aarch64/COPYING.RUNTIME",
+          "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+        },
+        {
+          "path": "/usr/share/licenses/gcc/COPYING3",
+          "owner_package": "gcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/gcc-16.2.1-2.fc44.aarch64/COPYING3",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "path": "/usr/share/licenses/gcc/COPYING3.LIB",
+          "owner_package": "gcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/gcc-16.2.1-2.fc44.aarch64/COPYING3.LIB",
+          "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/libgcc-16.2.1-2.fc44.aarch64/COPYING",
+          "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING.LIB",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/libgcc-16.2.1-2.fc44.aarch64/COPYING.LIB",
+          "sha256": "32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING.RUNTIME",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/libgcc-16.2.1-2.fc44.aarch64/COPYING.RUNTIME",
+          "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING3",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/libgcc-16.2.1-2.fc44.aarch64/COPYING3",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "path": "/usr/share/licenses/libgcc/COPYING3.LIB",
+          "owner_package": "libgcc-16.2.1-2.fc44.aarch64",
+          "member": "libstdc++-16.2.1-2.fc44.aarch64/libgcc-16.2.1-2.fc44.aarch64/COPYING3.LIB",
+          "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libxml2-2.12.10-6.fc44.aarch64",
+      "source_rpm": "libxml2-2.12.10-6.fc44.src.rpm",
+      "license_expression": "MIT AND ISC-Veillard AND W3C",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libxml2/Copyright",
+          "owner_package": "libxml2-2.12.10-6.fc44.aarch64",
+          "member": "libxml2-2.12.10-6.fc44.aarch64/Copyright",
+          "sha256": "7fb0a66f3989f9bd5c7e5438a3de02cd4a7a47dde0aea2f7ea2ba2ff454ee6a4"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libyaml-0.2.5-18.fc44.aarch64",
+      "source_rpm": "libyaml-0.2.5-18.fc44.src.rpm",
+      "license_expression": "MIT",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libyaml/License",
+          "owner_package": "libyaml-0.2.5-18.fc44.aarch64",
+          "member": "libyaml-0.2.5-18.fc44.aarch64/License",
+          "sha256": "c40112449f254b9753045925248313e9270efa36d226b22d82d4cc6c43c57f29"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "libzstd-1.5.7-5.fc44.aarch64",
+      "source_rpm": "zstd-1.5.7-5.fc44.src.rpm",
+      "license_expression": "BSD-3-Clause OR GPL-2.0-only",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/libzstd/COPYING",
+          "owner_package": "libzstd-1.5.7-5.fc44.aarch64",
+          "member": "libzstd-1.5.7-5.fc44.aarch64/COPYING",
+          "sha256": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505"
+        },
+        {
+          "path": "/usr/share/licenses/libzstd/LICENSE",
+          "owner_package": "libzstd-1.5.7-5.fc44.aarch64",
+          "member": "libzstd-1.5.7-5.fc44.aarch64/LICENSE",
+          "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "lua-libs-5.4.8-5.fc44.aarch64",
+      "source_rpm": "lua-5.4.8-5.fc44.src.rpm",
+      "license_expression": "MIT",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/lua-libs/mit.txt",
+          "owner_package": "lua-libs-5.4.8-5.fc44.aarch64",
+          "member": "lua-libs-5.4.8-5.fc44.aarch64/mit.txt",
+          "sha256": "ac92bb84aa21edfecf0112e59c96c75620313d504ada0d66e8e78fe6788d3a4d"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "nettle-3.10.1-3.fc44.aarch64",
+      "source_rpm": "nettle-3.10.1-3.fc44.src.rpm",
+      "license_expression": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/nettle/COPYING.LESSERv3",
+          "owner_package": "nettle-3.10.1-3.fc44.aarch64",
+          "member": "nettle-3.10.1-3.fc44.aarch64/COPYING.LESSERv3",
+          "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c"
+        },
+        {
+          "path": "/usr/share/licenses/nettle/COPYINGv2",
+          "owner_package": "nettle-3.10.1-3.fc44.aarch64",
+          "member": "nettle-3.10.1-3.fc44.aarch64/COPYINGv2",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "openssl-libs-3.5.8-1.fc44.aarch64",
+      "source_rpm": "openssl-3.5.8-1.fc44.src.rpm",
+      "license_expression": "Apache-2.0",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/openssl-libs/LICENSE.txt",
+          "owner_package": "openssl-libs-3.5.8-1.fc44.aarch64",
+          "member": "openssl-libs-3.5.8-1.fc44.aarch64/LICENSE.txt",
+          "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "pcre2-10.47-1.fc44.1.aarch64",
+      "source_rpm": "pcre2-10.47-1.fc44.1.src.rpm",
+      "license_expression": "BSD-3-Clause AND FSFULLR AND X11 AND GPL-2.0-or-later AND FSFAP AND FSFUL AND GPL-3.0-or-later",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/pcre2-syntax/COPYING",
+          "owner_package": "pcre2-syntax-10.47-1.fc44.1.noarch",
+          "member": "pcre2-10.47-1.fc44.1.aarch64/pcre2-syntax-10.47-1.fc44.1.noarch/COPYING",
+          "sha256": "99272c55f3dcfa07a8a7e15a5c1a33096e4727de74241d65fa049fccfdd59507"
+        },
+        {
+          "path": "/usr/share/licenses/pcre2-syntax/LICENCE.md",
+          "owner_package": "pcre2-syntax-10.47-1.fc44.1.noarch",
+          "member": "pcre2-10.47-1.fc44.1.aarch64/pcre2-syntax-10.47-1.fc44.1.noarch/LICENCE.md",
+          "sha256": "197d8a73ffee0d6b09adba2f9c677b5f5aede24edf89258a68e48248d010d811"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "popt-1.19-10.fc44.aarch64",
+      "source_rpm": "popt-1.19-10.fc44.src.rpm",
+      "license_expression": "MIT AND LicenseRef-Fedora-Public-Domain",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/popt/COPYING",
+          "owner_package": "popt-1.19-10.fc44.aarch64",
+          "member": "popt-1.19-10.fc44.aarch64/COPYING",
+          "sha256": "2b488b239927935f34769a39309c0680be16e3725a1f55dbb06ed20d53852801"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "rpm-libs-6.0.1-2.fc44.aarch64",
+      "source_rpm": "rpm-6.0.1-2.fc44.src.rpm",
+      "license_expression": "GPL-2.0-or-later OR LGPL-2.1-or-later",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/rpm/COPYING",
+          "owner_package": "rpm-6.0.1-2.fc44.aarch64",
+          "member": "rpm-libs-6.0.1-2.fc44.aarch64/rpm-6.0.1-2.fc44.aarch64/COPYING",
+          "sha256": "f4af48a570b4ac09fce37fbaaa80324565405bb07d257070f509bdaf9994b73b"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "rpm-sequoia-1.10.2-4.fc44.aarch64",
+      "source_rpm": "rust-rpm-sequoia-1.10.2-4.fc44.src.rpm",
+      "license_expression": "LGPL-2.0-or-later AND Apache-2.0 AND BSD-3-Clause AND BSL-1.0 AND MIT AND Unicode-3.0 AND Unicode-DFS-2016 AND (Apache-2.0 OR MIT) AND (Unlicense OR MIT)",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/rpm-sequoia/LICENSE.dependencies",
+          "owner_package": "rpm-sequoia-1.10.2-4.fc44.aarch64",
+          "member": "rpm-sequoia-1.10.2-4.fc44.aarch64/LICENSE.dependencies",
+          "sha256": "c56421cce531f187d39704e770ab95336671d7f0f83edb8b9c1dfff7f37a212a"
+        },
+        {
+          "path": "/usr/share/licenses/rpm-sequoia/LICENSE.txt",
+          "owner_package": "rpm-sequoia-1.10.2-4.fc44.aarch64",
+          "member": "rpm-sequoia-1.10.2-4.fc44.aarch64/LICENSE.txt",
+          "sha256": "3e2ff16f1ef01723d40e529ce76df2185dc3dd9e5c98913629f434c1fbec25d5"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "sqlite-libs-3.51.2-1.fc44.aarch64",
+      "source_rpm": "sqlite-3.51.2-1.fc44.src.rpm",
+      "license_expression": "blessing",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/sqlite-libs/LICENSE.md",
+          "owner_package": "sqlite-libs-3.51.2-1.fc44.aarch64",
+          "member": "sqlite-libs-3.51.2-1.fc44.aarch64/LICENSE.md",
+          "sha256": "ee6af51062b30d532991face5164136ae6f84e265ecf8abe89dc69dac45ca1e7"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "xz-libs-5.8.2-2.fc44.aarch64",
+      "source_rpm": "xz-5.8.2-2.fc44.src.rpm",
+      "license_expression": "0BSD",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/xz-libs/COPYING",
+          "owner_package": "xz-libs-5.8.2-2.fc44.aarch64",
+          "member": "xz-libs-5.8.2-2.fc44.aarch64/COPYING",
+          "sha256": "616a3ad264ce29b8f1cb97e53037b139d406899ca8d1f799651e17bfa09830b8"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "zchunk-libs-1.5.1-4.fc44.aarch64",
+      "source_rpm": "zchunk-1.5.1-4.fc44.src.rpm",
+      "license_expression": "BSD-2-Clause AND MIT",
+      "notices": [
+        {
+          "path": "/usr/share/licenses/zchunk-libs/LICENSE",
+          "owner_package": "zchunk-libs-1.5.1-4.fc44.aarch64",
+          "member": "zchunk-libs-1.5.1-4.fc44.aarch64/LICENSE",
+          "sha256": "3c6a4fd5a93cacec6bf694d0537246bc15a95a274f5c5301749754e56d27b797"
+        }
+      ],
+      "missing": []
+    },
+    {
+      "package": "zlib-ng-compat-2.3.3-3.fc44.aarch64",
+      "source_rpm": "zlib-ng-2.3.3-3.fc44.src.rpm",
+      "license_expression": "Zlib",
+      "notices": [],
+      "missing": []
+    }
+  ],
+  "notice_archive_sha256": "862c11f7c5c8a36da4cf67cd0f1f735043be420f06586c1f4432dac85ff634e9",
+  "complete_notices": false,
+  "source_rpms_downloaded": false
+}

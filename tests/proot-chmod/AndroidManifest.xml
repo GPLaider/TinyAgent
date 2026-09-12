@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.gplaider.tinyagent.chmodprobe" android:versionCode="1" android:versionName="1">
+  <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36"/>
+  <application android:label="TinyAgent chmod check" android:debuggable="true" android:extractNativeLibs="true" android:allowBackup="false">
+    <activity android:name=".Probe" android:exported="true"/>
+  </application>
+</manifest>

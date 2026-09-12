@@ -8,23 +8,27 @@ import org.json.JSONObject;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
-/** Read-only Android facts for the Fedora agent. Kernel peer UID is the boundary. */
+/** Android capabilities and package jobs for the same-UID Fedora agent. */
 final class AndroidDiagnosticsBridge implements AutoCloseable {
     private final Context context;
     private final LocalServerSocket server;
+    private final PackageJobs packages;
+    private final AndroidJobs androidJobs;
     private volatile LocalSocket client;
     private volatile SelfAdbClient adb;
     private volatile boolean closed;
     static String socketName() { return "tinyagent-android-" + android.os.Process.myUid() + "-" + android.os.Process.myPid(); }
 
-    AndroidDiagnosticsBridge(Context context) throws IOException {
+    AndroidDiagnosticsBridge(Context context) throws Exception {
         this.context = context.getApplicationContext();
+        packages = new PackageJobs(this.context);
+        androidJobs = new AndroidJobs(this.context);
         server = new LocalServerSocket(socketName());
         new Thread(this::serve, "tinyagent-android-diagnostics").start();
     }
 
     private void serve() {
-        // ponytail: serialize short read-only diagnostics; no command/job scheduler here.
+        // Long package work runs off this request loop so status/cancel remain available.
         while (!closed) {
             try (LocalSocket accepted = server.accept()) {
                 client = accepted;
@@ -33,11 +37,35 @@ final class AndroidDiagnosticsBridge implements AutoCloseable {
                 InputStream input = accepted.getInputStream();
                 String first = line(input);
                 int bytes = first.length();
+                int contentLength=0;
                 for (String header; !(header = line(input)).isEmpty();) {
                     bytes += header.length();
                     if (bytes > 4096) throw new IOException("Request headers too large");
+                    if(header.toLowerCase(java.util.Locale.ROOT).startsWith("content-length:"))contentLength=Integer.parseInt(header.substring(15).trim());
+                    if(header.toLowerCase(java.util.Locale.ROOT).startsWith("transfer-encoding:"))throw new IOException("Chunked requests are unsupported");
                 }
                 String[] request = first.split(" ");
+                if(request.length==3 && (request[1].startsWith("/packages/jobs") || request[1].startsWith("/android/jobs"))) {
+                    try {
+                        if(contentLength<0||contentLength>65536)throw new IOException("Package request too large");
+                        boolean android=request[1].startsWith("/android/jobs");
+                        String route=android?"/android/jobs":"/packages/jobs";
+                        JSONObject result;
+                        if(android && request[0].equals("POST") && request[1].startsWith(route+"/") && request[1].endsWith("/inspect"))
+                            result=androidJobs.inspect(request[1].substring(route.length()+1,request[1].length()-"/inspect".length()));
+                        else if(request[0].equals("POST")&&request[1].equals(route)) {
+                            byte[] body=new byte[contentLength];new DataInputStream(input).readFully(body);
+                            JSONObject payload=new JSONObject(new String(body,StandardCharsets.UTF_8));
+                            result=android?androidJobs.submit(payload):packages.submit(payload);
+                        } else if(request[0].equals("GET")&&request[1].startsWith(route+"/"))
+                            result=android?androidJobs.read(request[1].substring(route.length()+1)):packages.read(request[1].substring(route.length()+1));
+                        else if(request[0].equals("DELETE")&&request[1].startsWith(route+"/"))
+                            result=android?androidJobs.cancel(request[1].substring(route.length()+1)):packages.cancel(request[1].substring(route.length()+1));
+                        else throw new IOException("Invalid package route");
+                        reply(accepted,200,result);
+                    }catch(Exception e){reply(accepted,409,new JSONObject().put("error",e.getMessage()));}
+                    continue;
+                }
                 if (request.length != 3 || !request[0].equals("GET")) { reply(accepted, 400, new JSONObject().put("error", "GET required")); continue; }
                 String mode = switch (request[1]) {
                     case "/inspect/stock" -> "stock";
@@ -60,18 +88,17 @@ final class AndroidDiagnosticsBridge implements AutoCloseable {
                 .put("measured_at", java.time.Instant.now().toString()).put("device", Build.DEVICE)
                 .put("model", Build.MODEL).put("android_version", Build.VERSION.RELEASE)
                 .put("sdk", Build.VERSION.SDK_INT).put("app_uid", android.os.Process.myUid())
-                .put("root_selected", prefs.getBoolean("rootAllowed", false))
+                .put("root_available_last_check", prefs.getBoolean("rootAvailable", false))
                 .put("selected_transport", WirelessAdb.transport(context));
         if (mode.equals("stock")) return result.put("execution_uid", android.os.Process.myUid())
                 .put("serial", JSONObject.NULL).put("authority", "app-sandbox");
         boolean root = mode.equals("root");
         if (!root && "stock".equals(WirelessAdb.transport(context)))
             throw new IOException("Stock 모드입니다. Developer 연결 설정에서 권한을 연결하세요.");
-        if (root && !prefs.getBoolean("rootAllowed", false)) throw new IOException("Root 실행이 허용되지 않았습니다.");
         try (SelfAdbClient connection = new SelfAdbClient(context)) {
             adb = connection;
             if (closed) throw new IOException("진단 중단");
-            SelfAdbClient.Result proof = connection.inspect(!root && WirelessAdb.selected(context) ? 0 : LocalPolicy.port(prefs.getString("port", "")), root);
+            SelfAdbClient.Result proof = connection.inspect(!root && WirelessAdb.selected(context) ? 0 : SelfAdbClient.discoverPort(context), root);
             if (!proof.verifiedSelf) throw new IOException(proof.transcript);
             return result.put("verified_self", true).put("execution_uid", root ? 0 : 2000).put("transcript", proof.transcript);
         } finally { adb = null; }
@@ -97,6 +124,8 @@ final class AndroidDiagnosticsBridge implements AutoCloseable {
 
     @Override public void close() {
         closed = true;
+        packages.close();
+        androidJobs.close();
         try { server.close(); } catch (IOException ignored) { }
         LocalSocket active = client;
         if (active != null) try { active.close(); } catch (IOException ignored) { }

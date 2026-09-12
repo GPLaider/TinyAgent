@@ -24,16 +24,42 @@ def main():
         for name in ('AGENTS.md', 'STOCK.md', 'ADB.md', 'ROOT.md'):
             assert archive.read('assets/' + name) == (ROOT / 'harness' / name).read_bytes()
         print('Packaged fixed harness: versioned bytes verified')
-        for name in ('prepare-development.sh', 'prepare-self-build.sh', 'prepare-android-sdk-fedora.py', 'configure-android-sdk-fedora.py'):
+        dnfast_source = json.loads((ROOT / 'runtime/dnfast-source-export.json').read_text())
+        assert hashlib.sha256(archive.read('assets/licenses/' + dnfast_source['notice'])).hexdigest() == dnfast_source['notice_sha256']
+        print('Packaged dnfast license: pinned source notice verified')
+        cargo_notices = json.loads((ROOT / 'runtime/dnfast-cargo-notices.json').read_text())
+        assert hashlib.sha256(archive.read('assets/licenses/dnfast-cargo-notices.tar')).hexdigest() == cargo_notices['archive_sha256']
+        print('Packaged dnfast Rust notices: pinned archive verified')
+        rpm_notices = json.loads((ROOT / 'runtime/dnfast-rpm-notices.json').read_text())
+        for package in rpm_notices['packages']:
+            for notice in package['notices']:
+                assert hashlib.sha256(archive.read('assets/licenses/dnfast-rpm/' + notice['member'])).hexdigest() == notice['sha256']
+        print('Packaged dnfast RPM notices: collected bytes verified')
+        source_notices = json.loads((ROOT / 'runtime/dnfast-source-notices.json').read_bytes())
+        for notice in source_notices:
+            assert hashlib.sha256(archive.read('assets/licenses/' + notice['file'])).hexdigest() == notice['sha256']
+        print('Packaged supplemental RPM source notices: ' + str(len(source_notices)))
+        supplemental_rpms = {notice['source_rpm'] for notice in source_notices}
+        uncovered = [package['package'] for package in rpm_notices['packages']
+                     if (package['missing'] or not package['notices'])
+                     and package['source_rpm'] not in supplemental_rpms]
+        assert not uncovered, f'Packages without packaged RPM or source notices: {uncovered}'
+        print(f"Packaged RPM/source notice inventory coverage: {len(rpm_notices['packages'])} packages; not a full license audit")
+        for name in ('prepare-development.sh', 'prepare-self-build.sh', 'prepare-android-sdk-fedora.py', 'configure-android-sdk-fedora.py', 'configure-arm-aidl.py', 'tinyagent-packages.py', 'upgrade-dnfast-empty.py', 'upgrade-dnfast-checked.py', 'tinyagent-android.py', 'android-job.sh'):
             assert archive.read('assets/bootstrap/' + name) == (ROOT / 'scripts' / name).read_bytes(), name
-        print('Packaged development bootstrap: 4 versioned scripts verified')
+        print('Packaged development bootstrap: 10 versioned scripts verified')
         proot = json.loads((ROOT / 'evidence/proot-staging.json').read_text())
-        patched = json.loads((ROOT / 'runtime/proot-exitkill-1.json').read_text())
+        patched = json.loads((ROOT / 'runtime/proot-fchmodat2-2.json').read_text())
         native_hashes = {**proot['output_sha256'], **patched['outputs']}
         for name, digest in native_hashes.items():
             assert hashlib.sha256(archive.read('lib/arm64-v8a/' + name)).hexdigest() == digest, name
         print('Packaged PRoot: source-built tracer/loader and 2 pinned dependencies verified')
-        for name in ('libdnfastlaunch.so', 'libfdgate.so'):
+        assert archive.read('lib/arm64-v8a/libdnfastlaunch.so') == (ROOT/'app/src/main/jniLibs/arm64-v8a/libdnfastlaunch.so').read_bytes()
+        manifest_bytes = (ROOT/'runtime/dnfast-1449710-manifest.json').read_bytes()
+        assert archive.read('assets/dnfast-manifest.json') == manifest_bytes
+        assert hashlib.sha256(archive.read('assets/dnfast-root-overlay.tar.gz.bin')).hexdigest() == json.loads(manifest_bytes)['overlay_sha256']
+        print('Packaged dnfast launcher and pinned overlay verified')
+        for name in ('libfdgate.so', 'libmemfdprobe.so'):
             if args.variant == 'debug':
                 assert archive.read('lib/arm64-v8a/'+name) == (ROOT/'app/src/debug/jniLibs/arm64-v8a'/name).read_bytes(), name
             else:
@@ -60,7 +86,7 @@ def main():
         assert "connect-src 'self'" in manifest['csp']
         assert "script-src 'self' 'wasm-unsafe-eval' 'sha256-" in manifest['csp']
         print(f"Packaged GUI: {len(manifest['files'])} asset hashes verified")
-    print('Packaged runtime: 2 original compressed archives verified')
+        print('Packaged runtime: 2 pinned compressed archives verified')
 
 
 if __name__ == '__main__':

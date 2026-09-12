@@ -1,6 +1,6 @@
 import {writeFile} from 'node:fs/promises'
 const port=Number(process.argv[2]), name=process.argv[3]
-if(![19222,19224].includes(port)||!/^lyriq[12]$/.test(name))throw Error('Explicit bench device required')
+if(![19222,19223,19224].includes(port)||!/^lyriq[12]$/.test(name))throw Error('Explicit bench device required')
 const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json()
 const target=targets.find(t=>t.type==='page'&&t.url.startsWith('http://127.0.0.1:4097/'))
 if(!target)throw Error('TinyAgent local WebView is not open')

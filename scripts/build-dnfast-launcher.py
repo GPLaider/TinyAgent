@@ -7,7 +7,7 @@ import subprocess
 
 root = Path(__file__).resolve().parents[1]
 if os.name == 'nt':
-    compiler = Path.home() / 'AppData/Local/Android/Sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe'
+    compiler = Path(os.environ.get('ANDROID_HOME', Path.home() / 'AppData/Local/Android/Sdk')) / 'ndk/28.0.13004108/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe'
 else:
     assert os.uname().machine == 'aarch64'
     spec = importlib.util.spec_from_file_location('sdk_inputs', root/'scripts/prepare-android-sdk-fedora.py')
@@ -21,8 +21,10 @@ else:
     compiler = archive.with_name(archive.name+'.unpacked')/'android-ndk-r29/toolchains/llvm/prebuilt/linux-arm64/bin/clang'
 assert compiler.is_file()
 for source, name in [('native/dnfast-launch.c', 'libdnfastlaunch.so'),
+                     ('native/app-memfd-probe.c', 'libmemfdprobe.so'),
                      ('native/fd-gate/probe.c', 'libfdgate.so')]:
-    output = root / 'app/src/debug/jniLibs/arm64-v8a' / name
+    variant = 'main' if name == 'libdnfastlaunch.so' else 'debug'
+    output = root / f'app/src/{variant}/jniLibs/arm64-v8a' / name
     output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run([str(compiler), '--target=aarch64-linux-android30', '-std=c11', '-O2',
                 '-Wall', '-Wextra', '-Werror', '-Wl,-z,max-page-size=16384',
