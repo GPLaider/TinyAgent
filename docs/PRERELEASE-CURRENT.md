@@ -1,7 +1,7 @@
-# 미게시 후보 상태
+# 현재 프리릴리즈 상태
 
-현재 소스는 다음 비공개 프리릴리즈 준비 중입니다. 이전 Preview 문서는 당시
-결과이며, 다음 기록을 현재 판정으로 사용합니다. 새 버전 게시가 완료된 상태가 아닙니다.
+`0.0.1-alpha.1`은 2026-09-12에 공개 GitHub 프리릴리즈로 게시됐습니다. 이전
+Preview 문서는 당시 결과이며, 다음 기록을 현재 판정으로 사용합니다.
 
 ## 최신 후보 — 0.0.1 Alpha 1 / runtime12
 
@@ -32,8 +32,9 @@
   Wi-Fi와 Android 무선 디버깅이 필요하며 Wi-Fi 이탈 시 Stock 기능만 계속됩니다.
 - 유료 production 공급자 인증, 장시간 작업·복구, 동일 서명 업데이트와 production
   phone self-build는 이번 1회 smoke에서 검증하지 않았습니다.
-- 새 버전은 아직 게시하지 않았습니다. 자세한 범위는
-  `docs/RELEASE-0.0.1-ALPHA.1.md`와 `evidence/snapshot12-dirty-submodule-optimization.md`를 참조합니다.
+- 게시된 프리릴리즈: `https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.1`.
+  자세한 범위는 `docs/RELEASE-0.0.1-ALPHA.1.md`와
+  `evidence/snapshot12-dirty-submodule-optimization.md`를 참조합니다.
 
 ## 직전 후보 — runtime6 제외 파일 metadata 보존
 
@@ -209,4 +210,5 @@ GUI 기준은 OpenCode `16747470f976aca3d362ad730bcd3fe82ecc2c9a`와
 이 소스 일치 검사는 폰 전체 빌드 성공이나 APK 바이트 단위 재현을 대신하지 않습니다.
 `TinyAgent-current-source.zip`의 `SOURCE-SNAPSHOT.json`에 기록된 APK 해시가
 위 후보와 일치하는지 확인해야 합니다. 묶음 검증 결과는
-`evidence/source-candidate-verification.json`에 기록하며 아직 미게시입니다.
+`evidence/source-candidate-verification.json`에 기록했습니다. 게시된 source ZIP은
+468개 파일과 APK 해시 결합 검증을 통과했습니다.

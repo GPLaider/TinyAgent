@@ -2,7 +2,7 @@
 
 ## Current checkpoint — 2026-09-12
 
-The current private release candidate is `0.0.1-alpha.1`, versionCode 5, runtime
+The current public prerelease is `0.0.1-alpha.1`, versionCode 5, runtime
 `1.18.29-tinyagent.12`, Harness 20. The exact production APK is
 `artifacts/TinyAgent-0.0.1-alpha.1-android-arm64.apk`, 145216194 bytes, SHA-256
 `013f05727575620cb04aa9c3aec00098bf137d8652dd0d77ae6e3db3a04e1462`.
@@ -37,8 +37,9 @@ the Windows user profile.
 RADB/Tailscale cellular transport remains research and is not part of Alpha 1. LADB
 requires local Wi-Fi and Android Wireless debugging. Paid-provider production auth,
 long-running production recovery, same-signer update and production phone self-build
-remain unverified. The local release commit and tag are prepared, but no
-`v0.0.1-alpha.1` release or tag has been pushed or published.
+remain unverified. Commit `51e3918386320806c0ef062a923e6bcae3cc5c11` and annotated
+tag `v0.0.1-alpha.1` were published as a public GitHub prerelease on 2026-09-12:
+`https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.1`.
 
 ## Historical bring-up record (not current installed-state evidence)
 

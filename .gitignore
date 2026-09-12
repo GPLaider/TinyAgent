@@ -5,6 +5,14 @@ artifacts/
 local.properties
 *.keystore
 *.jks
+*.p12
+*.pfx
+*.pem
+*.key
+release.properties
+.env
+.env.*
+!.env.example
 *.part
 **/__pycache__/
 evidence/**/*.apk

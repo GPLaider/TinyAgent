@@ -76,7 +76,8 @@ and `aapt dump badging` independently passed. The matching source archive and ex
 checksum file are generated after this exact APK is fixed. The APK is not expected to
 be byte-reproducible because signing time and ZIP metadata can differ.
 
-The production candidate is not published. The same runtime passed Edge 40 health,
+The production candidate was published as public prerelease `v0.0.1-alpha.1` on
+2026-09-12. The same runtime passed Edge 40 health,
 model/tool and LADB Developer shell checks in the separately signed debug package.
 The exact production APK was then clean-installed on Lyriq1: installed `base.apk`
 matched SHA-256, package version was code 5 / `0.0.1-alpha.1`, and a cold start
@@ -120,7 +121,7 @@ Afterward the production backend was stopped and the development backend
 restored. All 43 prior development session IDs, providers and dark theme
 were retained; only UID10042 had running PRoot/OpenCode afterward.
 
-The candidate has not been published. This is one first-install and
+The `0.1.0-preview.4` candidate was not published. This is one first-install and
 model/tool journey, not three consecutive passes. Production OAuth/provider
 matrix, recovery, phone self-build and same-signer update validation remain.
 Existing development-package passes do not satisfy these gates. The

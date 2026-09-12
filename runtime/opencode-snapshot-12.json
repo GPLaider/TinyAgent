@@ -27,8 +27,8 @@
     "packages/opencode/test/snapshot/diff-writer.test.ts",
     "packages/opencode/test/snapshot/snapshot.test.ts"
   ],
-  "shipped": false,
-  "scope": "Unpublished dirty-submodule snapshot scan optimization; ARM execution, APK integration, and Edge 40 validation passed",
+  "shipped": true,
+  "scope": "Shipped in TinyAgent 0.0.1-alpha.1; dirty-submodule snapshot scan optimization, ARM execution, APK integration, and Edge 40 validation passed",
   "archive_sha256": "b877f7baa8d60611b9a638209c84868e5dea9139c8dec622943d25f29c07f205",
   "archive_bytes": 49796835
 }
