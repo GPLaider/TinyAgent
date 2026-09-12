@@ -32,12 +32,21 @@ def package_name(value):
 
 def parse_state(window, display, power):
     focus = re.search(r"mCurrentFocus=Window\{[^\n]*?\s([\w.]+)/[\w.$]+", window)
+    package = focus[1] if focus else None
+    token = re.search(r"mCurrentFocus=Window\{([0-9a-f]+)\s", window)
+    if token:
+        record = re.search(r"Window #\d+ Window\{" + re.escape(token[1])
+                           + r"\s[^\n]*\}:(.*?)(?=\n  Window #|\Z)", window, re.S)
+        if record:
+            # Dialog titles need not contain an activity/package and may be arbitrary.
+            owner = re.search(r"^\s+mOwnerUid=\d+[^\n]*\bpackage=([\w.]+)(?:\s|$)", record[1], re.M)
+            package = owner[1] if owner else None
     size = re.findall(r"(?:Physical|Override) size:\s*(\d+)x(\d+)", display)
     rotation = re.search(r"(?:mCurrentRotation|mRotation)=(?:ROTATION_)?(\d+)", window)
     awake = re.search(r"mWakefulness=(\w+)", power)
     ime = re.search(r"Window #\d+ Window\{[^\n]*InputMethod[^\n]*\}(.*?)(?=\n  Window #|\Z)", window, re.S)
     flag = re.search(r"isVisible=(true|false)", ime[1]) if ime else None
-    return {"foreground_package": focus[1] if focus else None,
+    return {"foreground_package": package,
             "display_size": [int(x) for x in size[-1]] if size else None,
             "rotation": int(rotation[1]) if rotation else None,
             "keyboard_visible": flag[1] == "true" if flag else None,

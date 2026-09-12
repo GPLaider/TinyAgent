@@ -91,6 +91,19 @@ class PhoneTests(unittest.TestCase):
         self.assertEqual(self.fake.commands.count("input tap 50 40"), 1)
         self.assertNotEqual(data["snapshot"], after["after"]["snapshot"])
 
+    def test_dialog_focus_uses_exact_window_owner(self):
+        window = ("  Window #6 Window{81c41d0 u0 기기 페어링}:\n"
+                  "    mOwnerUid=1000 showForAllUsers=false package=com.android.settings appop=NONE\n"
+                  "  Window #7 Window{abcdef0 u0 unrelated}:\n"
+                  "    mOwnerUid=10001 showForAllUsers=false package=io.other.app appop=NONE\n"
+                  "  mCurrentFocus=Window{81c41d0 u0 기기 페어링}\n"
+                  "  mFocusedApp=ActivityRecord{30110344 u0 io.other.app/.Main}\n")
+        self.assertEqual(phone.parse_state(window, "", "")["foreground_package"], "com.android.settings")
+        spoofed = window.replace("기기 페어링", "io.other.app/.Spoofed")
+        self.assertEqual(phone.parse_state(spoofed, "", "")["foreground_package"], "com.android.settings")
+        unknown = window.replace("mCurrentFocus=Window{81c41d0", "mCurrentFocus=Window{0000000")
+        self.assertIsNone(phone.parse_state(unknown, "", "")["foreground_package"])
+
     def test_incomplete_png_never_published_as_snapshot(self):
         invalid_pixels = PNG[:33] + png_chunk(b"IDAT", zlib.compress(b"short")) + png_chunk(b"IEND", b"")
         for malformed in (PNG[:24], PNG[:-12], PNG[:-1], PNG + b"extra", invalid_pixels,
