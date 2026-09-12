@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -65,7 +66,7 @@ def main():
             fixture = ROOT / "tests/proot-lifecycle"
             evidence["fixture_sha256"] = {p.name: digest(p) for p in fixture.glob("*") if p.is_file()}
             production = ROOT / "app/src/main/java/io/github/gplaider/tinyagent"
-            names = ["LocalLinuxRuntime", "LocalPolicy", "RuntimeProcessIdentity", "RuntimeProcessOutput", "RuntimeExecutable", "DnfastRuntime", "DnfastResult"]
+            names = ["LocalLinuxRuntime", "LocalPolicy", "RuntimeProcessIdentity", "RuntimeProcessOutput", "RuntimeExecutable", "DnfastRuntime", "DnfastResult", "BundledSkills"]
             evidence["source_sha256"] = {name: digest(production / (name + ".java")) for name in names}
             run(jdk / "bin/javac", "-source", "17", "-target", "17", "-encoding", "UTF-8", "-classpath", android, "-d", classes,
                 *[production / (name + ".java") for name in names], *fixture.glob("*.java"))
@@ -89,6 +90,12 @@ def main():
             run(jdk / "bin/java", "-jar", args.build_tools / "lib/apksigner.jar", "sign", "--ks", build / "test.jks",
                 "--ks-pass", "pass:android", "--out", build / "audit.apk", build / "aligned.apk")
             evidence["apk_sha256"] = digest(build / "audit.apk")
+            run(jdk / "bin/keytool", "-exportcert", "-keystore", build / "test.jks",
+                "-storepass", "android", "-alias", "test", "-file", build / "test.der")
+            evidence["expected_test_signer_sha256"] = digest(build / "test.der")
+            evidence["signer_verification"] = run(jdk / "bin/java", "-jar", args.build_tools / "lib/apksigner.jar",
+                "verify", "--print-certs", build / "audit.apk")
+            assert set(re.findall(r"certificate SHA-256 digest: ([0-9a-f]{64})", evidence["signer_verification"])) == {evidence["expected_test_signer_sha256"]}
             adb("install", "--no-streaming", build / "audit.apk")
             installed = True
             report = adb("shell", "am", "instrument", "-w", PACKAGE + "/io.github.gplaider.tinyagent." + check, timeout=420 if args.backend else 180)
