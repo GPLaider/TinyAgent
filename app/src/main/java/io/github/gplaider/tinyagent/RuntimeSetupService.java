@@ -16,7 +16,11 @@ public final class RuntimeSetupService extends Service {
     private volatile Process backend;
     private volatile LocalLinuxRuntime runtime;
     private volatile AndroidDiagnosticsBridge androidBridge;
-    private volatile boolean running, stopping;
+    private volatile boolean running, stopping, finishing, destroyed;
+    // Main-thread request state; a pending STOP/START never replaces a live owner.
+    private boolean restartRequested;
+    private int lastStartId;
+    private ScheduledFuture<?> sessionTask;
     private ConnectivityManager.NetworkCallback networkCallback;
     private android.os.PowerManager.WakeLock runtimeLock;
     private NotificationManager notifications;
@@ -34,22 +38,32 @@ public final class RuntimeSetupService extends Service {
     };
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        lastStartId = startId;
         if (intent != null && STOP.equals(intent.getAction())) {
             getSharedPreferences("runtime", MODE_PRIVATE).edit().putBoolean("wanted", false).apply();
             stopping = true;
+            restartRequested = false;
             if (androidBridge != null) androidBridge.close();
             save("로컬 백엔드 중단 중…");
             if (runtime != null) runtime.cancel();
             if (backend != null && runtime != null) runtime.stop(backend);
-            if (!running) stopSelf();
+            if (!running) stopSelf(startId);
             return START_NOT_STICKY;
         }
         if (running) {
+            if (stopping || finishing) {
+                restartRequested = true;
+                getSharedPreferences("runtime", MODE_PRIVATE).edit().putBoolean("wanted", true).apply();
+            }
             getSharedPreferences("runtime", MODE_PRIVATE).edit().putLong("updated", System.currentTimeMillis()).apply();
             return START_NOT_STICKY;
         }
+        startRuntime();
+        return START_NOT_STICKY;
+    }
+    private void startRuntime() {
         getSharedPreferences("runtime", MODE_PRIVATE).edit().putBoolean("wanted", true).apply();
-        running = true; stopping = false; preparing = true;
+        running = true; stopping = false; finishing = false; preparing = true;
         started = android.os.SystemClock.elapsedRealtime();
         notifications = getSystemService(NotificationManager.class);
         notifications.createNotificationChannel(new NotificationChannel("runtime-setup", "로컬 실행 환경", NotificationManager.IMPORTANCE_LOW));
@@ -59,12 +73,14 @@ public final class RuntimeSetupService extends Service {
         startForeground(1, notification());
         save("로컬 실행 환경 다시 연결 중…");
         timer.post(tick);
+        // Publish ownership on the main thread before STOP can reach this service.
+        runtime = new LocalLinuxRuntime(this);
+        LocalLinuxRuntime owner = runtime;
         worker.submit(() -> {
             try {
                 acquireRuntimeLock();
                 getSharedPreferences("runtime", MODE_PRIVATE).edit().putString("previousProcessExit",
                         previousExit(getSystemService(ActivityManager.class), getPackageName())).apply();
-                runtime = new LocalLinuxRuntime(this);
                 runtime.prepare(this::save, this::saveProgress);
                 if (stopping) return;
                 try {
@@ -91,44 +107,72 @@ public final class RuntimeSetupService extends Service {
                 runtime.awaitBackend(backend);
                 networkCallback = new ConnectivityManager.NetworkCallback() {
                     @Override public void onLinkPropertiesChanged(Network network, LinkProperties properties) {
-                        try { runtime.refreshDns(); } catch (Exception error) { save("네트워크 변경 확인 필요: " + error.getMessage()); }
+                        if (runtime != owner || stopping || finishing) return;
+                        try { owner.refreshDns(); } catch (Exception error) {
+                            synchronized (RuntimeSetupService.this) {
+                                if (runtime == owner && !stopping && !finishing)
+                                    save("네트워크 변경 확인 필요: " + error.getMessage());
+                            }
+                        }
                     }
                 };
                 getSystemService(ConnectivityManager.class).registerDefaultNetworkCallback(networkCallback);
-                preparing = false;
-                save(LocalPolicy.RUNTIME_READY);
-                sessionMonitor.scheduleWithFixedDelay(() -> {
-                    if (stopping || backend == null || !backend.isAlive()) return;
+                synchronized (this) {
+                    if (stopping) return;
+                    preparing = false;
+                    save(LocalPolicy.RUNTIME_READY);
+                }
+                sessionTask = sessionMonitor.scheduleWithFixedDelay(() -> {
+                    if (runtime != owner || stopping || finishing || backend == null || !backend.isAlive()) return;
                     try {
-                        String[] current = runtime.sessionNotification();
+                        String[] current = owner.sessionNotification();
                         synchronized (this) {
-                            if (stopping) return;
+                            if (runtime != owner || stopping || finishing) return;
                             sessionTitle = current[0]; sessionDetail = current[1];
                             notifications.notify(1, notification());
                         }
                     } catch (Exception error) {
                         synchronized (this) {
-                            if (stopping) return;
+                            if (runtime != owner || stopping || finishing) return;
                             sessionDetail = "세션 상태 확인 중…";
                             notifications.notify(1, notification());
                         }
                     }
                 }, 0, 3, TimeUnit.SECONDS);
                 int code = backend.waitFor();
+                finishing = true;
                 save(stopping ? "로컬 백엔드를 중단했습니다. 다시 준비하면 작업을 이어갑니다." : "환경 준비 실패: 백엔드 종료 exit=" + code + " · linux/backend.log 확인");
-            } catch (Exception error) { preparing = false; save(stopping ? "환경 준비를 중단했습니다. 다시 시도할 수 있습니다." : "환경 준비 실패: " + error.getClass().getSimpleName() + ": " + error.getMessage()); }
+            } catch (Exception error) { finishing = true; save(stopping ? "환경 준비를 중단했습니다. 다시 시도할 수 있습니다." : "환경 준비 실패: " + error.getClass().getSimpleName() + ": " + error.getMessage()); }
             finally {
-                if (androidBridge != null) { androidBridge.close(); androidBridge = null; }
-                if (backend != null && runtime != null) { runtime.stop(backend); runtime.forget(backend); }
-                if (networkCallback != null) { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(networkCallback); networkCallback = null; }
-                backend = null; running = false; preparing = false;
-                sessionMonitor.shutdownNow();
-                releaseRuntimeLock(); timer.removeCallbacks(tick);
-                getSharedPreferences("runtime", MODE_PRIVATE).edit().putLong("updated", System.currentTimeMillis()).apply();
-                stopForeground(stopping ? STOP_FOREGROUND_REMOVE : STOP_FOREGROUND_DETACH); stopSelf();
+                finishing = true;
+                try {
+                    if (androidBridge != null) { androidBridge.close(); androidBridge = null; }
+                    if (runtime != null) runtime.cancel();
+                    if (backend != null && runtime != null) { runtime.stop(backend); runtime.forget(backend); }
+                    if (networkCallback != null) {
+                        try { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(networkCallback); }
+                        catch (IllegalArgumentException ignored) { /* Registration may have failed. */ }
+                        finally { networkCallback = null; }
+                    }
+                } finally {
+                    if (sessionTask != null) { sessionTask.cancel(true); sessionTask = null; }
+                    releaseRuntimeLock(); timer.removeCallbacks(tick);
+                    timer.post(() -> finishRuntime(owner));
+                }
             }
         });
-        return START_NOT_STICKY;
+    }
+    private void finishRuntime(LocalLinuxRuntime owner) {
+        if (destroyed || runtime != owner) return;
+        backend = null; runtime = null; running = false; preparing = false;
+        getSharedPreferences("runtime", MODE_PRIVATE).edit().putLong("updated", System.currentTimeMillis()).apply();
+        if (restartRequested) {
+            restartRequested = false;
+            startRuntime();
+            return;
+        }
+        stopForeground(stopping ? STOP_FOREGROUND_REMOVE : STOP_FOREGROUND_DETACH);
+        stopSelf(lastStartId);
     }
     static String previousExit(ActivityManager manager, String packageName) {
         try {
@@ -154,14 +198,18 @@ public final class RuntimeSetupService extends Service {
         } catch (RuntimeException error) { return "이전 앱 종료 기록을 읽지 못했습니다."; }
     }
 
-    private synchronized void save(String status) { latest = status; percent = -1; publish(); }
+    private synchronized void save(String status) {
+        if (destroyed) return;
+        latest = status; percent = -1; publish();
+    }
     private synchronized void saveProgress(String status, Integer value) {
-        if (stopping) return;
+        if (destroyed || stopping) return;
         latest = status; percent = value;
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastProgress >= 500 || value == 100) { lastProgress = now; publish(); }
     }
     private synchronized void publish() {
+        if (destroyed) return;
         long seconds = Math.max(0, (android.os.SystemClock.elapsedRealtime() - started) / 1000);
         String detail = latest + (percent >= 0 ? " · " + percent + "%" : "")
                 + (preparing ? "\n경과 " + seconds / 60 + "분 " + seconds % 60 + "초 · 다른 앱을 사용해도 계속 준비합니다." : "");
@@ -197,6 +245,7 @@ public final class RuntimeSetupService extends Service {
         if (runtimeLock != null && runtimeLock.isHeld()) runtimeLock.release();
     }
     @Override public void onDestroy() {
+        destroyed = true; restartRequested = false;
         stopping = true;
         preparing = false; timer.removeCallbacks(tick); releaseRuntimeLock();
         if (androidBridge != null) androidBridge.close();

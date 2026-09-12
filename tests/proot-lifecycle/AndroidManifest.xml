@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.gplaider.tinyagent.prootaudit">
+    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:label="TinyAgent PRoot audit" android:allowBackup="false" android:debuggable="true" android:extractNativeLibs="true" android:usesCleartextTraffic="true">
+        <service android:name="io.github.gplaider.tinyagent.CrashOwnerService" android:process=":crash_owner" android:exported="false" />
+    </application>
+    <instrumentation android:name="io.github.gplaider.tinyagent.PRootLifecycleCheck" android:targetPackage="io.github.gplaider.tinyagent.prootaudit" />
+    <instrumentation android:name="io.github.gplaider.tinyagent.BackendLifecycleCheck" android:targetPackage="io.github.gplaider.tinyagent.prootaudit" />
+</manifest>

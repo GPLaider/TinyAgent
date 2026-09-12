@@ -1,0 +1,298 @@
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.function.*;
+
+/** API doubles deliberately run callbacks in adversarial, reproducible order. */
+public class RuntimeServiceCheck {
+    static Runnable afterRelease = () -> {};
+    static Runnable duringPrepare = () -> {};
+    static Runnable duringWait = () -> {};
+    static final List<LocalLinuxRuntime> runtimes = new ArrayList<>();
+    static RuntimeSetupService service;
+    static int checks;
+
+    static void require(boolean value, String message) {
+        checks++;
+        if (!value) throw new AssertionError(message);
+    }
+    static void reset() {
+        if (service != null) service.onDestroy();
+        afterRelease = () -> {}; duringPrepare = () -> {}; duringWait = () -> {};
+        android.os.Handler.immediate.clear(); android.os.Handler.delayed.clear();
+        runtimes.clear();
+        service = new RuntimeSetupService();
+    }
+    static void start(int id) { service.onStartCommand(new Intent(), 0, id); }
+    static void stop(int id) { service.onStartCommand(new Intent().setAction(RuntimeSetupService.STOP), 0, id); }
+    static void runWorker() { ((ManualWorker) service.worker).next(); }
+    static void finishCallbacks() { android.os.Handler.drain(); }
+    static boolean wanted() { return Boolean.TRUE.equals(service.prefs.values.get("wanted")); }
+    public static void main(String[] args) {
+        try {
+            // A user retry arrives after worker cleanup starts but before it finishes.
+            reset(); start(1);
+            afterRelease = () -> { afterRelease = () -> {}; start(2); };
+            runWorker(); finishCallbacks();
+            require(runtimes.size() == 2, "retry during teardown was dropped");
+            require(service.stoppedIds.isEmpty(), "old worker stopped the retry generation");
+            require(!service.sessionMonitor.isShutdown(), "old worker shut down retry monitor");
+            runWorker(); finishCallbacks();
+            require(service.stoppedIds.equals(List.of(2)), "retry did not own its own completion");
+            require(service.notifications.events.stream().noneMatch(s -> s.contains("RejectedExecutionException")), "retry used a dead executor");
+
+            reset(); start(1); start(2);
+            require(runtimes.size() == 1, "duplicate START replaced a running owner");
+            runWorker(); finishCallbacks();
+            require(service.stoppedIds.equals(List.of(2)), "completion must stop only the latest observed startId");
+            require(!service.power.lock.isHeld(), "normal completion retained wakelock");
+
+            reset(); start(1); stop(2); start(3);
+            runWorker(); finishCallbacks();
+            require(wanted() && runtimes.size() == 2, "STOP then START lost user intent");
+            require(runtimes.get(0).prepares == 0, "cancelled runtime prepared before queued restart");
+            require(service.stoppedIds.isEmpty(), "pending restart stopped the service");
+            runWorker(); finishCallbacks();
+            require(service.stoppedIds.equals(List.of(3)), "restart used stale startId");
+
+            reset(); start(1); stop(2); start(3); stop(4);
+            runWorker(); finishCallbacks();
+            require(!wanted() && runtimes.size() == 1, "latest STOP did not cancel pending restart");
+            require(service.stoppedIds.equals(List.of(4)), "latest STOP not honored");
+
+            reset(); start(1);
+            service.network.failRegister = true;
+            service.network.failUnregister = true;
+            runWorker(); finishCallbacks();
+            require(service.stoppedIds.equals(List.of(1)), "failed network registration stranded service cleanup");
+            require(!service.power.lock.isHeld(), "failed registration leaked wakelock");
+
+            // An old queued completion must not stop a destroyed/replacement service.
+            reset(); start(1); runWorker(); service.onDestroy();
+            int events = service.notifications.events.size();
+            finishCallbacks();
+            require(service.stoppedIds.isEmpty(), "completion acted on destroyed service");
+            require(service.notifications.events.size() == events, "destroyed completion published notifications");
+
+            reset(); start(1);
+            RuntimeSetupService oldService = service;
+            Runnable dispatched = ((ManualWorker) service.worker).work.remove();
+            oldService.onDestroy();
+            service = new RuntimeSetupService(); start(2);
+            events = oldService.notifications.events.size();
+            dispatched.run(); finishCallbacks();
+            require(RuntimeSetupService.preparing, "old worker cleared replacement preparation state");
+            require(oldService.notifications.events.size() == events, "old worker published after destroy");
+            require(oldService.stoppedIds.isEmpty(), "old worker stopped destroyed service");
+
+            // Retained callbacks from owner 1 must not use owner 2 or publish stale data.
+            reset(); start(1); runWorker();
+            Runnable oldMonitor = ((ManualScheduler) service.sessionMonitor).callbacks.get(0);
+            ConnectivityManager.NetworkCallback oldNetwork = service.network.registered.get(0);
+            start(2); finishCallbacks();
+            require(runtimes.size() == 2, "completion queue retry not preserved");
+            duringWait = () -> {
+                int notices = service.notifications.events.size();
+                oldMonitor.run(); oldNetwork.onLinkPropertiesChanged(new Network(), new LinkProperties());
+                require(service.notifications.events.size() == notices, "old callback published into new runtime");
+                require(runtimes.get(0).dnsRefreshes == 0 && runtimes.get(1).dnsRefreshes == 0, "old DNS callback touched runtime state");
+                require(runtimes.get(1).sessionReads == 0, "old monitor read new owner");
+            };
+            runWorker(); finishCallbacks();
+
+            reset(); start(1);
+            duringPrepare = () -> { stop(2); start(3); stop(4); };
+            runWorker(); finishCallbacks();
+            require(runtimes.size() == 1 && !wanted(), "preparation interleaving ignored latest STOP");
+            require(service.stoppedIds.equals(List.of(4)), "preparation STOP completion wrong");
+            System.out.println("PASS: " + checks + " service assertions; duplicate START, cleanup retry, STOP/START/STOP, network failure, destroyed completion and stale callbacks");
+        } finally { if (service != null) service.onDestroy(); }
+    }
+
+    /* PRODUCTION_SERVICE */
+
+    static class ManualWorker extends AbstractExecutorService {
+        final ArrayDeque<Runnable> work = new ArrayDeque<>();
+        boolean closed;
+        public void execute(Runnable task) { if (closed) throw new RejectedExecutionException(); work.add(task); }
+        void next() { Runnable task = work.poll(); if (task == null) throw new AssertionError("No queued worker"); task.run(); }
+        public void shutdown() { closed = true; }
+        public List<Runnable> shutdownNow() { closed = true; var pending = List.copyOf(work); work.clear(); return pending; }
+        public boolean isShutdown() { return closed; }
+        public boolean isTerminated() { return closed && work.isEmpty(); }
+        public boolean awaitTermination(long n, TimeUnit unit) { return isTerminated(); }
+    }
+    static class ManualScheduler extends ScheduledThreadPoolExecutor {
+        final List<Runnable> callbacks = new ArrayList<>();
+        ManualScheduler() { super(1); }
+        @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable task, long initial, long delay, TimeUnit unit) {
+            if (isShutdown()) throw new RejectedExecutionException("monitor is shutdown");
+            callbacks.add(task); return new ScheduledTask();
+        }
+    }
+    static class ScheduledTask extends FutureTask<Void> implements ScheduledFuture<Void> {
+        ScheduledTask() { super(() -> null); }
+        public long getDelay(TimeUnit unit) { return 0; }
+        public int compareTo(Delayed other) { return 0; }
+    }
+    static class Executors {
+        static ExecutorService newSingleThreadExecutor() { return new ManualWorker(); }
+        static ScheduledExecutorService newSingleThreadScheduledExecutor() { return new ManualScheduler(); }
+    }
+    static class SharedPreferences {
+        final Map<String, Object> values = new HashMap<>();
+        SharedPreferences edit() { return this; }
+        SharedPreferences putBoolean(String key, boolean value) { values.put(key, value); return this; }
+        SharedPreferences putLong(String key, long value) { values.put(key, value); return this; }
+        SharedPreferences putInt(String key, int value) { values.put(key, value); return this; }
+        SharedPreferences putString(String key, String value) { values.put(key, value); return this; }
+        void apply() {}
+    }
+    interface IBinder {}
+    static class Service {
+        static final int MODE_PRIVATE=0, START_NOT_STICKY=2, STOP_FOREGROUND_REMOVE=1, STOP_FOREGROUND_DETACH=2;
+        final SharedPreferences prefs = new SharedPreferences();
+        final List<Integer> stoppedIds = new ArrayList<>();
+        final NotificationManager notifications = new NotificationManager();
+        final ConnectivityManager network = new ConnectivityManager();
+        final android.os.PowerManager power = new android.os.PowerManager();
+        public IBinder onBind(Intent intent) { return null; }
+        public int onStartCommand(Intent intent, int flags, int startId) { return 0; }
+        public void onDestroy() {}
+        SharedPreferences getSharedPreferences(String name, int mode) { return prefs; }
+        String getPackageName() { return "test.app"; }
+        <T> T getSystemService(Class<T> type) {
+            Object result = type == NotificationManager.class ? notifications : type == ConnectivityManager.class ? network
+                    : type == android.os.PowerManager.class ? power : new ActivityManager();
+            return type.cast(result);
+        }
+        void startForeground(int id, Notification notification) { notifications.notify(id, notification); }
+        void stopForeground(int mode) {}
+        void stopSelf() { stoppedIds.add(-1); }
+        void stopSelf(int id) { stoppedIds.add(id); }
+    }
+    static class Intent {
+        String action;
+        Intent() {}
+        Intent(Object context, Class<?> target) {}
+        Intent setAction(String action) { this.action=action; return this; }
+        String getAction() { return action; }
+    }
+    static class LocalLinuxRuntime {
+        int prepares, dnsRefreshes, sessionReads;
+        boolean cancelled;
+        LocalLinuxRuntime(Object context) { runtimes.add(this); }
+        void prepare(Consumer<String> progress, BiConsumer<String, Integer> percent) throws Exception {
+            if (cancelled) throw new InterruptedException();
+            prepares++; duringPrepare.run();
+        }
+        void cancel() { cancelled = true; }
+        void stop(Process process) { process.destroy(); }
+        void forget(Process process) {}
+        void recordPackageSocket(String value) {}
+        void recordAndroidTool(String value) {}
+        Process startBackend() { return new Child(); }
+        void awaitBackend(Process process) {}
+        void refreshDns() { dnsRefreshes++; }
+        String[] sessionNotification() { sessionReads++; return new String[] {"session", "detail"}; }
+    }
+    static class Child extends Process {
+        boolean alive = true;
+        public OutputStream getOutputStream() { return OutputStream.nullOutputStream(); }
+        public InputStream getInputStream() { return InputStream.nullInputStream(); }
+        public InputStream getErrorStream() { return InputStream.nullInputStream(); }
+        public int waitFor() { duringWait.run(); alive = false; return 0; }
+        public int exitValue() { return 0; }
+        public void destroy() { alive = false; }
+        public boolean isAlive() { return alive; }
+    }
+    static class AndroidDiagnosticsBridge {
+        AndroidDiagnosticsBridge(Object context) {}
+        static String socketName() { return "test-socket"; }
+        void close() {}
+    }
+    static class LocalPolicy { static final String RUNTIME_READY = "ready"; }
+    static class AppActivity {}
+    static class Network {}
+    static class LinkProperties {}
+    static class ConnectivityManager {
+        boolean failRegister, failUnregister;
+        final List<NetworkCallback> registered = new ArrayList<>();
+        static class NetworkCallback { public void onLinkPropertiesChanged(Network n, LinkProperties p) {} }
+        void registerDefaultNetworkCallback(NetworkCallback callback) {
+            if (failRegister) throw new IllegalArgumentException("register failed");
+            registered.add(callback);
+        }
+        void unregisterNetworkCallback(NetworkCallback callback) { if (failUnregister) throw new IllegalArgumentException("not registered"); }
+    }
+    static class ActivityManager { List<ApplicationExitInfo> getHistoricalProcessExitReasons(String name, int pid, int max) { return List.of(); } }
+    static class ApplicationExitInfo {
+        static final int REASON_LOW_MEMORY=1, REASON_CRASH=2, REASON_CRASH_NATIVE=3, REASON_ANR=4;
+        String getProcessName() { return "test.app"; }
+        int getReason() { return 0; }
+        long getTimestamp() { return 0; }
+    }
+    static class NotificationManager {
+        static final int IMPORTANCE_LOW=1;
+        final List<String> events = new ArrayList<>();
+        void createNotificationChannel(NotificationChannel channel) {}
+        void notify(int id, Notification notification) { events.add(notification.text); }
+    }
+    static class NotificationChannel { NotificationChannel(String id, String name, int importance) {} }
+    static class PendingIntent {
+        static final int FLAG_IMMUTABLE=1, FLAG_UPDATE_CURRENT=2;
+        static PendingIntent getActivity(Object c, int id, Intent i, int f) { return new PendingIntent(); }
+        static PendingIntent getService(Object c, int id, Intent i, int f) { return new PendingIntent(); }
+        static PendingIntent getForegroundService(Object c, int id, Intent i, int f) { return new PendingIntent(); }
+    }
+    static class Notification {
+        static final int VISIBILITY_PRIVATE=0;
+        String text;
+        static class BigTextStyle { BigTextStyle bigText(String text) { return this; } }
+        static class Action { static class Builder { Builder(Object icon,String name,PendingIntent intent) {} Action build() { return new Action(); } } }
+        static class Builder {
+            final Notification result = new Notification();
+            Builder(Object context, String channel) {}
+            Builder setSmallIcon(int icon) { return this; }
+            Builder setContentTitle(String title) { return this; }
+            Builder setContentText(String text) { result.text=text; return this; }
+            Builder setStyle(BigTextStyle style) { return this; }
+            Builder setContentIntent(PendingIntent i) { return this; }
+            Builder setOnlyAlertOnce(boolean b) { return this; }
+            Builder setOngoing(boolean b) { return this; }
+            Builder setWhen(long n) { return this; }
+            Builder setUsesChronometer(boolean b) { return this; }
+            Builder setVisibility(int visibility) { return this; }
+            Builder setProgress(int max, int value, boolean indeterminate) { return this; }
+            Builder addAction(Action action) { return this; }
+            Notification build() { return result; }
+        }
+    }
+    static class android {
+        static class R { static class drawable { static int stat_sys_download=1; } }
+        static class os {
+            static class SystemClock { static long elapsedRealtime() { return 10000; } }
+            static class Looper { static Looper getMainLooper() { return new Looper(); } }
+            static class Handler {
+                static final ArrayDeque<Runnable> immediate = new ArrayDeque<>();
+                static final List<Runnable> delayed = new ArrayList<>();
+                Handler(Looper looper) {}
+                void post(Runnable task) { immediate.add(task); }
+                void postDelayed(Runnable task, long delay) { delayed.add(task); }
+                void removeCallbacks(Runnable task) { immediate.removeIf(r -> r == task); delayed.removeIf(r -> r == task); }
+                static void drain() { while (!immediate.isEmpty()) immediate.remove().run(); }
+            }
+            static class PowerManager {
+                static final int PARTIAL_WAKE_LOCK=1;
+                WakeLock lock;
+                WakeLock newWakeLock(int kind, String tag) { return lock = new WakeLock(); }
+                static class WakeLock {
+                    boolean held;
+                    void acquire() { held=true; }
+                    boolean isHeld() { return held; }
+                    void release() { held=false; afterRelease.run(); }
+                }
+            }
+        }
+    }
+}

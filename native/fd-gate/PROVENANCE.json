@@ -2,6 +2,15 @@
   "source_commit": "919d4b4977cea6f64c59779fd15e110510cc56ad",
   "scope": "Independent explicit app-only disposable FD probe; no product, Android execution, cross-app confidentiality or authorization claim",
   "source_sha256": "0e42f2b3722ad8afd9138eddb6c679045aa33127a66f36af3359e11177749abc",
-  "purpose": "Debug-only FD diagnostic seed; unchanged source retained for Android ARM self-build",
-  "packaged_seed_sha256": "c5711e3187192a8ffcdd802e33f929e4c4d449c7be14cedecf72c08f22081dbc"
+  "purpose": "Debug-only FD diagnostic seed; probe.c retained for Android ARM self-build, executor_fd.c has the documented local optimization below",
+  "packaged_seed_sha256": "c5711e3187192a8ffcdd802e33f929e4c4d449c7be14cedecf72c08f22081dbc",
+  "local_executor_change": {
+    "baseline_tinyagent_commit": "624159e5853f153c77e95b75ac464abb6587cb5f",
+    "file": "executor_fd.c",
+    "sha256": "9541184b6fe365241e88c01c87dbb0b8efcae64903a74362f31040892feb7f79",
+    "change": "Remove redundant F_GETFD/F_SETFD after successful dup3(flags=0); temporary CLOEXEC duplicates and close_range retained",
+    "validation": "benchmarks/package-manager/benchmark-fd-handoff.py: host Linux real-exec controls and alternating A/B measurements",
+    "packaged_binary_rebuilt": false,
+    "android_or_proot_validated": false
+  }
 }

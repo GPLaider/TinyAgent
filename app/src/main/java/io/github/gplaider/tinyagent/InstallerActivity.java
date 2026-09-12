@@ -20,12 +20,36 @@ public final class InstallerActivity extends Activity {
     private EditText path;
     private boolean quick, quickExport, started;
     private String openedConfirmation = "";
+    private String pendingExport;
+    // Retained only across configuration changes; exports do not share installer preferences.
+    private static final class ExportState {
+        String text;
+        boolean complete;
+        int activeCopies;
+        Runnable observer;
+    }
+    private ExportState exportState;
+    private final Runnable exportObserver = this::refresh;
     private static final java.util.concurrent.atomic.AtomicBoolean BUSY = new java.util.concurrent.atomic.AtomicBoolean();
     private final SharedPreferences.OnSharedPreferenceChangeListener listener = (p, k) -> runOnUiThread(this::refresh);
     @Override public void onCreate(Bundle saved) {
         boolean popup = getIntent().hasExtra("workspacePath") || getIntent().hasExtra("exportPath");
         if (popup) setTheme(R.style.ArtifactPopup);
         super.onCreate(saved);
+        pendingExport = saved == null ? null : saved.getString("pendingExport");
+        exportState = (ExportState) getLastNonConfigurationInstance();
+        if (exportState == null) {
+            exportState = new ExportState();
+            if (saved != null) {
+                exportState.text = saved.getString("exportStatus");
+                exportState.complete = saved.getBoolean("exportComplete");
+                if (saved.getBoolean("exportRunning")) {
+                    exportState.text = "파일 저장 결과를 확인할 수 없습니다. 저장이 중단됐거나 대상에 일부 파일만 남았을 수 있습니다. 대상 파일을 확인하세요.";
+                    exportState.complete = false;
+                }
+            }
+        }
+        exportState.observer = exportObserver;
         state = getSharedPreferences("installer", MODE_PRIVATE);
         quick = popup;
         quickExport = getIntent().hasExtra("exportPath");
@@ -34,7 +58,7 @@ public final class InstallerActivity extends Activity {
             int pad=(int)(20*getResources().getDisplayMetrics().density); body.setPadding(pad,pad,pad,pad);
             TextView title=new TextView(this); title.setText(quickExport?"파일 저장":"APK 설치"); title.setTextSize(18); body.addView(title);
             String selectedPath=getIntent().getStringExtra(quickExport?"exportPath":"workspacePath");
-            TextView filename=new TextView(this); filename.setText(new File(selectedPath).getName()); filename.setSingleLine(true); filename.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); filename.setTextSize(14); body.addView(filename);
+            TextView filename=new TextView(this); filename.setText(selectedPath == null ? "" : new File(selectedPath).getName()); filename.setSingleLine(true); filename.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); filename.setTextSize(14); body.addView(filename);
             status=new TextView(this); status.setText(quickExport?"저장 위치를 선택하세요.":"Android 설치 준비 중…"); status.setTextSize(14); status.setPadding(0,pad/2,0,pad/2); body.addView(status);
             button(body,"닫기",this::finish); setContentView(body);
             route=new Spinner(this); route.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"Stock","Developer","Root","ROM"}));
@@ -90,6 +114,13 @@ public final class InstallerActivity extends Activity {
         button.setOnClickListener(v -> action.run()); body.addView(button);
     }
     private void refresh() {
+        if (quickExport || exportState.text != null) {
+            if (status != null) status.setText(exportState.text == null ? "저장 위치를 선택하세요." : exportState.text);
+            if (quickExport && exportState.complete && !isFinishing()) {
+                Toast.makeText(this,"파일을 저장했습니다.",Toast.LENGTH_SHORT).show(); finish();
+            }
+            return;
+        }
         if (quick && !started) return;
         if (status != null) status.setText(state.getString("status", "설치할 APK와 실행 권한을 선택하세요."));
         if (!quick || quickExport || isFinishing()) return;
@@ -103,31 +134,47 @@ public final class InstallerActivity extends Activity {
             Toast.makeText(this,code==0?"설치 완료":"설치를 취소했습니다.",Toast.LENGTH_SHORT).show(); finish();
         }
     }
-    private void message(String value) { if(quick && status!=null) runOnUiThread(()->status.setText(value)); state.edit().putString("status", value).apply(); }
-    @Override protected void onSaveInstanceState(Bundle out) { out.putBoolean("started",started); out.putString("openedConfirmation",openedConfirmation); super.onSaveInstanceState(out); }
+    private void message(String value) {
+        runOnUiThread(() -> { exportState.text = null; exportState.complete = false; if(status!=null) status.setText(value); });
+        state.edit().putString("status", value).apply();
+    }
+    private void exportMessage(String value, boolean complete) {
+        ExportState current = exportState;
+        runOnUiThread(() -> {
+            current.text = value;
+            current.complete = complete;
+            if (current.observer != null) current.observer.run();
+        });
+    }
+    private void exportResult(String value, boolean complete) {
+        ExportState current = exportState;
+        runOnUiThread(() -> {
+            current.activeCopies--;
+            exportMessage(value, complete);
+        });
+    }
+    @Override public Object onRetainNonConfigurationInstance() { return exportState; }
+    @Override protected void onSaveInstanceState(Bundle out) { out.putBoolean("exportRunning",exportState.activeCopies > 0); out.putString("exportStatus",exportState.text); out.putBoolean("exportComplete",exportState.complete); out.putString("pendingExport",pendingExport); out.putBoolean("started",started); out.putString("openedConfirmation",openedConfirmation); super.onSaveInstanceState(out); }
     private void stageWorkspace(String relative) {
         try {
-            File input = workspaceFile(relative);
-            submit(() -> new FileInputStream(input));
+            workspaceFile(relative);
+            submit(() -> new WorkspaceFiles(getFilesDir()).input(relative));
         } catch (Exception error) { message(error.getMessage()); }
     }
     private File workspaceFile(String relative) throws IOException {
-        File workspace = new LocalLinuxRuntime(this).workspace.getCanonicalFile();
-        File input = new File(workspace, relative).getCanonicalFile();
-        if (relative.isEmpty() || !input.toPath().startsWith(workspace.toPath()) || !input.isFile())
-            throw new IOException("작업공간 안의 파일을 지정하세요.");
-        return input;
+        return new WorkspaceFiles(getFilesDir()).resolve(relative);
     }
     private void exportWorkspace() {
         try {
+            if (pendingExport != null) throw new IOException("기존 저장 위치 선택을 먼저 완료하거나 취소하세요.");
             String relative = path.getText().toString();
             File input = workspaceFile(relative);
-            state.edit().putString("exportPath", relative).apply();
             startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE)
                     .setType(input.getName().endsWith(".apk") ? "application/vnd.android.package-archive" : "application/octet-stream")
                     .putExtra(Intent.EXTRA_TITLE, input.getName()), 20);
-        } catch (Exception error) { message("내보내기 실패: " + error.getMessage()); }
+            pendingExport = relative;
+        } catch (Exception error) { exportMessage("내보내기 실패: " + error.getMessage(), false); }
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
@@ -139,26 +186,31 @@ public final class InstallerActivity extends Activity {
             Uri uri = data.getData(); submit(() -> getContentResolver().openInputStream(uri));
         }
         if (request == 20) {
-            String relative = state.getString("exportPath", "");
-            state.edit().remove("exportPath").apply();
+            String relative = pendingExport;
+            pendingExport = null;
             if (result != RESULT_OK || data == null || data.getData() == null) {
-                if(quick) finish(); else message("내보내기를 취소했습니다."); return;
+                if(quick) finish(); else exportMessage("내보내기를 취소했습니다.", false); return;
             }
+            if (relative == null) { exportMessage("저장할 파일 선택 정보가 없습니다. 다시 선택하세요.", false); return; }
             Uri uri = data.getData();
-            message("선택한 위치로 파일 저장 중…");
+            started = true; // Retained in saved state so recreated export UI observes the result.
+            exportMessage("선택한 위치로 파일 저장 중…", false);
+            exportState.activeCopies++;
             worker.submit(() -> {
                 try {
                   long total = 0;
-                  try (InputStream input = new FileInputStream(workspaceFile(relative));
-                     OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
-                    if (output == null) throw new IOException("저장할 위치를 열 수 없습니다.");
-                    byte[] buffer = new byte[65536];
-                    for (int n; (n = input.read(buffer)) != -1;) { output.write(buffer, 0, n); total += n; }
-                    output.flush();
+                  try (var descriptor = new WorkspaceFiles(getFilesDir()).open(relative);
+                       InputStream input = new android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor)) {
+                    long expectedSize = descriptor.getStatSize();
+                    if (expectedSize < 0) throw new IOException("원본 파일 크기를 확인할 수 없습니다.");
+                    try (OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
+                      if (output == null) throw new IOException("저장할 위치를 열 수 없습니다.");
+                      total = WorkspaceCopy.copy(input, output, expectedSize);
+                      output.flush();
+                    }
                   }
-                    message("파일 저장 완료 · " + total + " bytes · Android 파일 앱에서 선택한 위치를 확인하세요.");
-                    if(quick) runOnUiThread(()->{Toast.makeText(this,"파일을 저장했습니다.",Toast.LENGTH_SHORT).show();finish();});
-                } catch (Exception error) { message("파일 저장 실패: " + error.getMessage() + " · 대상에 일부 파일이 남았을 수 있습니다."); }
+                    exportResult("파일 저장 완료 · " + total + " bytes · Android 파일 앱에서 선택한 위치를 확인하세요.", true);
+                } catch (Exception error) { exportResult("파일 저장 실패: " + error.getMessage() + " · 대상에 일부 파일이 남았을 수 있습니다.", false); }
             });
         }
     }
@@ -238,5 +290,5 @@ public final class InstallerActivity extends Activity {
             session.commit(PendingIntent.getBroadcast(this, id, result, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE).getIntentSender());
         } catch (Exception error) { installer.abandonSession(id); throw error; }
     }
-    @Override protected void onDestroy() { state.unregisterOnSharedPreferenceChangeListener(listener); worker.shutdown(); super.onDestroy(); }
+    @Override protected void onDestroy() { state.unregisterOnSharedPreferenceChangeListener(listener); if (exportState.observer == exportObserver) exportState.observer = null; worker.shutdown(); super.onDestroy(); }
 }

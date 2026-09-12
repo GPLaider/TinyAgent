@@ -63,13 +63,8 @@ int dnfast_executor_exec_compact(int plan_fd, int manifest_fd,
             free(temporary);
             return -1;
         }
-        int flags = fcntl(target, F_GETFD);
-        if (flags < 0 || fcntl(target, F_SETFD, flags & ~FD_CLOEXEC) < 0) {
-            for (size_t close_index = 0; close_index < descriptor_count; ++close_index)
-                (void)close(temporary[close_index]);
-            free(temporary);
-            return -1;
-        }
+        /* dup3 with flags=0 already clears FD_CLOEXEC on the new descriptor.
+           Keep the temporary CLOEXEC copies above to preserve overlapping inputs. */
     }
     for (size_t index = 0; index < descriptor_count; ++index)
         (void)close(temporary[index]);

@@ -20,10 +20,7 @@ public final class ArtifactActivity extends Activity {
         super.onCreate(saved);
         try {
             relative = getIntent().getStringExtra("path");
-            File root = new LocalLinuxRuntime(this).workspace.getCanonicalFile();
-            if (relative == null || relative.isEmpty()) throw new IOException("파일 경로가 없습니다.");
-            file = new File(root, relative).getCanonicalFile();
-            if (!file.toPath().startsWith(root.toPath()) || !file.isFile()) throw new IOException("작업공간 파일을 찾을 수 없습니다.");
+            file = new WorkspaceFiles(getFilesDir()).resolve(relative);
             String name = file.getName();
             String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
             mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
@@ -83,19 +80,22 @@ public final class ArtifactActivity extends Activity {
         new Thread(()->{
             try {
                 if (image) {
-                    var bounds=new BitmapFactory.Options(); bounds.inJustDecodeBounds=true;
-                    BitmapFactory.decodeFile(file.toString(),bounds);
-                    if(bounds.outWidth<=0 || bounds.outHeight<=0) throw new IOException("지원하지 않거나 손상된 이미지입니다.");
-                    var options=new BitmapFactory.Options(); options.inSampleSize=1;
-                    while(Math.max(bounds.outWidth,bounds.outHeight)/options.inSampleSize>2048) options.inSampleSize*=2;
-                    var bitmap=BitmapFactory.decodeFile(file.toString(),options);
+                    android.graphics.Bitmap bitmap;
+                    try (var descriptor = new WorkspaceFiles(getFilesDir()).open(relative)) {
+                        var bounds=new BitmapFactory.Options(); bounds.inJustDecodeBounds=true;
+                        BitmapFactory.decodeFileDescriptor(descriptor.getFileDescriptor(), null, bounds);
+                        if(bounds.outWidth<=0 || bounds.outHeight<=0) throw new IOException("지원하지 않거나 손상된 이미지입니다.");
+                        var options=new BitmapFactory.Options(); options.inSampleSize=1;
+                        while(Math.max(bounds.outWidth,bounds.outHeight)/options.inSampleSize>2048) options.inSampleSize*=2;
+                        bitmap = BitmapFactory.decodeFileDescriptor(descriptor.getFileDescriptor(), null, options);
+                    }
                     if(bitmap==null)throw new IOException("이미지를 열 수 없습니다.");
                     runOnUiThread(()->{if(isFinishing()||isDestroyed()){bitmap.recycle();return;}
                         ImageView view=new ImageView(this);view.setImageBitmap(bitmap);view.setAdjustViewBounds(true);
                         new AlertDialog.Builder(this).setTitle(file.getName()).setView(view).setPositiveButton("닫기",null).show();});
                 } else {
                     byte[] bytes;
-                    try(var input=new FileInputStream(file);var output=new ByteArrayOutputStream()){
+                    try(var input=new WorkspaceFiles(getFilesDir()).input(relative);var output=new ByteArrayOutputStream()){
                         byte[] buffer=new byte[8192];
                         while(output.size()<262145){int n=input.read(buffer,0,Math.min(buffer.length,262145-output.size()));if(n<0)break;output.write(buffer,0,n);}
                         bytes=output.toByteArray();

@@ -147,13 +147,12 @@ final class AndroidJobs implements AutoCloseable {
         return result;
     }
     private void install(SelfAdbClient connection,JSONObject row,boolean root) throws Exception {
-        File workspace=new LocalLinuxRuntime(context).workspace.getCanonicalFile();
-        if(row.getString("path").startsWith("/") || row.getString("path").indexOf('\0')>=0)throw new IOException("Use a workspace-relative APK path");
-        File source=new File(workspace,row.getString("path")).getCanonicalFile();
-        if (!source.toPath().startsWith(workspace.toPath()) || !source.isFile() || !source.getName().endsWith(".apk") || source.length()>1024L*1024*1024) throw new IOException("Expected an APK inside this workspace");
+        WorkspaceFiles files=new WorkspaceFiles(context.getFilesDir());
+        File source=files.resolve(row.getString("path"));
+        if (!source.getName().endsWith(".apk") || source.length()>1024L*1024*1024) throw new IOException("Expected an APK inside this workspace");
         File staged=File.createTempFile("android-job-", ".apk",context.getCacheDir());
         try {
-            try(var input=new FileInputStream(source);var output=new FileOutputStream(staged)) {
+            try(var input=files.input(row.getString("path"));var output=new FileOutputStream(staged)) {
                 byte[] buffer=new byte[65536];long bytes=0;
                 for(int count;(count=input.read(buffer))!=-1;){bytes+=count;if(bytes>1024L*1024*1024)throw new IOException("APK exceeds 1 GiB");output.write(buffer,0,count);}
             }

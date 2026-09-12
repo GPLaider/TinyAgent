@@ -33,10 +33,7 @@ public final class VideoPreviewActivity extends Activity {
         if(saved!=null){position=saved.getInt("position");resumePlayback=saved.getBoolean("playing");}
         try {
             String relative=getIntent().getStringExtra("path");
-            File root=new LocalLinuxRuntime(this).workspace.getCanonicalFile();
-            if(relative==null||relative.isEmpty())throw new IOException("파일 경로가 없습니다.");
-            File file=new File(root,relative).getCanonicalFile();
-            if(!file.toPath().startsWith(root.toPath())||!file.isFile())throw new IOException("작업공간 파일을 찾을 수 없습니다.");
+            File file=new WorkspaceFiles(getFilesDir()).resolve(relative);
             LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);
             body.setOnApplyWindowInsetsListener((view,insets)->{
                 var bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());

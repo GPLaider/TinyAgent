@@ -21,7 +21,7 @@
         <activity android:name=".InstallerActivity" android:exported="false" />
         <activity android:name=".ArtifactActivity" android:exported="false" android:theme="@style/ArtifactPopover" />
         <activity android:name=".VideoPreviewActivity" android:exported="false" />
-        <provider android:name="androidx.core.content.FileProvider"
+        <provider android:name=".WorkspaceFileProvider"
             android:authorities="${applicationId}.artifacts" android:exported="false"
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/artifact_paths" />

@@ -28,10 +28,14 @@ static void private_directory(int fd) {
 }
 static int child_directory(int parent, const char *name) {
     require(*name && !strchr(name, '/') && strcmp(name, ".") && strcmp(name, ".."), "directory component");
-    if (mkdirat(parent, name, 0700) && errno != EEXIST) die("mkdirat state");
     int fd = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0 && errno == ENOENT) {
+        if (mkdirat(parent, name, 0700) && errno != EEXIST) die("mkdirat state");
+        fd = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    }
     if (fd < 0) die("openat state directory");
     private_directory(fd);
+    /* Also sync existing entries: they may come from an interrupted mkdir. */
     if (fsync(parent)) die("fsync state parent");
     return fd;
 }

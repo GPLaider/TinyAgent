@@ -29,6 +29,7 @@ final class LocalLinuxRuntime {
         home = new File(base, "home");
     }
     void prepare(Consumer<String> progress, BiConsumer<String, Integer> reporter) throws Exception {
+        if (cancelled) throw new InterruptedException("환경 준비 중단");
         this.measured = reporter;
         for (File dir : List.of(base, rootfs, workspace, home, new File(base, "shared"), new File(rootfs, "shared"), new File(rootfs, ".l2s"), new File(base, "tmp")))
             Files.createDirectories(dir.toPath());
@@ -344,16 +345,47 @@ final class LocalLinuxRuntime {
         File pid = File.createTempFile("process-", ".pid", base);
         var command = new ArrayList<>(List.of("/system/bin/sh", new File(base, "launch.sh").toString(), pid.toString()));
         command.addAll(builder.command());
-        Process process = builder.command(command).start();
-        pids.put(process, pid);
-        for (int i = 0; i < 100 && pid.length() == 0 && process.isAlive(); i++) Thread.sleep(10);
-        return process;
+        Process process = null;
+        try {
+            process = builder.command(command).start();
+            pids.put(process, pid);
+            for (int i = 0; i < 100 && pid.length() == 0 && process.isAlive(); i++) Thread.sleep(10);
+            if (pid.length() == 0 && process.isAlive())
+                throw new IOException("실행 프로세스 식별 정보 확인 시간 초과");
+            return process;
+        } catch (Exception error) {
+            try {
+                if (process == null) Files.deleteIfExists(pid.toPath());
+                else {
+                    // Android's Process.destroyForcibly() may only send TERM, which
+                    // PRoot ignores. Before publication the launcher has not exec'd;
+                    // after publication use the verified PID and actual SIGKILL.
+                    boolean interrupted = Thread.interrupted();
+                    try {
+                        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                        while (process.isAlive() && System.nanoTime() < deadline) {
+                            if (pid.length() == 0) process.destroy();
+                            else signal(process, android.system.OsConstants.SIGKILL);
+                            try { process.waitFor(50, java.util.concurrent.TimeUnit.MILLISECONDS); }
+                            catch (InterruptedException again) { interrupted = true; }
+                        }
+                        if (process.isAlive()) throw new IOException("시작 실패 프로세스 종료 확인 실패");
+                    } finally { if (interrupted) Thread.currentThread().interrupt(); }
+                }
+            } catch (Exception cleanup) { error.addSuppressed(cleanup); }
+            finally { if (process != null) forget(process); }
+            throw error;
+        }
     }
     synchronized void cancel() {
         cancelled = true;
         for (Process process : pids.keySet()) stop(process);
     }
     void stop(Process process) {
+        // PRoot ignores TERM. Prefer QUIT's tracee cleanup for normal stops.
+        signal(process, android.system.OsConstants.SIGQUIT);
+    }
+    private void signal(Process process, int signal) {
         if (!process.isAlive()) { forget(process); return; }
         File file = pids.get(process);
         if (file == null) return;
@@ -363,8 +395,7 @@ final class LocalLinuxRuntime {
             if (pid <= 1 || android.system.Os.stat("/proc/" + pid).st_uid != android.os.Process.myUid())
                 throw new IOException("프로세스 UID 확인 실패");
             if (!sameProcess(pid, record)) throw new IOException("프로세스 시작 정보 불일치");
-            // PRoot ignores TERM. QUIT invokes its kill_all_tracees handler; KILL alone orphans guests.
-            android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT);
+            android.system.Os.kill(pid, signal);
         } catch (Exception error) { android.util.Log.e("TinyAgentRuntime", "Owned process stop failed", error); }
     }
     void forget(Process process) {

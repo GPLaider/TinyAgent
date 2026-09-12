@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.gplaider.tinyagent.runtimeaudit">
+    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <application android:label="TinyAgent runtime audit" android:allowBackup="false" android:debuggable="true">
+        <activity android:name="io.github.gplaider.tinyagent.AppActivity" android:exported="false" />
+        <service android:name="io.github.gplaider.tinyagent.RuntimeSetupService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Temporary runtime lifecycle regression test" />
+        </service>
+    </application>
+    <instrumentation android:name="io.github.gplaider.tinyagent.RuntimeServiceDeviceCheck" android:targetPackage="io.github.gplaider.tinyagent.runtimeaudit" />
+</manifest>

@@ -1,5 +1,8 @@
 #define main launcher_main
-#include "dnfast-launch.c"
+#ifndef LAUNCHER_SOURCE
+#define LAUNCHER_SOURCE "dnfast-launch.c"
+#endif
+#include LAUNCHER_SOURCE
 #undef main
 #include <assert.h>
 #include <sys/wait.h>
@@ -8,6 +11,9 @@ static int root;
 static void bad_id(void) { char id[65]; root_id(root, id); }
 static void bad_link(void) { (void)child_directory(root, "link"); }
 static void bad_mode(void) { private_directory(root); }
+static void bad_file(void) { (void)child_directory(root, "file"); }
+static void bad_component(void) { (void)child_directory(root, "../escape"); }
+static void bad_child_mode(void) { (void)child_directory(root, "writable"); }
 static void rejected(void (*operation)(void)) {
     pid_t pid = fork(); assert(pid >= 0);
     if (!pid) { operation(); _exit(0); }
@@ -30,7 +36,13 @@ int main(void) {
     close(competitor);
     char first[65], second[65]; root_id(root, first); root_id(root, second);
     assert(!strcmp(first, second) && hex64(first));
-    int state = state_directory(root, first); close(state);
+    int state = state_directory(root, first);
+    struct stat state_info = metadata(state);
+    close(state);
+    state = state_directory(root, first);
+    struct stat reopened = metadata(state);
+    assert(state_info.st_dev == reopened.st_dev && state_info.st_ino == reopened.st_ino);
+    assert((reopened.st_mode & 07777) == 0700); close(state);
     int memory = sealed_context("{\"schema_version\":1}", 20);
     int probe = (int)syscall(SYS_memfd_create, "noexec-probe", 11U);
     int legacy = probe < 0 && errno == EINVAL;
@@ -41,6 +53,10 @@ int main(void) {
     assert(pwrite(memory, "x", 1, 0) == -1 && errno == EPERM);
     assert(ftruncate(memory, 0) == -1 && errno == EPERM); close(memory);
     assert(symlinkat("/tmp", root, "link") == 0); rejected(bad_link);
+    int file = openat(root, "file", O_CREAT | O_EXCL | O_WRONLY, 0600);
+    assert(file >= 0); close(file); rejected(bad_file); rejected(bad_component);
+    assert(mkdirat(root, "writable", 0700) == 0);
+    assert(fchmodat(root, "writable", 0777, 0) == 0); rejected(bad_child_mode);
     assert(fchmod(root, 0777) == 0); rejected(bad_mode); assert(fchmod(root, 0700) == 0);
     int id = openat(root, ".tinyagent-root-id", O_WRONLY | O_TRUNC); assert(id >= 0); close(id);
     rejected(bad_id); /* Interrupted/corrupt identity is never silently replaced. */

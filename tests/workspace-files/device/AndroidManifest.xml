@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries><package android:name="io.github.gplaider.tinyagent.workspaceprobe"/><package android:name="io.github.gplaider.tinyagent.workspaceprobe.client"/></queries>
+    <permission android:name="${applicationId}.PROBE_CONTROL" android:protectionLevel="signature"/>
+    <uses-permission android:name="io.github.gplaider.tinyagent.workspaceprobe.PROBE_CONTROL"/>
+    <application android:name="io.github.gplaider.tinyagent.WorkspaceDeathProbe" android:label="Workspace regression probe" android:allowBackup="false">
+        <activity android:name="io.github.gplaider.tinyagent.InstallerActivity" android:exported="false"/>
+        <activity android:name="io.github.gplaider.tinyagent.WorkspaceDeathPicker" android:exported="true"
+            android:permission="io.github.gplaider.tinyagent.workspaceprobe.PROBE_CONTROL"/>
+        <activity-alias android:name="io.github.gplaider.tinyagent.WorkspaceDeathEntry"
+            android:targetActivity="io.github.gplaider.tinyagent.InstallerActivity" android:exported="true"
+            android:permission="${applicationId}.PROBE_CONTROL"/>
+        <activity android:name="io.github.gplaider.tinyagent.WorkspaceProbePicker" android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.Dialog.Alert"/>
+        <provider android:name="io.github.gplaider.tinyagent.WorkspaceProbeDestination"
+            android:authorities="${applicationId}.destination" android:exported="false"/>
+        <provider android:name="io.github.gplaider.tinyagent.WorkspaceFileProvider"
+            android:authorities="${applicationId}.artifacts" android:exported="false"
+            android:grantUriPermissions="true" android:process=":files">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/artifact_paths"/>
+        </provider>
+        <provider android:name="io.github.gplaider.tinyagent.WorkspaceDeathProbe$Control"
+            android:authorities="${applicationId}.death" android:exported="true"
+            android:permission="${applicationId}.PROBE_CONTROL"/>
+        <provider android:name="io.github.gplaider.tinyagent.WorkspaceProbeControl"
+            android:authorities="${applicationId}.control" android:exported="true"
+            android:permission="${applicationId}.PROBE_CONTROL" android:process=":control"/>
+    </application>
+    <instrumentation android:name="io.github.gplaider.tinyagent.WorkspaceDeviceProbe"
+        android:targetPackage="${applicationId}" android:label="Workspace FD and Binder checks"/>
+</manifest>

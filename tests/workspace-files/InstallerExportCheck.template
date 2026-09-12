@@ -1,0 +1,153 @@
+package io.github.gplaider.tinyagent;
+
+import android.net.Uri;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+
+/** Production export/save/result methods with only Android UI APIs replaced. */
+public class InstallerExportCheck extends ExportActivityDouble {
+    /* PRODUCTION_MEMBERS */
+    private boolean quick, started;
+    private static class ExportState { String text; boolean complete; int activeCopies; }
+    private final ExportState exportState=new ExportState();
+    private String openedConfirmation="";
+    private final TextField path=new TextField();
+    private File files;
+    private String message="";
+    private boolean launchDenied;
+    private int launches;
+    private final Resolver resolver=new Resolver();
+    private final Worker worker=new Worker();
+    static final int RESULT_OK=-1;
+    static class TextField { String value; String getText(){return value;} }
+    static class Bundle {
+        final Map<String,Object> values=new HashMap<>();
+        void putString(String key,String value){values.put(key,value);}
+        void putBoolean(String key,boolean value){values.put(key,value);}
+        String getString(String key){return (String)values.get(key);}
+    }
+    static class Intent {
+        static final String ACTION_CREATE_DOCUMENT="create",CATEGORY_OPENABLE="openable",EXTRA_TITLE="title";
+        final Uri uri;
+        Intent(String ignored){uri=null;}
+        Intent(Uri value){uri=value;}
+        Intent addCategory(String ignored){return this;}
+        Intent setType(String ignored){return this;}
+        Intent putExtra(String key,String value){return this;}
+        Uri getData(){return uri;}
+    }
+    static class Resolver {
+        final Map<Uri,ByteArrayOutputStream> writes=new HashMap<>();
+        Runnable onOpen=()->{},onWrite=()->{};
+        String failure="";
+        boolean closed;
+        OutputStream openOutputStream(Uri uri,String mode)throws IOException {
+            if(failure.equals("open"))throw new SecurityException("permission denied");
+            if(failure.equals("null"))return null;
+            onOpen.run();
+            ByteArrayOutputStream result=new ByteArrayOutputStream();writes.put(uri,result);
+            return new OutputStream(){
+                @Override public void write(int value)throws IOException {
+                    if(failure.equals("write"))throw new IOException("disk full");
+                    result.write(value);onWrite.run();
+                }
+                @Override public void write(byte[] bytes,int start,int count)throws IOException {
+                    if(failure.equals("write"))throw new IOException("disk full");
+                    result.write(bytes,start,count);onWrite.run();
+                }
+                @Override public void flush()throws IOException{if(failure.equals("flush"))throw new IOException("flush failed");}
+                @Override public void close()throws IOException{closed=true;if(failure.equals("close"))throw new IOException("close failed");}
+            };
+        }
+        InputStream openInputStream(Uri uri){throw new AssertionError("unexpected APK read");}
+    }
+    static class Worker { void submit(Runnable task){task.run();} }
+    static class Toast {
+        static final int LENGTH_SHORT=0;
+        static Toast makeText(Object ctx,String text,int time){return new Toast();}
+        void show(){}
+    }
+    static class Manager { boolean canRequestPackageInstalls(){return false;} }
+    interface Source { InputStream open() throws IOException; }
+    private void submit(Source source){throw new AssertionError("unexpected install");}
+    private void stageWorkspace(String value){throw new AssertionError("unexpected install");}
+    private Manager getPackageManager(){return new Manager();}
+    private File getFilesDir(){return files;}
+    private File workspaceFile(String relative)throws IOException{return new WorkspaceFiles(files).resolve(relative);}
+    private Resolver getContentResolver(){return resolver;}
+    private void exportMessage(String text,boolean complete){message=text;exportState.text=text;exportState.complete=complete;}
+    private void exportResult(String text,boolean complete){exportState.activeCopies--;exportMessage(text,complete);}
+    private void finish(){}
+    private void runOnUiThread(Runnable task){task.run();}
+    private void startActivityForResult(Intent intent,int code){
+        if(launchDenied)throw new SecurityException("picker denied");
+        if(code!=20)throw new AssertionError("unexpected result code");
+        launches++;
+    }
+    private void restore(Bundle saved){ /* PRODUCTION_RESTORE */ }
+    /* PRODUCTION_METHODS */
+    static void require(boolean value,String label){if(!value)throw new AssertionError(label);}
+    static InstallerExportCheck activity(File files,String path){
+        var value=new InstallerExportCheck();value.files=files;value.path.value=path;value.restore(null);return value;
+    }
+    public static void main(String[] args)throws Exception {
+        File files=Path.of(args[0],"files").toFile();
+        Path root=files.toPath().resolve("linux/workspace");Files.createDirectories(root);
+        Files.writeString(root.resolve("a.txt"),"A");Files.writeString(root.resolve("b.txt"),"B");
+        // The old shared preference slot is overwritten by a second activity.
+        Map<String,String> oldShared=new HashMap<>();oldShared.put("exportPath","a.txt");oldShared.put("exportPath","b.txt");
+        require(oldShared.get("exportPath").equals("b.txt"),"baseline shared-state collision");
+        var a=activity(files,"a.txt");var b=activity(files,"b.txt");
+        a.exportWorkspace();b.exportWorkspace();
+        var saved=new Bundle();a.onSaveInstanceState(saved);
+        var recreated=activity(files,"b.txt");recreated.restore(saved);
+        var aUri=Uri.parse("content://save/a");var bUri=Uri.parse("content://save/b");
+        recreated.onActivityResult(20,RESULT_OK,new Intent(aUri));
+        b.onActivityResult(20,RESULT_OK,new Intent(bUri));
+        require(recreated.resolver.writes.get(aUri).toString().equals("A"),"restored source mixed");
+        require(b.resolver.writes.get(bUri).toString().equals("B"),"concurrent source mixed");
+        recreated.onActivityResult(20,RESULT_OK,new Intent(Uri.parse("content://save/duplicate")));
+        require(recreated.resolver.writes.size()==1,"duplicate result wrote again");
+        a.path.value="b.txt";a.exportWorkspace();require(a.launches==1,"overlapping picker launched");
+        a.onActivityResult(20,0,null);a.exportWorkspace();require(a.launches==2,"cancel did not release selection");
+        var denied=activity(files,"a.txt");denied.launchDenied=true;denied.exportWorkspace();
+        denied.launchDenied=false;denied.exportWorkspace();require(denied.launches==1,"denied picker left stuck selection");
+        var missing=activity(files,null);missing.exportWorkspace();require(missing.launches==0,"null selection accepted");
+        var truncated=activity(files,"a.txt");truncated.exportWorkspace();
+        truncated.resolver.onOpen=()->{
+            try { Files.write(root.resolve("a.txt"),new byte[0]); }
+            catch(IOException error){throw new UncheckedIOException(error);}
+        };
+        truncated.onActivityResult(20,RESULT_OK,new Intent(Uri.parse("content://save/truncated")));
+        require(truncated.message.contains("파일 저장 실패"),"truncated source incorrectly reported success: "+truncated.message);
+        Files.writeString(root.resolve("a.txt"),"A");
+        var growing=activity(files,"a.txt");growing.exportWorkspace();
+        growing.resolver.onWrite=()->{
+            try {Files.writeString(root.resolve("a.txt"),"GROW",StandardOpenOption.APPEND);}
+            catch(IOException error){throw new UncheckedIOException(error);}
+        };
+        var growingUri=Uri.parse("content://save/growing");
+        growing.onActivityResult(20,RESULT_OK,new Intent(growingUri));
+        require(growing.message.contains("파일 저장 실패"),"growing source incorrectly succeeded");
+        require(growing.resolver.writes.get(growingUri).size()==1,"followed appended data");
+        require(growing.resolver.closed,"growth failure leaked destination");
+        Files.writeString(root.resolve("a.txt"),"A");
+        long fdBefore;try(var fds=Files.list(Path.of("/proc/self/fd"))){fdBefore=fds.count();}
+        for(int i=0;i<50;i++)for(String failure:new String[]{"open","null","write","flush","close"}) {
+            var broken=activity(files,"a.txt");broken.exportWorkspace();broken.resolver.failure=failure;
+            broken.onActivityResult(20,RESULT_OK,new Intent(Uri.parse("content://save/failure")));
+            require(broken.message.contains("파일 저장 실패"),failure+" incorrectly reported success");
+            if(!failure.equals("open")&&!failure.equals("null"))require(broken.resolver.closed,failure+" destination not closed");
+        }
+        try(var fds=Files.list(Path.of("/proc/self/fd"))){require(fds.count()==fdBefore,"export failure leaked source FD");}
+        var removed=activity(files,"a.txt");removed.exportWorkspace();Files.delete(root.resolve("a.txt"));
+        removed.onActivityResult(20,RESULT_OK,new Intent(Uri.parse("content://save/removed")));
+        require(removed.resolver.writes.isEmpty(),"missing source opened destination");
+        System.out.println("PASS: export isolation/recreation/cancel, source shrink/growth/disappearance, 250 destination failure cleanup cases");
+    }
+}
+class ExportActivityDouble {
+    protected void onSaveInstanceState(InstallerExportCheck.Bundle out){}
+    protected void onActivityResult(int request,int result,InstallerExportCheck.Intent data){}
+}

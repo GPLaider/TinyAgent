@@ -1,0 +1,257 @@
+{
+  "source_commit": "1449710f35e1079c5999a3d6cc41800d4b432a4d",
+  "accepted_baseline": "43b0928d6e8a3d76d6601f9c77e141970755b0a2",
+  "library_source_overlay_sha256": "c1f310670f0c84675ed9dfcb45c05beac8ffad32c2856ac96bbd66d720cdd7cd",
+  "library_prefix": "/opt/tinyagent-dnfast/memfd664e/lib",
+  "binaries": {
+    "/usr/bin/dnfast": {
+      "source_sha256": "e94ca79b24137a72b0cc43224604d15c1a515072eded79ff687f41856a22a937",
+      "final_sha256": "eb33f7c1326623cf3cc642095c6c1c065ead4aad457b57a79bda1a2167b6084a",
+      "interpreter": "/opt/tinyagent-dnfast/memfd664e/lib/ld-linux-aarch64.so.1",
+      "rpath": "/opt/tinyagent-dnfast/memfd664e/lib"
+    },
+    "/usr/libexec/dnfast-executor": {
+      "source_sha256": "96573797c9ee9e30c58f7ae6ccf6b41864601937b1b9226ab8262ce507e32209",
+      "final_sha256": "14910c774700c88d6280b9ade9dc5facbc9d6bf07a9b17926b2446c6a6a5fd89",
+      "interpreter": "/opt/tinyagent-dnfast/memfd664e/lib/ld-linux-aarch64.so.1",
+      "rpath": "/opt/tinyagent-dnfast/memfd664e/lib"
+    }
+  },
+  "needed": {
+    "opt/tinyagent-dnfast/memfd664e/lib/ld-linux-aarch64.so.1": [],
+    "opt/tinyagent-dnfast/memfd664e/lib/libacl.so.1": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libbz2.so.1": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libc.so.6": [
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libcap.so.2": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libcrypto.so.3": [
+      "libz.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libffi.so.8": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libgcc_s.so.1": [
+      "libc.so.6"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libglib-2.0.so.0": [
+      "libpcre2-8.so.0",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libgmp.so.10": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libgobject-2.0.so.0": [
+      "libglib-2.0.so.0",
+      "libffi.so.8",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libhogweed.so.6": [
+      "libnettle.so.8",
+      "libgmp.so.10",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/liblua-5.4.so": [
+      "libm.so.6",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/liblzma.so.5": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libm.so.6": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libmodulemd.so.2": [
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "librpmio.so.10",
+      "libyaml-0.so.2",
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libnettle.so.8": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libpcre2-8.so.0": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libpopt.so.0": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/librpm.so.10": [
+      "librpmio.so.10",
+      "libsqlite3.so.0",
+      "libacl.so.1",
+      "libcap.so.2",
+      "libpopt.so.0",
+      "liblua-5.4.so",
+      "libgcc_s.so.1",
+      "libstdc++.so.6",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/librpm_sequoia.so.1": [
+      "libcrypto.so.3",
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/librpmio.so.10": [
+      "libz.so.1",
+      "libbz2.so.1",
+      "librpm_sequoia.so.1",
+      "liblua-5.4.so",
+      "libzstd.so.1",
+      "liblzma.so.5",
+      "libstdc++.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libsolv.so.1": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libsolvext.so.1": [
+      "libsolv.so.1",
+      "librpmio.so.10",
+      "librpm.so.10",
+      "libxml2.so.2",
+      "libz.so.1",
+      "liblzma.so.5",
+      "libbz2.so.1",
+      "libzstd.so.1",
+      "libzck.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libsqlite3.so.0": [
+      "libm.so.6",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libstdc++.so.6": [
+      "libm.so.6",
+      "libc.so.6",
+      "libgcc_s.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libxml2.so.2": [
+      "libz.so.1",
+      "liblzma.so.5",
+      "libm.so.6",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libyaml-0.so.2": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libz.so.1": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libzck.so.1": [
+      "libzstd.so.1",
+      "libcrypto.so.3",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "opt/tinyagent-dnfast/memfd664e/lib/libzstd.so.1": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "usr/bin/dnfast": [
+      "libnettle.so.8",
+      "libhogweed.so.6",
+      "libgmp.so.10",
+      "libsolv.so.1",
+      "libsolvext.so.1",
+      "librpm.so.10",
+      "librpmio.so.10",
+      "libmodulemd.so.2",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "usr/libexec/dnfast-executor": [
+      "libnettle.so.8",
+      "libsolv.so.1",
+      "libsolvext.so.1",
+      "librpm.so.10",
+      "librpmio.so.10",
+      "libmodulemd.so.2",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ]
+  },
+  "dnfast_sha256": "eb33f7c1326623cf3cc642095c6c1c065ead4aad457b57a79bda1a2167b6084a",
+  "executor_sha256": "14910c774700c88d6280b9ade9dc5facbc9d6bf07a9b17926b2446c6a6a5fd89",
+  "files": {
+    "opt/tinyagent-dnfast/memfd664e/lib/ld-linux-aarch64.so.1": "5fc26a94423f7110018393305aa1cbafe3cb9e58ef64d76e0880a2c7311dbcb0",
+    "opt/tinyagent-dnfast/memfd664e/lib/libacl.so.1": "1ec2f7e421cc14a415e49fa460c45614798335d9e40afa4175ca465b1398cf23",
+    "opt/tinyagent-dnfast/memfd664e/lib/libbz2.so.1": "c56ebd14fa27a645d714b650b7ebdabc7f86aa4e6721abdbbfa6161b6612a5b2",
+    "opt/tinyagent-dnfast/memfd664e/lib/libc.so.6": "e9f85625bf50ff0387f742dd8df0cb294f565135720915223f1a02c2ec5c4c9e",
+    "opt/tinyagent-dnfast/memfd664e/lib/libcap.so.2": "21eaa58014444ed524e9e1b88cb0812307fccf88f87c9ffcea0a92a4f19e669b",
+    "opt/tinyagent-dnfast/memfd664e/lib/libcrypto.so.3": "c5ad83dcc8e4450fb735cbdc33183acb841303586f99f400c9ebf5a9f3a8b104",
+    "opt/tinyagent-dnfast/memfd664e/lib/libffi.so.8": "74eaf1ef69deca87296b600d50777102cad66b2a8021caefc11df3b296055d86",
+    "opt/tinyagent-dnfast/memfd664e/lib/libgcc_s.so.1": "02f0e27d3f525c4a2ac473f00c152fbf6875f7b01b0282272c6e1122873e1b48",
+    "opt/tinyagent-dnfast/memfd664e/lib/libglib-2.0.so.0": "3179a5d26130a9e72908c97a2a9d28bd81ea94b4cb68d98993066bd6f5404eb1",
+    "opt/tinyagent-dnfast/memfd664e/lib/libgmp.so.10": "d11f0efe28862cc29718405a4450ad00190c4bfb6f5549e3ce833d8b9c8ee2ca",
+    "opt/tinyagent-dnfast/memfd664e/lib/libgobject-2.0.so.0": "076189ff644558d07072ead694c32c2e702bb5afc6a550b0d1367f389b1c84b5",
+    "opt/tinyagent-dnfast/memfd664e/lib/libhogweed.so.6": "3cb973b541b2d0313913c00a86dc31239dece6f5717df82171fa907647fec6f8",
+    "opt/tinyagent-dnfast/memfd664e/lib/liblua-5.4.so": "d26a8d0e4b2ef5fb01cab00bf02befb4e21bad135a9b8c62158a8bcfd205df98",
+    "opt/tinyagent-dnfast/memfd664e/lib/liblzma.so.5": "c683e500567e3e65a4e95694f1d2041b771147c755bb036d136f73981ce0b175",
+    "opt/tinyagent-dnfast/memfd664e/lib/libm.so.6": "b3305817dbaa7350da178a06e918011e644f87fd089d8207151bd0903b81d7b4",
+    "opt/tinyagent-dnfast/memfd664e/lib/libmodulemd.so.2": "21bbd80c28effef29df598a92f0dc17442ddd763c2c486c83953252f5edd9ab3",
+    "opt/tinyagent-dnfast/memfd664e/lib/libnettle.so.8": "a385d14976898880c02ef130daec0e61139cfbe48f2fbe8ced397242e4312059",
+    "opt/tinyagent-dnfast/memfd664e/lib/libpcre2-8.so.0": "9e1a7bb1b66846479858b804897bc514fb485edf10c40fe3a77e279defc512bb",
+    "opt/tinyagent-dnfast/memfd664e/lib/libpopt.so.0": "910d02fba67721586abdf908222767f0420a76ff6e3ac88b30799ac3dde5c8cd",
+    "opt/tinyagent-dnfast/memfd664e/lib/librpm.so.10": "8a298f03e3ffa71267b13471eeba68be7c34bdad377a98cc9065a44994639cd0",
+    "opt/tinyagent-dnfast/memfd664e/lib/librpm_sequoia.so.1": "5b65a2b4fcc731d3fdbff88a92ee59148b86787910bf6d28f6a8dee6b25f4bc7",
+    "opt/tinyagent-dnfast/memfd664e/lib/librpmio.so.10": "688459ed3c732b195b17777fdaedd2be111f15568aa09f3059cd2f6b0ea439bc",
+    "opt/tinyagent-dnfast/memfd664e/lib/libsolv.so.1": "b762908d9fa554bec51f911babca84aeb82d3632f3e12417bbccbc94932af088",
+    "opt/tinyagent-dnfast/memfd664e/lib/libsolvext.so.1": "ea4e25d4460f060ddb82e2b69316323550f261877807e87dae40c9c0fc66d3d6",
+    "opt/tinyagent-dnfast/memfd664e/lib/libsqlite3.so.0": "9e73fde69b90c089cc094ce282677fa865c9cbaf1abcb7721df8fedd68a16a53",
+    "opt/tinyagent-dnfast/memfd664e/lib/libstdc++.so.6": "567b8f4d2edcba100a9ea1da822b34f2668bbb49fc7c616e322b76f83f34e5b5",
+    "opt/tinyagent-dnfast/memfd664e/lib/libxml2.so.2": "791275d4afc6df971e4ac6477293ea8071079ef4e915858359b858d5cef42974",
+    "opt/tinyagent-dnfast/memfd664e/lib/libyaml-0.so.2": "19d9de519927681fbd71a9e9d7a5719c894b42917474e4d190325451d68649cc",
+    "opt/tinyagent-dnfast/memfd664e/lib/libz.so.1": "83de744e6e128887e7567fd682373adf2c93e2d2c45c97e4c817130dc79b6fac",
+    "opt/tinyagent-dnfast/memfd664e/lib/libzck.so.1": "18cafc4aac4578e4546e26f950353b7c75657c996a573e6d5d07b7c497f177ca",
+    "opt/tinyagent-dnfast/memfd664e/lib/libzstd.so.1": "c24309a0e55dbd6f73a838010f869b340d47cfe1580b81d9cf216807c69d49d2",
+    "usr/bin/dnfast": "eb33f7c1326623cf3cc642095c6c1c065ead4aad457b57a79bda1a2167b6084a",
+    "usr/libexec/dnfast-executor": "14910c774700c88d6280b9ade9dc5facbc9d6bf07a9b17926b2446c6a6a5fd89"
+  },
+  "overlay_sha256": "9f55a462f0bec5c872cd4bd59bb0a436aa6f576b5098fb9240a94b93a2a58326",
+  "phone_execution": false,
+  "source_archive_sha256": "284961c739e5756772dc3a7059a9167ac8e4d4fba22a21579f0a4db56b6f057d",
+  "build_image": "c28b19557813d8661856cbd612e53dc7600a2009dad2094555ff3adf70fdf6f9",
+  "build_command": "DNFAST_NATIVE_REAL=1 cargo build --locked --offline --release -p dnfast-cli -p dnfast-executor"
+}

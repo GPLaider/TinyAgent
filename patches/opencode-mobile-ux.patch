@@ -762,13 +762,13 @@ index 000000000..e616dbc33
 +}
 diff --git a/packages/app/e2e/regression/session-access.spec.ts b/packages/app/e2e/regression/session-access.spec.ts
 new file mode 100644
-index 000000000..a16a2106f
+index 000000000..146005c5b
 --- /dev/null
 +++ b/packages/app/e2e/regression/session-access.spec.ts
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,95 @@
 +import { expect, test } from "@playwright/test"
-+import { fixture, pageMessages } from "../performance/timeline/session-timeline-stress.fixture"
-+import { installStressSessionTabs, installTimelineSettings, stressSessionHref } from "../performance/timeline/timeline-test-helpers"
++import { fixture } from "../performance/timeline/session-timeline-stress.fixture"
++import { installTimelineSettings } from "../performance/timeline/timeline-test-helpers"
 +import { mockOpenCodeServer } from "../utils/mock-server"
 +import { base64Encode } from "@opencode-ai/core/util/encode"
 +
@@ -784,12 +784,11 @@ index 000000000..a16a2106f
 +  ]
 +  await mockOpenCodeServer(page, {
 +    ...fixture,
-+    sessions: fixture.sessions.map(session => ({ ...session, permission })),
-+    pageMessages,
++    sessions: [{ ...fixture.sessions.find(session => session.id === fixture.targetID)!, permission }],
++    pageMessages: () => ({ items: [] }),
 +  })
 +  await installTimelineSettings(page)
-+  await installStressSessionTabs(page)
-+  await page.goto(stressSessionHref(fixture.targetID))
++  await page.goto(`/${base64Encode(fixture.directory)}/session/${fixture.targetID}`)
 +  await expect(page.getByRole("combobox", { name: "에이전트 승인 모드" })).toHaveValue(restricted ? "custom" : "yolo")
 +  expect(changes).toEqual([])
 +})

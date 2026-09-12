@@ -1,0 +1,39 @@
+plugins { id 'com.android.application' version '8.13.2' }
+if (!project.hasProperty('probeBuildDir') || !project.hasProperty('probeKeystore')) {
+    throw new GradleException('Set -PprobeBuildDir and -PprobeKeystore; use an isolated probe-only signing key')
+}
+layout.buildDirectory = file(probeBuildDir)
+def probeSources = tasks.register('probeSources', Sync) {
+    from('../../../app/src/main/java') { include '**/WorkspaceFiles.java', '**/WorkspaceFileProvider.java', '**/WorkspaceCopy.java', '**/InstallerActivity.java' }
+    into(layout.buildDirectory.dir('production-sources'))
+}
+android {
+    namespace 'io.github.gplaider.tinyagent.workspaceprobe'
+    compileSdk 36
+    defaultConfig { applicationId 'io.github.gplaider.tinyagent.workspaceprobe'; minSdk 30; targetSdk 36; versionCode 1; versionName '1' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    signingConfigs {
+        probe { storeFile file(probeKeystore); storePassword 'workspace-probe-only'; keyAlias 'workspace-probe'; keyPassword 'workspace-probe-only' }
+    }
+    buildTypes { debug { signingConfig signingConfigs.probe } }
+    flavorDimensions += 'role'
+    productFlavors {
+        owner { dimension 'role' }
+        client { dimension 'role'; applicationIdSuffix '.client' }
+    }
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            res.srcDirs = ['res']
+            java.srcDirs = ['src']
+            java.srcDir(probeSources)
+        }
+    }
+}
+dependencies {
+    implementation 'androidx.core:core:1.16.0'
+    implementation 'androidx.annotation:annotation:1.9.1'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.0'
+}
+
+tasks.named("preBuild") { dependsOn(probeSources) }

@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.gplaider.tinyagent.runtimeaudit">
+    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36" />
+    <application android:label="TinyAgent output audit" android:allowBackup="false" android:debuggable="true" />
+    <instrumentation android:name="io.github.gplaider.tinyagent.RuntimeOutputDeviceCheck" android:targetPackage="io.github.gplaider.tinyagent.runtimeaudit" />
+</manifest>

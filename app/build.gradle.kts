@@ -28,8 +28,8 @@ android {
         applicationId = "io.github.gplaider.tinyagent"
         minSdk = 30
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.0.1-alpha.1"
+        versionCode = 6
+        versionName = "0.0.1-alpha.2-rc.1"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

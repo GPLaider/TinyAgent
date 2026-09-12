@@ -26,7 +26,8 @@ with tarfile.open(fileobj=io.BytesIO(archive)) as source:
         if member.isdir():continue
         assert member.isfile() and member.name in data['files'],member.name
         assert member.name not in found,member.name
-        assert hashlib.sha256(source.extractfile(member).read()).hexdigest()==data['files'][member.name],member.name
+        with source.extractfile(member) as payload:
+            assert hashlib.file_digest(payload,'sha256').hexdigest()==data['files'][member.name],member.name
         found.add(member.name)
     assert found==set(data['files'])
 assets=root/'app/src/main/assets'

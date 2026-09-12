@@ -36,7 +36,7 @@ def upgrade(root, apk, checked_state=None):
     if digest(overlay) != manifest['overlay_sha256']:
         raise ValueError('Upgrade overlay mismatch')
     payloads = {}
-    with tarfile.open(fileobj=io.BytesIO(overlay)) as archive:
+    with io.BytesIO(overlay) as compressed, tarfile.open(fileobj=compressed) as archive:
         for member in archive:
             if not member.isfile() or member.name not in manifest['files'] or member.name in payloads:
                 raise ValueError('Unexpected upgrade member')
@@ -46,6 +46,8 @@ def upgrade(root, apk, checked_state=None):
             payloads[member.name] = data
     if set(payloads) != set(manifest['files']):
         raise ValueError('Incomplete upgrade')
+    # Every member is now held as verified bytes; the compressed input is unused.
+    del overlay
     rootfd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         fcntl.flock(rootfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -176,12 +178,13 @@ def upgrade(root, apk, checked_state=None):
                 raise ValueError('Original executable backup differs')
         # New private libraries first. Each executable is then atomically replaced.
         for name in sorted(payloads, key=lambda name: name in OLD):
+            payload = payloads.pop(name)
             try: current, _ = read(name)
             except FileNotFoundError: current = None
-            if current == payloads[name]: continue
+            if current == payload: continue
             if current is not None and name not in OLD:
                 raise ValueError('Existing private library differs; preserved')
-            publish(name, payloads[name], 0o755)
+            publish(name, payload, 0o755)
         if read('.tinyagent-root-id')[0] != identity:
             raise ValueError('Root ID changed during upgrade')
         for name, expected in manifest['files'].items():
