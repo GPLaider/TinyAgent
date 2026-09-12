@@ -560,10 +560,10 @@ index 000000000..e1426045d
 +}
 diff --git a/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts b/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts
 new file mode 100644
-index 000000000..9e37ec16e
+index 000000000..e616dbc33
 --- /dev/null
 +++ b/packages/app/e2e/regression/prompt-long-model-mobile.spec.ts
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,196 @@
 +import { expect, test, type Locator } from "@playwright/test"
 +import { base64Encode } from "@opencode-ai/core/util/encode"
 +import { mockOpenCodeServer } from "../utils/mock-server"
@@ -574,7 +574,7 @@ index 000000000..9e37ec16e
 +const sessionID = "ses_prompt_long_model_mobile"
 +const modelName = "GPT-5.6 Codex Ultra Long Context Experimental Preview"
 +
-+for (const width of [320, 390, 1280]) {
++for (const width of [320, 390, 740, 1280]) {
 +  test.describe(`model picker at ${width}px`, () => {
 +    test.use({ viewport: { width, height: 844 }, hasTouch: width < 768 })
 +
@@ -616,6 +616,17 @@ index 000000000..9e37ec16e
 +                  limit: { context: 200_000 },
 +                  variants: { high: {}, xhigh: {} },
 +                },
++                ...Object.fromEntries(
++                  Array.from({ length: 28 }, (_, i) => [
++                    "extra-model-" + i,
++                    {
++                      id: "extra-model-" + i,
++                      name: "Test Model " + String(i).padStart(2, "0") + " Extended Context Preview",
++                      cost: { input: 1, output: 1 },
++                      limit: { context: 200_000 },
++                    },
++                  ]),
++                ),
 +              },
 +            },
 +          ],
@@ -698,12 +709,28 @@ index 000000000..9e37ec16e
 +      await expect(send).toBeEnabled()
 +
 +      await open()
++      if (width < 768) await search.tap()
++      else await search.click()
++      await expect(search).toBeFocused()
++      // Reduced viewport simulates limited space, not an actual Android soft keyboard.
++      await page.setViewportSize({ width, height: 360 })
++      await expect(popup.getByRole("menuitemradio")).toHaveCount(30)
++      await expect(search).toBeInViewport({ ratio: 1 })
++      await expect.poll(async () => (await popup.boundingBox())!.y).toBeGreaterThanOrEqual(8)
++      await expect
++        .poll(async () => (await popup.locator("[data-scrollable]").boundingBox())!.height)
++        .toBeGreaterThanOrEqual(48)
++      await expect
++        .poll(() => popup.locator("[data-scrollable]").evaluate((el) => el.scrollHeight > el.clientHeight))
++        .toBe(true)
++      await page.screenshot({ path: testInfo.outputPath("model-short-viewport-" + width + ".png"), animations: "disabled" })
 +      await search.fill("Ultra Long")
 +      await expect(compact).toHaveCount(0)
 +      if (width < 768) await option.tap()
 +      else await option.click()
 +      await expect(model).toContainText(modelName)
 +      await expect(popup).toHaveCount(0)
++      await page.setViewportSize({ width, height: 844 })
 +      await open()
 +      await page.keyboard.press("Escape")
 +      await expect(popup).toHaveCount(0)
@@ -1212,7 +1239,7 @@ index fc248d821..f32343af3 100644
          class="px-3"
          search={{ placeholder: language.t("dialog.directory.search.placeholder"), autofocus: true }}
 diff --git a/packages/app/src/components/dialog-select-model.tsx b/packages/app/src/components/dialog-select-model.tsx
-index 587a36a66..ebeffaa3c 100644
+index 587a36a66..00229c976 100644
 --- a/packages/app/src/components/dialog-select-model.tsx
 +++ b/packages/app/src/components/dialog-select-model.tsx
 @@ -1,4 +1,6 @@
@@ -1247,7 +1274,7 @@ index 587a36a66..ebeffaa3c 100644
            activeItem()?.scrollIntoView({ block: "nearest" })
          }),
        )
-@@ -378,18 +385,37 @@ function ModelSelectorPopoverV2View(props: {
+@@ -378,23 +385,44 @@ function ModelSelectorPopoverV2View(props: {
        <MenuV2.Portal>
          <MenuV2.Content
            ref={(element: HTMLDivElement) => (contentRef = element)}
@@ -1286,7 +1313,14 @@ index 587a36a66..ebeffaa3c 100644
                  class="h-7 min-w-0 flex-1 border-0 bg-transparent text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
                  spellcheck={false}
                  autocorrect="off"
-@@ -458,6 +484,7 @@ function ModelSelectorPopoverV2View(props: {
+                 autocomplete="off"
+                 autocapitalize="off"
++                // Search is not a menu item; keep the menu's roving focus from stealing an explicit tap.
++                onFocusIn={(event) => event.stopPropagation()}
+                 onInput={(event) => setSearch(event.currentTarget.value)}
+                 onKeyDown={(event) => {
+                   if (event.key === "Tab") return
+@@ -458,6 +486,7 @@ function ModelSelectorPopoverV2View(props: {
                            {(item) => (
                              <TooltipV2
                                class="w-full"
@@ -1294,7 +1328,7 @@ index 587a36a66..ebeffaa3c 100644
                                placement="right-start"
                                gutter={6}
                                openDelay={0}
-@@ -478,11 +505,13 @@ function ModelSelectorPopoverV2View(props: {
+@@ -478,11 +507,13 @@ function ModelSelectorPopoverV2View(props: {
                                  classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === modelKey(item) }}
                                  onMouseEnter={() => {
                                    setStore("active", modelKey(item))
@@ -1310,7 +1344,7 @@ index 587a36a66..ebeffaa3c 100644
                                  <Show when={isFree(item.provider.id, item.cost)}>
                                    <TagV2 class="shrink-0">{language.t("model.tag.free")}</TagV2>
                                  </Show>
-@@ -507,7 +536,7 @@ function ModelSelectorPopoverV2View(props: {
+@@ -507,7 +538,7 @@ function ModelSelectorPopoverV2View(props: {
                classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === manageKey }}
                onMouseEnter={() => {
                  setStore("active", manageKey)
@@ -2306,15 +2340,16 @@ index b96fb4c59..d4e1feb39 100644
    "settings.general.row.showFileTree.title": "파일 트리",
    "settings.general.row.showFileTree.description": "세션에 파일 트리 패널 표시",
 diff --git a/packages/app/src/index.css b/packages/app/src/index.css
-index 78a9e103a..a8f668e26 100644
+index 78a9e103a..e38a5cebc 100644
 --- a/packages/app/src/index.css
 +++ b/packages/app/src/index.css
-@@ -3,6 +3,127 @@
+@@ -3,6 +3,128 @@
  @import "@opencode-ai/ui/v2/styles/tailwind.css";
  @import "tw-animate-css";
  
 +.home-project-picker > summary { display: none; }
 +.model-selector-arrow, .model-selector-current { display: none; }
++[data-slot="model-selector-popup"] { max-height: min(calc(100dvh - 16px), var(--kb-popper-content-available-height, 480px)); }
 +[data-component="tinyagent-access"] {
 +  border: 0;
 +  border-radius: 0;
