@@ -30,8 +30,8 @@ android {
         applicationId = "io.github.gplaider.tinyagent"
         minSdk = 30
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.0.1-alpha.3"
+        versionCode = 9
+        versionName = "0.0.1-alpha.5"
         manifestPlaceholders["appLabel"] = "TinyAgent"
     }
     compileOptions {

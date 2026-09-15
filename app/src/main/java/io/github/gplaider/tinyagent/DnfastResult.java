@@ -7,18 +7,10 @@ import org.json.JSONObject;
 
 /** Validate the CLI result as well as the owning process exit status. */
 final class DnfastResult {
+    private static final String PLAN_EXPIRED = "proposal is not a current canonical solver plan: canonical document failed: invalid plan: plan expired";
+
     static JSONObject require(String action, int processExit, String output) throws Exception {
-        JSONObject terminal = null;
-        for (String line : output.split("\\n")) {
-            if (!line.startsWith("{")) continue;
-            JSONObject value;
-            try { value = new JSONObject(line); }
-            catch (org.json.JSONException error) {
-                if (line.contains("dnfast.cli.v1")) throw new IOException("Truncated dnfast terminal result", error);
-                continue;
-            }
-            if ("dnfast.cli.v1".equals(value.optString("schema"))) terminal = value;
-        }
+        JSONObject terminal = terminal(output);
         if (processExit != 0 || terminal == null || !(terminal.opt("exit_code") instanceof Number)
                 || ((Number) terminal.opt("exit_code")).doubleValue() != 0 || terminal.optJSONArray("errors") == null
                 || terminal.getJSONArray("errors").length() != 0)
@@ -49,6 +41,37 @@ final class DnfastResult {
                 if (!state.equals("reconciled") && !(action.equals("upgrade-check") && state.equals("prepared")))
                     throw new IOException("패키지 작업 복구가 필요합니다. 기존 실행환경과 기록을 보존했습니다: " + state);
             }
+        }
+        return terminal;
+    }
+
+    static boolean planExpired(String output) {
+        try {
+            JSONObject terminal = terminal(output);
+            JSONArray errors = terminal == null ? null : terminal.optJSONArray("errors");
+            if (terminal == null || !"apply".equals(terminal.optString("command"))
+                    || !"failed".equals(terminal.optString("status"))
+                    || !(terminal.opt("exit_code") instanceof Number)
+                    || ((Number) terminal.opt("exit_code")).doubleValue() != 1
+                    || !PLAN_EXPIRED.equals(terminal.optString("message"))
+                    || errors == null || errors.length() != 1 || !(errors.opt(0) instanceof JSONObject)) return false;
+            JSONObject error = errors.getJSONObject(0);
+            return "runtime_failure".equals(error.optString("code"))
+                    && PLAN_EXPIRED.equals(error.optString("message"));
+        } catch (Exception invalid) { return false; }
+    }
+
+    private static JSONObject terminal(String output) throws IOException {
+        JSONObject terminal = null;
+        for (String line : output.split("\\n")) {
+            if (!line.startsWith("{")) continue;
+            JSONObject value;
+            try { value = new JSONObject(line); }
+            catch (org.json.JSONException error) {
+                if (line.contains("dnfast.cli.v1")) throw new IOException("Truncated dnfast terminal result", error);
+                continue;
+            }
+            if ("dnfast.cli.v1".equals(value.optString("schema"))) terminal = value;
         }
         return terminal;
     }

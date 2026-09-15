@@ -1,9 +1,20 @@
 # 현재 프리릴리즈 상태
 
-`0.0.1-alpha.1`은 2026-09-12에 공개 GitHub 프리릴리즈로 게시됐습니다. 이전
-Preview 문서는 당시 결과이며, 다음 기록을 현재 판정으로 사용합니다.
+## 현재 릴리스 — 0.0.1 Alpha 5 / 2026-09-15
 
-## 최신 후보 — 0.0.1 Alpha 1 / runtime12
+- [다운로드](https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.5):
+  `TinyAgent-0.0.1-alpha.5-android-arm64.apk`, versionCode 9, 145267343 bytes.
+- SHA-256: `e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01`.
+- 기존 생산 인증서 유지. Spacewar·Pacman에 같은 APK를 데이터 보존 업데이트했습니다.
+- 휴대폰·작업 폴더 첨부, TXT·PNG·PDF 실제 모델 읽기, 파일 탐색·미리보기·저장·공유창,
+  취소·재열기 3회, 회전 후 재첨부와 저장 파일 해시 일치를 확인했습니다.
+- 공개 alpha.3 기능을 통합했고 기존 고정 dnfast 런타임을 유지합니다.
+- [상세 기록](RELEASE-0.0.1-ALPHA.5.md)과 [검증 요약](../evidence/attachments-alpha5.json).
+  전체 정식 release gate, clean install 반복, Root 설치, 폰 자체 빌드는 이번 범위 밖입니다.
+
+아래는 당시 버전의 역사 기록이며 alpha.5의 재검증 결과로 해석하지 않습니다.
+
+## 과거 릴리스 — 0.0.1 Alpha 1 / runtime12
 
 - APK: `artifacts/TinyAgent-0.0.1-alpha.1-android-arm64.apk`
 - SHA-256: `013f05727575620cb04aa9c3aec00098bf137d8652dd0d77ae6e3db3a04e1462`

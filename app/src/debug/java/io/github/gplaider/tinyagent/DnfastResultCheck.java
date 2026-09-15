@@ -56,6 +56,20 @@ final class DnfastResultCheck {
             value.put("message", malformed);
             reject("verify", 0, value.toString());
         }
+        String expired = "proposal is not a current canonical solver plan: canonical document failed: invalid plan: plan expired";
+        value = new JSONObject().put("schema", "dnfast.cli.v1").put("command", "apply").put("status", "failed")
+                .put("exit_code", 1).put("message", expired).put("errors", new JSONArray().put(
+                        new JSONObject().put("code", "runtime_failure").put("message", expired)));
+        if (!DnfastResult.planExpired(value.toString())) throw new AssertionError("Expired plan not recognized");
+        for (JSONObject other : new JSONObject[]{
+                new JSONObject(value.toString()).put("command", "install"),
+                new JSONObject(value.toString()).put("status", "applied"),
+                new JSONObject(value.toString()).put("exit_code", 2),
+                new JSONObject(value.toString()).put("message", "network failure"),
+                new JSONObject(value.toString()).put("errors", new JSONArray()),
+                new JSONObject(value.toString()).put("errors", new JSONArray().put(
+                        new JSONObject().put("code", "runtime_failure").put("message", "network failure")))})
+            if (DnfastResult.planExpired(other.toString())) throw new AssertionError("Unrelated failure recognized as expired plan");
     }
     private static void reject(String action, int exit, String output) throws Exception {
         try { DnfastResult.require(action, exit, output); }

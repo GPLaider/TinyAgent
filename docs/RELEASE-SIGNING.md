@@ -1,5 +1,13 @@
 # Production signing and candidate status
 
+## Alpha 5 production update — 2026-09-15
+
+Alpha 5 uses the existing Windows production certificate
+`c34483dc3b7228cede2e128ccd66cab193e78804686a58ea25ba318568afc9d2`
+to preserve updates on Spacewar and Pacman. The independent Linux certificate
+below has no signing lineage and is not used for this release.
+See [Alpha 5 validation](RELEASE-0.0.1-ALPHA.5.md).
+
 ## Linux signing identity adopted on 2026-09-12
 
 The owner explicitly requested a new signing key for primarily Linux-hosted

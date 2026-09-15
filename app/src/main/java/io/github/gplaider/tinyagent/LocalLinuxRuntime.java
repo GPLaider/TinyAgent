@@ -2,6 +2,7 @@ package io.github.gplaider.tinyagent;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -144,6 +145,27 @@ final class LocalLinuxRuntime {
         ConnectivityManager manager = context.getSystemService(ConnectivityManager.class);
         var network = manager.getActiveNetwork();
         var properties = network == null ? null : manager.getLinkProperties(network);
+        var capabilities = network == null ? null : manager.getNetworkCapabilities(network);
+        // A VPN with DNS disabled leaves resolution to its underlying network.
+        if (properties != null && properties.getDnsServers().isEmpty() && capabilities != null
+                && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            android.net.LinkProperties fallback = null;
+            for (var candidate : manager.getAllNetworks()) {
+                var caps = manager.getNetworkCapabilities(candidate);
+                var links = manager.getLinkProperties(candidate);
+                if (caps == null || caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                        || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                        || java.util.stream.IntStream.of(NetworkCapabilities.TRANSPORT_WIFI,
+                                NetworkCapabilities.TRANSPORT_CELLULAR, NetworkCapabilities.TRANSPORT_ETHERNET)
+                                .noneMatch(t -> caps.hasTransport(t) && capabilities.hasTransport(t))
+                        || links == null || links.getDnsServers().isEmpty()) continue;
+                // ponytail: public APIs expose transports, not VPN underlay IDs; refuse ambiguity.
+                if (fallback != null) { fallback = null; break; }
+                fallback = links;
+            }
+            if (fallback != null) properties = fallback;
+        }
         // Offline work still starts; reconnect refreshes DNS through the service callback.
         if (properties == null || properties.getDnsServers().isEmpty()) return;
         StringBuilder text = new StringBuilder();
@@ -312,14 +334,25 @@ final class LocalLinuxRuntime {
         }
     }
     private void runPackageCommand(String action, Consumer<String> lines, String... operation) throws Exception {
+        runPackageCommand(action, lines, true, operation);
+    }
+    private void runPackageCommand(String action, Consumer<String> lines, boolean retryExpired, String... operation) throws Exception {
         String planningIdentity = action.equals("refresh") ? DnfastRuntime.planningIdentity(this) : null;
         StringBuilder terminal = new StringBuilder();
-        run(DnfastRuntime.command(this,operation), line -> {
-            lines.accept(line);
-            if (line.startsWith("{") && line.contains("dnfast.cli.v1")) {
-                terminal.setLength(0); terminal.append(line);
-            }
-        });
+        try {
+            run(DnfastRuntime.command(this,operation), line -> {
+                lines.accept(line);
+                if (line.startsWith("{") && line.contains("dnfast.cli.v1")) {
+                    terminal.setLength(0); terminal.append(line);
+                }
+            });
+        } catch (IOException failure) {
+            if (!retryExpired || !action.equals("install") || !DnfastResult.planExpired(terminal.toString())) throw failure;
+            lines.accept("dnfast: 설치 계획 만료 · 패키지 목록 갱신 후 한 번 다시 시도");
+            runPackageCommand("refresh", lines, false, "repo", "refresh");
+            runPackageCommand(action, lines, false, operation);
+            return;
+        }
         DnfastResult.require(action,0,terminal.toString());
         if (action.equals("refresh")) DnfastRuntime.rememberPlanning(this, planningIdentity);
     }

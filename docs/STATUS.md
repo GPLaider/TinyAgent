@@ -1,8 +1,21 @@
 # TinyAgent implementation status
 
-## Current checkpoint — 2026-09-12
+## Current checkpoint — 2026-09-15
 
-The current public prerelease is `0.0.1-alpha.1`, versionCode 5, runtime
+The current prerelease is `0.0.1-alpha.5`, versionCode 9. The production APK is
+145267343 bytes, SHA-256
+`e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01`.
+The same APK passed data-preserving updates on Spacewar and Pacman, real model
+reading of TXT/PNG/PDF attachments, workspace navigation, preview, export byte
+comparison, share-sheet opening, cancellation/reopening and rotation recovery.
+Existing production signing and the pinned dnfast runtime are retained.
+See [Alpha 5 validation and limits](RELEASE-0.0.1-ALPHA.5.md) and the
+[release](https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.5).
+This is an attachment/workspace prerelease, not a pass of the full formal gate.
+
+## Historical checkpoint — 2026-09-12 / Alpha 1
+
+The public prerelease at this checkpoint was `0.0.1-alpha.1`, versionCode 5, runtime
 `1.18.29-tinyagent.12`, Harness 20. The exact production APK is
 `artifacts/TinyAgent-0.0.1-alpha.1-android-arm64.apk`, 145216194 bytes, SHA-256
 `013f05727575620cb04aa9c3aec00098bf137d8652dd0d77ae6e3db3a04e1462`.

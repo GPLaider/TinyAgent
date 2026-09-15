@@ -2,6 +2,7 @@
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import shlex
@@ -84,9 +85,10 @@ class PhoneTests(unittest.TestCase):
     def test_snapshot_and_tap(self):
         data = self.phone.snapshot()
         self.assertEqual(data["screen_size"], [100, 200])
-        self.assertEqual(Path(data["snapshot"]).parent.stat().st_mode & 0o777, 0o700)
-        for name in ("snapshot", "screenshot", "ui_xml"):
-            self.assertEqual(Path(data[name]).stat().st_mode & 0o777, 0o600)
+        if os.name == "posix":
+            self.assertEqual(Path(data["snapshot"]).parent.stat().st_mode & 0o777, 0o700)
+            for name in ("snapshot", "screenshot", "ui_xml"):
+                self.assertEqual(Path(data[name]).stat().st_mode & 0o777, 0o600)
         after = self.action(data)
         self.assertEqual(self.fake.commands.count("input tap 50 40"), 1)
         self.assertNotEqual(data["snapshot"], after["after"]["snapshot"])

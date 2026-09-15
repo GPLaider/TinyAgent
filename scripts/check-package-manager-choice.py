@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory(prefix='tinyagent-manager-') as directory:
     for name, source in SOURCES.items():
         file = work/name
         file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text(source)
+        file.write_text(source, encoding='utf-8')
     files = list(work.rglob('*.java')) + [ROOT/'app/src/main/java/io/github/gplaider/tinyagent/PackageManagerChoice.java']
-    subprocess.run([str(java/'javac'), '-d', str(work/'classes'), *map(str, files)], check=True)
+    subprocess.run([str(java/'javac'), '-encoding', 'UTF-8', '-d', str(work/'classes'), *map(str, files)], check=True)
     subprocess.run([str(java/'java'), '-cp', str(work/'classes'), 'io.github.gplaider.tinyagent.ChoiceCheck', str(work/'data')], check=True)

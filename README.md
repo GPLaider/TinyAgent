@@ -10,24 +10,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.1"><img alt="Release" src="https://img.shields.io/github/v/release/GPLaider/TinyAgent?include_prereleases&sort=semver"></a>
+  <a href="https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.5"><img alt="Release" src="https://img.shields.io/badge/release-0.0.1--alpha.5-orange"></a>
   <a href="LICENSE"><img alt="GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
   <img alt="Android 11+" src="https://img.shields.io/badge/Android-11%2B-3DDC84?logo=android&logoColor=white">
   <img alt="ARM64" src="https://img.shields.io/badge/ABI-arm64--v8a-0B7285">
 </p>
 
 <p align="center">
-  <a href="https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.1">다운로드</a> ·
+  <a href="https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.5">다운로드</a> ·
   <a href="#빠른-시작">빠른 시작</a> ·
-  <a href="docs/RELEASE-0.0.1-ALPHA.1.md">검증 기록</a> ·
+  <a href="docs/RELEASE-0.0.1-ALPHA.5.md">검증 기록</a> ·
   <a href="SECURITY.md">보안 제보</a> ·
   <a href="CONTRIBUTING.md">기여</a>
 </p>
 
 > [!WARNING]
-> 현재 버전은 `0.0.1-alpha.1`입니다. 중요한 데이터의 유일한 작업 환경으로 사용하지
+> 현재 버전은 `0.0.1-alpha.5`입니다. 중요한 데이터의 유일한 작업 환경으로 사용하지
 > 말고, 앱 업데이트 전 `/workspace`를 별도로 백업하세요. 지원 범위와 알려진 한계는
 > [현재 상태](docs/STATUS.md)에 기록합니다.
+
+Alpha 5는 휴대폰 파일·앱 작업 폴더 첨부와 파일 탐색·미리보기·저장·공유를 제공합니다.
+Nothing Phone (1) Spacewar와 Phone (2a) Pacman에서 데이터 보존 업데이트,
+TXT·PNG·PDF 모델 읽기, 저장 바이트 대조, 취소·재열기·회전을 검증했습니다.
+이미지·PDF는 지원 모델이 필요합니다. [검증 범위와 한계](docs/RELEASE-0.0.1-ALPHA.5.md)를 확인하세요.
 
 ## TinyAgent란?
 
@@ -46,7 +51,7 @@ Stock 모드는 ADB나 root 없이 앱 UID로 동작하며, 더 높은 Android s
 TinyAgent는 기기를 자동으로 root 처리하거나 `adbd`를 임의로 켜지 않습니다. 모델
 공급자 사용과 최초 환경 준비에는 네트워크가 필요할 수 있습니다.
 
-## 실제 production 동작
+## Alpha 1 production 동작 기록
 
 다음 화면은 GPLaider 생산키로 서명된 정확한 `0.0.1-alpha.1` APK를 clean 설치한 뒤,
 기본 모델이 Fedora 안에서 bash를 한 번 호출해 `/workspace`, `aarch64`, Fedora 44를
@@ -83,8 +88,8 @@ LADB는 같은 Wi-Fi와 Wireless debugging에 의존합니다. Wi-Fi 영역을 �
 
 ### 1. APK 받기
 
-[TinyAgent `0.0.1-alpha.1` Release](https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.1)에서
-`TinyAgent-0.0.1-alpha.1-android-arm64.apk`를 받습니다.
+[TinyAgent `0.0.1-alpha.5` Release](https://github.com/GPLaider/TinyAgent/releases/tag/v0.0.1-alpha.5)에서
+`TinyAgent-0.0.1-alpha.5-android-arm64.apk`를 받습니다.
 
 요구사항:
 
@@ -108,11 +113,11 @@ c34483dc3b7228cede2e128ccd66cab193e78804686a58ea25ba318568afc9d2
 다운로드한 APK는 Release의 `SHA256SUMS.txt`로 확인할 수 있습니다.
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\TinyAgent-0.0.1-alpha.1-android-arm64.apk
+Get-FileHash -Algorithm SHA256 .\TinyAgent-0.0.1-alpha.5-android-arm64.apk
 ```
 
 ```sh
-sha256sum TinyAgent-0.0.1-alpha.1-android-arm64.apk
+sha256sum TinyAgent-0.0.1-alpha.5-android-arm64.apk
 ```
 
 ### 2. 환경 준비

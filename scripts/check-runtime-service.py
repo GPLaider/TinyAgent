@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     home = os.environ.get("JAVA_HOME")
-    javac = Path(home) / "bin/javac" if home else Path(shutil.which("javac") or "/missing-javac")
+    javac = Path(home) / ("bin/javac.exe" if os.name == "nt" else "bin/javac") if home else Path(shutil.which("javac") or "/missing-javac")
     if not javac.is_file():
         raise SystemExit("JDK missing: set JAVA_HOME or put javac on PATH")
     source = (ROOT / "app/src/main/java/io/github/gplaider/tinyagent/RuntimeSetupService.java").read_text()
@@ -28,6 +28,12 @@ def main():
         target.write_text(template.replace("/* PRODUCTION_SERVICE */", source))
         subprocess.run([str(javac), "-encoding", "UTF-8", str(target)], check=True, timeout=30)
         subprocess.run([str(javac.parent / "java"), "-cp", directory, "RuntimeServiceCheck"], check=True, timeout=30)
+
+    receiver = (ROOT / "app/src/main/java/io/github/gplaider/tinyagent/RuntimeResumeReceiver.java").read_text()
+    manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text()
+    assert "Intent.ACTION_MY_PACKAGE_REPLACED" in receiver and "LocalPolicy.resumeRuntime" in receiver
+    assert "startForegroundService(new Intent(context, RuntimeSetupService.class))" in receiver
+    assert 'android.intent.action.MY_PACKAGE_REPLACED' in manifest and '.RuntimeResumeReceiver' in manifest
 
 
 if __name__ == "__main__":

@@ -32,6 +32,11 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local wireless debugging pairing with notification code entry" />
         </service>
         <receiver android:name=".InstallResultReceiver" android:exported="false" />
+        <receiver android:name=".RuntimeResumeReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <service android:name=".RuntimeSetupService" android:exported="false"
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local Linux development environment and agent backend" />

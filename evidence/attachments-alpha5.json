@@ -1,0 +1,239 @@
+{
+  "release": "v0.0.1-alpha.5",
+  "date": "2026-09-15",
+  "scope": "Production APK updates and attachment/workspace workflows on two existing Android 16 environments",
+  "apk_sha256": "e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01",
+  "signer_sha256": "c34483dc3b7228cede2e128ccd66cab193e78804686a58ea25ba318568afc9d2",
+  "devices": {
+    "Spacewar": {
+      "installation": {
+        "version_code": "9",
+        "version_name": "0.0.1-alpha.5",
+        "first_install_time": "2026-09-12 21:52:37",
+        "uid": "10213",
+        "device": "Spacewar",
+        "apk_sha256": "e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01",
+        "uid_preserved": true,
+        "first_install_time_preserved": true
+      },
+      "navigation": {
+        "device": "Spacewar",
+        "rounds": [
+          {
+            "round": 1,
+            "child": true,
+            "system_back_to_parent": true,
+            "last_folder_retained": true
+          },
+          {
+            "round": 2,
+            "child": true,
+            "system_back_to_parent": true,
+            "last_folder_retained": true
+          },
+          {
+            "round": 3,
+            "child": true,
+            "system_back_to_parent": true,
+            "last_folder_retained": true
+          }
+        ],
+        "text_preview": true
+      },
+      "selection": {
+        "rounds": [
+          {
+            "round": 1,
+            "source_cancel": true,
+            "workspace_cancel": true,
+            "reopened": true
+          },
+          {
+            "round": 2,
+            "source_cancel": true,
+            "workspace_cancel": true,
+            "reopened": true
+          },
+          {
+            "round": 3,
+            "source_cancel": true,
+            "workspace_cancel": true,
+            "reopened": true
+          }
+        ],
+        "workspace_attachment": true
+      },
+      "export": {
+        "exported_sha256": "673c55cdd0733f444b6e0d17c00e6986638c20712bab70e9ecec8620b82addfb",
+        "source_sha256": "673c55cdd0733f444b6e0d17c00e6986638c20712bab70e9ecec8620b82addfb",
+        "exact_bytes": true,
+        "source_hash_reported_by_app_tool": true
+      },
+      "rotation": {
+        "browser_landscape_directory_preserved": true,
+        "reattach_after_rotation": true,
+        "attachment_draft_removed": true,
+        "rotation_setting_restored": "lock 0",
+        "model_restored": "Big Pickle",
+        "picker_rotation_result": "pending selection cancelled after activity recreation"
+      },
+      "final": {
+        "apk_sha256": "e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01",
+        "pid": 12641,
+        "logcat_scope": "current app PID, latest 500 logcat entries requested; bounded check only",
+        "logcat_lines": 98,
+        "error_pattern": "FATAL EXCEPTION|Uncaught|ERR_ACCESS_DENIED|SecurityException|ANR in",
+        "error_matches": [],
+        "composer_model": "Big Pickle",
+        "attachment_draft_empty": true,
+        "rotation": "lock 0"
+      },
+      "vision_model": "Muse Spark 1.3 Free",
+      "vision_result": "PNG and PDF separately described: blue square, orange circle, white background",
+      "text_model": "Big Pickle",
+      "raw_evidence_sha256": {
+        "installed.json": "57475a6f4bdf40e430ac1f14a4d6f1a4c200b5d7255be81ea43a2798b5d95634",
+        "navigation.json": "78cafe2b74c1d0541b1688b59173b61d6e1befb373b5d33c9fc01d6ed6e6d095",
+        "selection.json": "9b10aec5d46103d53e6d9d0a2f9914b9b7c2f81de5d25d7dd9c66062b201ab38",
+        "export.json": "5e6ed4d3b4d3461807dddfb70395c9dd2b42cd79014094f1bf14a8e8600d9c52",
+        "rotation.json": "f79e9a896f87447305acc95fc41f8b3d84fe00d27ba2deb523bdd836ddcac5a2",
+        "final.json": "a95f8e6c37423efaddd5d9b0c91ad8484c6e19198a92dff237bc829dbf4e03a0",
+        "vision-result.xml": "4192b183483b17ea3567d77c546a37bd67362b4b7a129f0d77e6a492a49773b4",
+        "vision-result.png": "ad0669e7245eb9ed60e927e5de4139def7ef5d3c4ec12c8e82d03754232626dd",
+        "workspace-result.xml": "14bd45be59ef0956d11eeef9057723bc9a16960934a3d46a3435c6b03400bc34",
+        "landscape.xml": "620981f09f6610689440ca030572db69494919ef540c69da9c9d72c69dd2212d",
+        "picker-landscape.xml": "0900676388a77e7dde976834423c1f320571896171bb36adf22da97dfd6dbddd",
+        "rotation-reattach.xml": "51c9216e4f2bf15a3047f990d48fc0513a0ca693c122a07eba12086cea792381",
+        "final-composer.xml": "8f72ac3bb76edd8d95aca6e70ed49b1311968cc829b128ce748de07ab98e1da4",
+        "final-logcat.txt": "352196bd98e3a782b7b8ee41d2d53429bd545090e2eceba52551f62dafa12cef"
+      }
+    },
+    "Pacman": {
+      "installation": {
+        "version_code": "9",
+        "version_name": "0.0.1-alpha.5",
+        "first_install_time": "2026-09-12 21:54:03",
+        "uid": "10235",
+        "device": "Pacman",
+        "apk_sha256": "e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01",
+        "uid_preserved": true,
+        "first_install_time_preserved": true
+      },
+      "navigation": {
+        "device": "Pacman",
+        "rounds": [
+          {
+            "round": 1,
+            "child": true,
+            "system_back_to_parent": true,
+            "last_folder_retained": true
+          },
+          {
+            "round": 2,
+            "child": true,
+            "system_back_to_parent": true,
+            "last_folder_retained": true
+          },
+          {
+            "round": 3,
+            "child": true,
+            "system_back_to_parent": true,
+            "last_folder_retained": true
+          }
+        ],
+        "text_preview": true
+      },
+      "selection": {
+        "rounds": [
+          {
+            "round": 1,
+            "source_cancel": true,
+            "workspace_cancel": true,
+            "reopened": true
+          },
+          {
+            "round": 2,
+            "source_cancel": true,
+            "workspace_cancel": true,
+            "reopened": true
+          },
+          {
+            "round": 3,
+            "source_cancel": true,
+            "workspace_cancel": true,
+            "reopened": true
+          }
+        ],
+        "workspace_attachment": true
+      },
+      "export": {
+        "exported_sha256": "74e80b1fc38870a2ea939bb99151ce1aa92b88f857769cd744524ebc4401bebd",
+        "source_hash_reported_by_app_tool": true,
+        "exact_bytes": true
+      },
+      "rotation": {
+        "browser_landscape_directory_preserved": true,
+        "picker_rotation_result": "selected note returned once; removed before reattachment",
+        "reattach_after_rotation": true,
+        "attachment_draft_removed": true,
+        "rotation_setting_restored": "free",
+        "model_restored": "Big Pickle"
+      },
+      "final": {
+        "apk_sha256": "e361ff206034d372cdf029001ddc5ec0ae5633031556b6f3d39c286f06ff7e01",
+        "pid": 5972,
+        "logcat_scope": "current app PID, latest 500 logcat entries requested; bounded check only",
+        "logcat_lines": 141,
+        "error_pattern": "FATAL EXCEPTION|Uncaught|ERR_ACCESS_DENIED|SecurityException|ANR in",
+        "error_matches": [],
+        "composer_model": "Big Pickle",
+        "attachment_draft_empty": true,
+        "rotation": "free"
+      },
+      "vision_model": "Muse Spark 1.3 Free",
+      "vision_result": "PNG and PDF separately described: blue square, orange circle, white background",
+      "text_model": "Big Pickle",
+      "raw_evidence_sha256": {
+        "installed.json": "7e08b4f67f82d4bac355131dbc2bce0713b12d6b66e23cfd4771dc76fd47041a",
+        "navigation.json": "68432bc4471df4034305ea6b8858025174ed5c4b522b596efe682cf7c2a50910",
+        "selection.json": "9b10aec5d46103d53e6d9d0a2f9914b9b7c2f81de5d25d7dd9c66062b201ab38",
+        "export.json": "40e5d3dcebf9df0704d61595ca99a64df3f249a5268aa5d68d0750663c520589",
+        "rotation.json": "6a8cfab11f59585ca19c225272435379ba24cb9a351f832f0651f8b0f6c3a398",
+        "final.json": "4cd96b0121613bfebc94b6a432da67208f87226704061052970bd8b94e6bcabb",
+        "vision-result.xml": "2f00e306233dfbf731a64e8ed70f0aa3ea950cf41b1deacd62ac00c992ef16d8",
+        "vision-result.png": "29b1126752a642222e7c6beb739a40b6cd6843a5ff25478c4af12cdf7d76e263",
+        "workspace-result.xml": "43b824d60d2247b67bce1125c50d7c511ee94a8002eed038f094da030b0fa9ec",
+        "landscape.xml": "99575fb00ab2cb484ece72936524cf124eee6e1815bc8d99d7182b25d17bb558",
+        "picker-landscape.xml": "c69f7093284dc2bbcd15811af260bb61eed8237ecf8b9077838f6a5f9d14455a",
+        "rotation-reattach.xml": "1e1d9b5299d02d612449d1eb57868652c9522dadca943375db272e3efbf0cae6",
+        "final-composer.xml": "a0beea719bb5e9198cc7464f0874035827d92828b8d3cbafb2e317976d77bcd8",
+        "final-logcat.txt": "fd72847837ad99bbf1d98db6b3b68be566fb2302e3602c70e38159508eeb39c9"
+      }
+    }
+  },
+  "host_checks": {
+    "attachments": 22,
+    "workspace_listing": 13,
+    "package_manager": 19,
+    "runtime_service": 27,
+    "runtime_dns": 10,
+    "phone_use_windows": 20,
+    "posix_mode_linux": 1,
+    "fd_linux_unprivileged": 2034,
+    "bounded_copy": 23,
+    "destination_failure_cleanup_rounds": 250,
+    "lint_errors": 0,
+    "lint_warnings": 59,
+    "packaged_gui_files": 952,
+    "packaged_runtimes": 2
+  },
+  "known_limits": [
+    "Debian WSL phone-use loopback stream tests: 2 connection-refused failures; full 20 tests passed on Windows; Linux POSIX assertion passed separately",
+    "Full 7 journeys x 3 formal release gate not claimed",
+    "No clean-first-install repetition, Root installation, phone production self-build, process-kill recovery, large attachment or all-provider validation",
+    "Share sheet opened and cancelled; no external recipient delivery",
+    "Current-PID logcat is a bounded recent-log inspection",
+    "Source snapshot binds source bytes and APK hash; clean reproducible build not claimed"
+  ],
+  "raw_evidence_location": ".checks/release-alpha5/{device}/ (local, excluded from public source)"
+}
