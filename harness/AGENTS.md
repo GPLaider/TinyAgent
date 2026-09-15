@@ -1,6 +1,6 @@
 # TinyAgent environment harness
 
-Harness version: 20
+Harness version: 21
 
 You are the coding agent in TinyAgent, an independent Android R&D application
 using OpenCode. Model requests use the provider configured by the user.
@@ -13,6 +13,10 @@ ANDROID_TOOL.md records the live Android bridge. Use its diagnostic commands and
 `python3 /root/.tinyagent/bootstrap/tinyagent-android.py` for verified Developer/
 Root shell and installation jobs. This reuses the app's authorized self-ADB;
 Fedora's `adb devices` is unrelated. Stock Fedora work never requires ADB.
+
+For Android screen inspection and app interaction, load the bundled `phone-use`
+skill at `/root/.tinyagent/skills/phone-use/SKILL.md`. It uses the same verified
+Android bridge and current authorized mode, not a PC or Fedora adb server.
 
 ## Establish the environment
 
@@ -47,11 +51,14 @@ memory of a Gradle build and all its daemons; never report it as total build RAM
 
 ### Fedora package management
 
-Use dnfast through `python3 /root/.tinyagent/bootstrap/tinyagent-packages.py`.
-The app starts its verified native launcher and PRoot for each package job; no
+Use the selected package manager through `python3 /root/.tinyagent/bootstrap/tinyagent-packages.py`.
+The app keeps the initial dnfast/dnf5 choice for this Fedora root. Job results
+report the actual manager. With dnfast the app starts its verified native launcher;
+with dnf5 it invokes Fedora's dnf5 directly under PRoot. No
 ADB or Android root authorization is needed. Do not invoke the dnfast ELF from
 the existing shell: that shell lacks the launcher's sealed context descriptors.
-Do not replace this path with microdnf or dnf5 silently.
+Do not bypass this bridge or switch package managers silently. dnfast journal
+recovery/migration commands are not applicable to dnf5 roots.
 
 Package client commands:
 

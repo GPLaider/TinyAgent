@@ -27,6 +27,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -143,6 +146,12 @@ public final class AppActivity extends Activity {
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setPadding(dp(24), 0, dp(16), 0);
         toolbar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.mipmap.ic_launcher);
+        logo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams logoLayout = new LinearLayout.LayoutParams(dp(32), dp(32));
+        logoLayout.setMarginEnd(dp(10));
+        toolbar.addView(logo, logoLayout);
         TextView title = text("TinyAgent", 20);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
@@ -185,12 +194,39 @@ public final class AppActivity extends Activity {
         diagnostics = text("이 화면에서 연결을 아직 확인하지 않았습니다.\nAndroid 권한이 필요한 작업은 Developer 연결 설정에서 확인하세요. Fedora와 대화는 ADB 없이 사용할 수 있습니다.", 14);
         diagnostics.setTextIsSelectable(true);
         section(body, "Fedora 환경");
+        body.addView(text("패키지 관리자 · 최초 준비 전에 선택", 16));
+        RadioGroup managers = new RadioGroup(this);
+        managers.setOrientation(LinearLayout.HORIZONTAL);
+        RadioButton dnfast = new RadioButton(this);
+        dnfast.setId(View.generateViewId()); dnfast.setText("dnfast");
+        RadioButton dnf5 = new RadioButton(this);
+        dnf5.setId(View.generateViewId()); dnf5.setText("dnf5");
+        managers.addView(dnfast); managers.addView(dnf5);
+        try { managers.check(PackageManagerChoice.read(this).equals("dnf5") ? dnf5.getId() : dnfast.getId()); }
+        catch (IOException error) { Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show(); }
+        boolean managerLocked = PackageManagerChoice.locked(this);
+        dnfast.setEnabled(!managerLocked); dnf5.setEnabled(!managerLocked);
+        boolean[] updatingManager = {false};
+        managers.setOnCheckedChangeListener((group, checked) -> {
+            if (updatingManager[0]) return;
+            try { PackageManagerChoice.select(this, checked == dnf5.getId() ? "dnf5" : "dnfast"); }
+            catch (IOException error) { Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show(); }
+            finally {
+                updatingManager[0] = true;
+                try { group.check(PackageManagerChoice.read(this).equals("dnf5") ? dnf5.getId() : dnfast.getId()); }
+                catch (IOException error) { dnfast.setEnabled(false); dnf5.setEnabled(false); }
+                finally { updatingManager[0] = false; }
+            }
+        });
+        body.addView(managers);
+        body.addView(text("준비를 시작하면 이 Fedora 환경에 고정됩니다. 앱 업데이트 후에도 유지됩니다.", 13));
         runtimeStatus = text(runtimePreferences.getString("status", "환경 준비 전"), 14);
         runtimeStatus.setTextIsSelectable(true);
         body.addView(runtimeStatus);
         prepare = button("환경 준비하기", true);
         prepare.setContentDescription("Fedora 환경 준비");
         prepare.setOnClickListener(view -> {
+            dnfast.setEnabled(false); dnf5.setEnabled(false);
             prepare.setEnabled(false);
             prepare.setVisibility(View.GONE);
             preparation.setVisibility(View.VISIBLE);
@@ -202,6 +238,7 @@ public final class AppActivity extends Activity {
                 }
                 startForegroundService(new Intent(this, RuntimeSetupService.class));
             } catch (RuntimeException error) {
+                dnfast.setEnabled(!PackageManagerChoice.locked(this)); dnf5.setEnabled(!PackageManagerChoice.locked(this));
                 preparation.setVisibility(View.GONE);
                 prepare.setVisibility(View.VISIBLE); prepare.setEnabled(true);
                 runtimeStatus.setText("환경 준비 시작 실패 · " + error.getClass().getSimpleName());

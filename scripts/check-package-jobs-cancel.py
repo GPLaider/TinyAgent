@@ -24,6 +24,8 @@ public class AtomicFile { private final java.io.File file;
 public class Log {public static int e(String tag,String message,Throwable e){throw new AssertionError(message,e);} }''',
     'io/github/gplaider/tinyagent/DnfastRuntime.java': '''package io.github.gplaider.tinyagent;
 final class DnfastRuntime {static final String REVISION="test";}''',
+    'io/github/gplaider/tinyagent/PackageManagerChoice.java': '''package io.github.gplaider.tinyagent;
+final class PackageManagerChoice {static String read(android.content.Context context){return "dnfast";}}''',
     'io/github/gplaider/tinyagent/LocalLinuxRuntime.java': '''package io.github.gplaider.tinyagent;
 final class LocalLinuxRuntime {
  static final java.util.concurrent.CountDownLatch started=new java.util.concurrent.CountDownLatch(1),

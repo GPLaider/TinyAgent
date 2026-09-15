@@ -26,6 +26,10 @@ def main():
         for name in ('AGENTS.md', 'STOCK.md', 'ADB.md', 'ROOT.md'):
             assert archive.read('assets/' + name) == (ROOT / 'harness' / name).read_bytes()
         print('Packaged fixed harness: versioned bytes verified')
+        for name in ('SKILL.md', 'scripts/phone.py'):
+            member = 'skills/phone-use/' + name
+            assert archive.read('assets/' + member) == (ROOT / 'harness' / member).read_bytes(), member
+        print('Packaged phone-use: bundled skill and on-device bridge helper bytes verified')
         dnfast_source = json.loads((ROOT / 'runtime/dnfast-source-export.json').read_text())
         assert hashlib.sha256(archive.read('assets/licenses/' + dnfast_source['notice'])).hexdigest() == dnfast_source['notice_sha256']
         print('Packaged dnfast license: pinned source notice verified')

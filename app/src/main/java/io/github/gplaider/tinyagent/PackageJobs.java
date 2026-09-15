@@ -67,7 +67,8 @@ final class PackageJobs implements AutoCloseable {
         }
         if(current!=null)throw new IOException("Package task running: "+current);
         JSONObject row=new JSONObject().put("id",id).put("argv",array).put("environment","fedora-local")
-                .put("cwd","/workspace").put("manager","dnfast").put("revision",DnfastRuntime.REVISION)
+                .put("cwd","/workspace").put("manager",PackageManagerChoice.read(context))
+                .put("revision",PackageManagerChoice.read(context).equals("dnfast")?DnfastRuntime.REVISION:JSONObject.NULL)
                 .put("status","running").put("output","").put("output_truncated",false).put("exit_code",JSONObject.NULL);
         save(row);current=id;currentRow=row;cancelRequested=false;running=new LocalLinuxRuntime(context);
         LocalLinuxRuntime runtime=running;

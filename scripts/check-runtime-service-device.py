@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -69,6 +70,12 @@ def main():
             run(jdk / "bin/java", "-jar", args.build_tools / "lib/apksigner.jar", "sign", "--ks", build / "test.jks",
                 "--ks-pass", "pass:android", "--out", build / "audit.apk", build / "aligned.apk")
             evidence["apk_sha256"] = hashlib.sha256((build / "audit.apk").read_bytes()).hexdigest()
+            run(jdk / "bin/keytool", "-exportcert", "-keystore", build / "test.jks",
+                "-storepass", "android", "-alias", "test", "-file", build / "test.der")
+            evidence["expected_test_signer_sha256"] = hashlib.sha256((build / "test.der").read_bytes()).hexdigest()
+            evidence["signer_verification"] = run(jdk / "bin/java", "-jar", args.build_tools / "lib/apksigner.jar",
+                "verify", "--print-certs", build / "audit.apk")
+            assert set(re.findall(r"certificate SHA-256 digest: ([0-9a-f]{64})", evidence["signer_verification"])) == {evidence["expected_test_signer_sha256"]}
             adb("install", "--no-streaming", build / "audit.apk")
             installed = True
             report = adb("shell", "am", "instrument", "-w", PACKAGE + "/io.github.gplaider.tinyagent." + check, timeout=90)

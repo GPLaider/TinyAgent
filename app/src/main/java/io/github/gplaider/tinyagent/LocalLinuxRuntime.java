@@ -30,6 +30,7 @@ final class LocalLinuxRuntime {
     }
     void prepare(Consumer<String> progress, BiConsumer<String, Integer> reporter) throws Exception {
         if (cancelled) throw new InterruptedException("환경 준비 중단");
+        String packageManager = PackageManagerChoice.freeze(context);
         this.measured = reporter;
         for (File dir : List.of(base, rootfs, workspace, home, new File(base, "shared"), new File(rootfs, "shared"), new File(rootfs, ".l2s"), new File(base, "tmp")))
             Files.createDirectories(dir.toPath());
@@ -65,8 +66,8 @@ final class LocalLinuxRuntime {
         // The installed APK is immutable to this app UID; expose its exact runtime inputs for self-builds.
         new File(rootfs, "tinyagent-installed.apk").createNewFile();
         refreshDns();
-        progress.accept("dnfast 패키지 실행환경 확인 중…");
-        DnfastRuntime.prepare(this);
+        progress.accept(packageManager + " 패키지 실행환경 확인 중…");
+        if (packageManager.equals("dnfast")) DnfastRuntime.prepare(this);
         // The minimal Fedora image lacks development tools. Also repair earlier installs.
         if (!List.of("git", "python3", "make", "gcc", "unzip").stream()
                 .allMatch(name -> new File(rootfs, "usr/bin/" + name).isFile())) {
@@ -108,11 +109,13 @@ final class LocalLinuxRuntime {
                 Files.copy(input, new File(harness, name).toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         }
+        BundledSkills.install(home.toPath(), context.getAssets()::open);
         String measured = "# TinyAgent measured environment\n\nMeasured: " + java.time.Instant.now()
                 + "\nAndroid device: " + android.os.Build.DEVICE + "\nAndroid version: " + android.os.Build.VERSION.RELEASE
                 + "\nDevice serial: unavailable to ordinary app; do not infer it.\nAndroid UID: " + android.os.Process.myUid()
                 + "\nExecution provider: fedora-local\nRuntime: TinyAgent-patched PRoot 5.1.107.92-tinyagent.1, Fedora 44"
                 + "\nOpenCode --version (exit 0): " + backendVersion.toString().strip()
+                + "\nFedora package manager: " + packageManager + " (fixed for this root; use the package bridge)"
                 + "\nPermission: app-sandbox. Guest uid=0 is emulated and is not Android root."
                 + "\nFedora tool: OpenCode bash tool; commands run directly in the guest. Try `cat /etc/fedora-release`, `id`, `pwd`."
                 + "\nAndroid tool: read /root/.tinyagent/ANDROID_TOOL.md for this runtime's actual connection. tinyagent-android.py exposes verified Developer/Root shell and installation jobs; Stock Fedora never requires ADB."
@@ -206,7 +209,7 @@ final class LocalLinuxRuntime {
         builder.environment().put("OPENCODE_SERVER_PASSWORD", password());
         // Keep the existing production database when the bundled build channel changes.
         builder.environment().put("OPENCODE_DISABLE_CHANNEL_DB", "1");
-        builder.environment().put("OPENCODE_CONFIG_CONTENT", "{\"instructions\":[\"/root/.tinyagent/AGENTS.md\",\"/root/.tinyagent/STOCK.md\",\"/root/.tinyagent/ADB.md\",\"/root/.tinyagent/ROOT.md\",\"/root/.tinyagent/TINYAGENT_ENVIRONMENT.md\",\"/root/.tinyagent/ANDROID_TOOL.md\"]}");
+        builder.environment().put("OPENCODE_CONFIG_CONTENT", "{\"skills\":{\"paths\":[\"/root/.tinyagent/skills\"]},\"instructions\":[\"/root/.tinyagent/AGENTS.md\",\"/root/.tinyagent/STOCK.md\",\"/root/.tinyagent/ADB.md\",\"/root/.tinyagent/ROOT.md\",\"/root/.tinyagent/TINYAGENT_ENVIRONMENT.md\",\"/root/.tinyagent/ANDROID_TOOL.md\"]}");
         File log = new File(base, "backend.log");
         if (log.length() > 1024 * 1024) Files.move(log.toPath(), new File(base, "backend.previous.log").toPath(), StandardCopyOption.REPLACE_EXISTING);
         return start(builder.redirectOutput(ProcessBuilder.Redirect.appendTo(log)));
@@ -293,6 +296,10 @@ final class LocalLinuxRuntime {
     void runPackages(String action, Consumer<String> lines, String... operation) throws Exception {
         // One in-process writer also covers initial preparation. The launcher retains its root lock.
         synchronized (DnfastRuntime.class) {
+            if (PackageManagerChoice.read(context).equals("dnf5")) {
+                run(guest("/workspace", PackageManagerChoice.dnf5Command(action, operation).toArray(new String[0])), lines);
+                return;
+            }
             if (action.equals("install") && !DnfastRuntime.planningCurrent(this)) {
                 lines.accept("dnfast: 실행환경 변경 확인 · 설치 계획 갱신 중");
                 runPackages("check", lines, "app-runtime", "check");

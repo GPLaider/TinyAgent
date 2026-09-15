@@ -2,6 +2,8 @@ import java.util.Properties
 
 plugins { id("com.android.application") }
 
+val tinyagentPreview = providers.gradleProperty("tinyagentPreview").orNull == "true"
+
 val sharedSigningPath = providers.environmentVariable("TINYAGENT_SIGNING_PROPERTIES").orNull
 val sharedSigning = Properties().apply {
     if (sharedSigningPath != null) file(sharedSigningPath).inputStream().use { load(it) }
@@ -28,8 +30,9 @@ android {
         applicationId = "io.github.gplaider.tinyagent"
         minSdk = 30
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.0.1-alpha.2-rc.1"
+        versionCode = 7
+        versionName = "0.0.1-alpha.3"
+        manifestPlaceholders["appLabel"] = "TinyAgent"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -61,6 +64,10 @@ android {
         getByName("debug") { applicationIdSuffix = ".debug" }
         getByName("release") {
             isMinifyEnabled = false
+            if (tinyagentPreview) {
+                applicationIdSuffix = ".preview"
+                manifestPlaceholders["appLabel"] = "TinyAgent"
+            }
             if (releaseSigningPath != null) signingConfig = signingConfigs.getByName("production")
         }
     }
