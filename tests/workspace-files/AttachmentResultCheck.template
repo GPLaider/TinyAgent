@@ -1,0 +1,116 @@
+package io.github.gplaider.tinyagent;
+
+/** Production activity result handling with UI-only doubles. */
+public class AttachmentResultCheck extends AttachmentActivityDouble {
+    static final int RESULT_OK = -1, ATTACH_PHONE = 4101, ATTACH_WORKSPACE = 4102;
+    interface Callback { void onReceiveValue(Uri[] values); }
+    private Callback attachmentCallback;
+    private String attachmentPage;
+    private boolean attachmentMultiple;
+    private int attachmentRequest;
+    private WebView webView = new WebView();
+    private int calls;
+    private Uri[] received;
+    static int checks;
+    record Uri(java.net.URI value) {
+        static Uri parse(String value) { return new Uri(java.net.URI.create(value)); }
+        String getScheme() { return value.getScheme(); }
+        String getAuthority() { return value.getAuthority(); }
+    }
+    static class WebView {
+        String url = LocalPolicy.BACKEND_ORIGIN + "/session/one";
+        String getUrl() { return url; }
+    }
+    record Item(Uri uri) { Uri getUri() { return uri; } }
+    record Clip(Item[] items) {
+        int getItemCount() { return items.length; }
+        Item getItemAt(int i) { return items[i]; }
+    }
+    record Intent(Uri data, Clip clip) {
+        Uri getData() { return data; }
+        Clip getClipData() { return clip; }
+    }
+    static class Toast {
+        static final int LENGTH_LONG = 1;
+        static Toast makeText(Object activity, String text, int length) { return new Toast(); }
+        void show() {}
+    }
+    String getPackageName() { return "io.github.gplaider.tinyagent"; }
+    /* PRODUCTION_METHODS */
+    void begin() {
+        begin(ATTACH_PHONE);
+    }
+    void begin(int request) {
+        calls = 0; received = null; attachmentMultiple = true;
+        attachmentRequest = request;
+        webView.url = LocalPolicy.BACKEND_ORIGIN + "/session/one";
+        attachmentPage = webView.url;
+        attachmentCallback = values -> { calls++; received = values; };
+    }
+    static void require(boolean ok) {
+        if (!ok) throw new AssertionError("attachment result mismatch");
+        checks++;
+    }
+    public static void main(String[] args) {
+        var activity = new AttachmentResultCheck();
+        Uri phone = Uri.parse("content://documents/document/photo.png");
+        Uri workspace = Uri.parse("content://io.github.gplaider.tinyagent.artifacts/workspace/test.txt");
+        activity.begin();
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 1 && activity.received[0].equals(phone));
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 1);
+        activity.begin(ATTACH_WORKSPACE);
+        activity.onActivityResult(ATTACH_WORKSPACE, RESULT_OK, new Intent(workspace, null));
+        require(activity.calls == 1 && activity.received[0].equals(workspace));
+        for (Intent invalid : new Intent[]{null, new Intent(null, null), new Intent(workspace, null),
+                new Intent(Uri.parse("file:///data/private/secret"), null),
+                new Intent(Uri.parse("https://example.com/file"), null)}) {
+            activity.begin(); activity.onActivityResult(ATTACH_PHONE, RESULT_OK, invalid);
+            require(activity.calls == 1 && activity.received == null);
+        }
+        activity.begin(ATTACH_WORKSPACE); activity.onActivityResult(ATTACH_WORKSPACE, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin(); activity.onActivityResult(ATTACH_PHONE, 0, new Intent(phone, null));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin(); activity.webView.url = LocalPolicy.BACKEND_ORIGIN + "/session/two";
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin(); activity.onActivityResult(999, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 0);
+        activity.completeAttachment(null); activity.completeAttachment(null);
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin();
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(null, new Clip(new Item[]{new Item(phone), new Item(phone)})));
+        require(activity.calls == 1 && activity.received.length == 1);
+        Item[] many = new Item[17];
+        for (int i = 0; i < many.length; i++) many[i] = new Item(Uri.parse("content://documents/document/" + i));
+        activity.begin(); activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(null, new Clip(many)));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin(); activity.attachmentMultiple = false;
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(null, new Clip(new Item[]{many[0], many[1]})));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin();
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(null, new Clip(new Item[]{many[0], many[1]})));
+        require(activity.calls == 1 && activity.received.length == 2);
+        activity.begin(ATTACH_WORKSPACE);
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 0 && activity.attachmentCallback != null);
+        activity.onActivityResult(ATTACH_WORKSPACE, RESULT_OK, new Intent(workspace, null));
+        require(activity.calls == 1 && activity.received[0].equals(workspace));
+        activity.begin(ATTACH_WORKSPACE);
+        activity.onActivityResult(ATTACH_WORKSPACE, RESULT_OK, new Intent(null, new Clip(new Item[]{
+                new Item(workspace), new Item(Uri.parse("content://io.github.gplaider.tinyagent.artifacts/workspace/other.txt"))})));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin();
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(null, new Clip(new Item[]{new Item(null)})));
+        require(activity.calls == 1 && activity.received == null);
+        activity.begin(); activity.webView.url = "https://example.com/session/one";
+        activity.onActivityResult(ATTACH_PHONE, RESULT_OK, new Intent(phone, null));
+        require(activity.calls == 1 && activity.received == null && activity.attachmentRequest == 0);
+        System.out.println("Attachment results: " + checks + " checks passed");
+    }
+}
+class AttachmentActivityDouble {
+    protected void onActivityResult(int request, int result, AttachmentResultCheck.Intent data) {}
+}

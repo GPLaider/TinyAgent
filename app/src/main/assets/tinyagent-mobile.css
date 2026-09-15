@@ -1,0 +1,35 @@
+/* Touch controls for the pinned OpenCode attachment tray. */
+@media (hover: none) {
+  [data-slot="prompt-attachments-scroll"] {
+    flex-wrap: wrap !important;
+    max-height: 180px;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 12px 8px 8px !important;
+    gap: 8px !important;
+  }
+  [data-slot="prompt-attachments-scroll"] > div {
+    max-width: 100%;
+    padding-right: 46px;
+    min-height: 48px;
+  }
+  [data-slot="prompt-attachments-scroll"] > div > button {
+    opacity: 1 !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    border: 0 !important;
+    outline: none !important;
+  }
+  [data-slot="prompt-attachments-scroll"] > div > button svg {
+    width: 18px;
+    height: 18px;
+  }
+  [data-slot="prompt-attachments-fade-left"],
+  [data-slot="prompt-attachments-fade-right"] {
+    display: none;
+  }
+}

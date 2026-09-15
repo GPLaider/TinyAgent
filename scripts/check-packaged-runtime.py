@@ -17,6 +17,8 @@ def main():
     args = parser.parse_args()
     apk = args.apk
     with zipfile.ZipFile(apk) as archive:
+        assert archive.read('assets/tinyagent-mobile.css') == (ROOT / 'app/src/main/assets/tinyagent-mobile.css').read_bytes()
+        print('Packaged mobile attachment styles: source bytes verified')
         # This app has ~1,100 entries. Large unused ZIP gaps are stale incremental
         # payloads; a clean package needs well below this 4 MiB metadata allowance.
         overhead = apk.stat().st_size - sum(entry.compress_size for entry in archive.infolist())

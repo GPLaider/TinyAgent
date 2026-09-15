@@ -33,6 +33,29 @@ final class WorkspaceFiles {
         return !path.equals(root.toPath()) && path.startsWith(root.toPath());
     }
 
+    File[] list(String relative) throws IOException {
+        if (relative == null || relative.indexOf('\0') >= 0 || new File(relative).isAbsolute())
+            throw new IOException("작업공간 안의 상대 폴더 경로를 지정하세요.");
+        if (!root.isDirectory() || !root.toPath().equals(root.toPath().toRealPath()))
+            throw new IOException("작업공간이 없습니다. 먼저 작업 환경을 준비하세요.");
+        File directory = new File(root, relative).toPath().toRealPath().toFile();
+        if ((!directory.equals(root) && !inside(directory.toPath())) || !directory.isDirectory())
+            throw new IOException("작업공간 안의 폴더를 지정하세요.");
+        File[] files = directory.listFiles();
+        if (files == null) throw new IOException("폴더를 읽을 수 없습니다.");
+        java.util.ArrayList<File> visible = new java.util.ArrayList<>();
+        for (File file : files) {
+            // Do not expose symlinks to private runtime or credential directories.
+            if (!Files.isSymbolicLink(file.toPath()) && inside(file.toPath())
+                    && (Files.isDirectory(file.toPath(), LinkOption.NOFOLLOW_LINKS)
+                    || Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS))) visible.add(file);
+        }
+        if (!root.toPath().equals(root.toPath().toRealPath())
+                || !directory.toPath().equals(directory.toPath().toRealPath()))
+            throw new IOException("목록을 읽는 동안 작업공간 경로가 변경되었습니다.");
+        return visible.toArray(new File[0]);
+    }
+
     ParcelFileDescriptor open(String relative) throws IOException {
         File file = resolve(relative);
         FileDescriptor raw = null;

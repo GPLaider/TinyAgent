@@ -83,6 +83,7 @@ public final class AppActivity extends Activity {
     private Button settingsButton;
     private WebView webView;
     private EmbeddedWebUi embeddedWebUi;
+    private String mobileStyle;
     private Bundle webState;
     private boolean showingWeb;
     private boolean verifiedSelf;
@@ -93,6 +94,12 @@ public final class AppActivity extends Activity {
     private int operation;
     private String managedPassword;
     private boolean submittedManagedAuth;
+    private static final int ATTACH_PHONE = 4101;
+    private static final int ATTACH_WORKSPACE = 4102;
+    private android.webkit.ValueCallback<Uri[]> attachmentCallback;
+    private String attachmentPage;
+    private boolean attachmentMultiple;
+    private int attachmentRequest;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -139,6 +146,10 @@ public final class AppActivity extends Activity {
         TextView title = text("TinyAgent", 20);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        Button filesButton = button("파일", false);
+        filesButton.setContentDescription("앱 작업 폴더 탐색");
+        filesButton.setOnClickListener(view -> startActivity(new Intent(this, WorkspaceActivity.class)));
+        toolbar.addView(filesButton, new LinearLayout.LayoutParams(-2, dp(48)));
         settingsButton = button("작업 환경", false);
         settingsButton.setVisibility(View.GONE);
         settingsButton.setOnClickListener(view -> showSettings());
@@ -391,7 +402,13 @@ public final class AppActivity extends Activity {
 
     @SuppressWarnings("deprecation")
     private void createWebView() {
-        try { embeddedWebUi = new EmbeddedWebUi(getAssets()); }
+        try {
+            embeddedWebUi = new EmbeddedWebUi(getAssets());
+            try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(
+                    getAssets().open("tinyagent-mobile.css"), StandardCharsets.UTF_8))) {
+                mobileStyle = reader.lines().collect(java.util.stream.Collectors.joining("\n"));
+            }
+        }
         catch (Exception error) { throw new IllegalStateException("Packaged OpenCode GUI missing", error); }
         webView = new WebView(this);
         WebSettings config = webView.getSettings();
@@ -406,11 +423,53 @@ public final class AppActivity extends Activity {
         config.setSupportMultipleWindows(false);
         config.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
+        webView.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView view,
+                    android.webkit.ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (!LocalPolicy.isBackendUrl(view.getUrl())) return false;
+                // Keep a single request alive; overlapping pickers cannot reuse an older result.
+                if (attachmentCallback != null) { callback.onReceiveValue(null); return true; }
+                attachmentCallback = callback;
+                attachmentPage = view.getUrl();
+                attachmentMultiple = params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE;
+                TextView help = text("이미지·PDF는 해당 형식을 읽을 수 있는 모델을 선택하세요. 모델마다 지원 범위가 다릅니다.\n선택한 파일은 대화 초안에 추가되며 전송 버튼을 눌러야 전송됩니다.", 14);
+                help.setPadding(dp(24), dp(8), dp(24), dp(16));
+                new AlertDialog.Builder(AppActivity.this).setTitle("파일 첨부")
+                        .setView(help)
+                        .setItems(new String[]{"휴대폰 파일", "앱 작업 폴더"}, (dialog, which) -> {
+                            if (attachmentCallback != callback) return;
+                            attachmentRequest = which == 1 ? ATTACH_WORKSPACE : ATTACH_PHONE;
+                            try {
+                                if (which == 1) {
+                                    startActivityForResult(new Intent(AppActivity.this, WorkspaceActivity.class)
+                                            .putExtra("pick", true), ATTACH_WORKSPACE);
+                                } else {
+                                    Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                                            .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                                            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, attachmentMultiple);
+                                    startActivityForResult(pick, ATTACH_PHONE);
+                                }
+                            } catch (ActivityNotFoundException error) {
+                                completeAttachment(null);
+                                Toast.makeText(AppActivity.this, "파일 선택 앱을 찾을 수 없습니다.", Toast.LENGTH_LONG).show();
+                            }
+                        }).setOnCancelListener(dialog -> {
+                            if (attachmentCallback == callback) completeAttachment(null);
+                        }).show();
+                return true;
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                if (attachmentCallback != null && !java.util.Objects.equals(attachmentPage, url))
+                    completeAttachment(null);
+            }
             @Override public void onPageFinished(WebView view, String url) {
                 if (!LocalPolicy.isBackendUrl(url)) return;
                 // OpenCode marks Markdown links target=_blank; route local file actions in this WebView.
                 view.evaluateJavascript("(() => { if(window.__tinyagentFiles) return; window.__tinyagentFiles=true;"
+                        + "const style=document.createElement('style'); style.textContent=" + JSONObject.quote(mobileStyle)
+                        + "; document.head.appendChild(style);"
                         + "document.addEventListener('click', e => { const a=e.target.closest?.('a[href]'); if(!a) return;"
                         + "const u=new URL(a.href,location.href); if(u.origin!==location.origin || !['/tinyagent/file','/tinyagent/export'].includes(u.pathname)) return;"
                         + "const r=a.getBoundingClientRect(); u.searchParams.set('tapX',String((e.detail?e.clientX:r.left)/innerWidth));"
@@ -555,6 +614,50 @@ public final class AppActivity extends Activity {
         }
     }
 
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != ATTACH_PHONE && request != ATTACH_WORKSPACE) return;
+        if (attachmentCallback == null) return;
+        if (request != attachmentRequest) return;
+        if (result != RESULT_OK || data == null || webView == null
+                || !LocalPolicy.isBackendUrl(webView.getUrl()) || !java.util.Objects.equals(attachmentPage, webView.getUrl())) {
+            completeAttachment(null);
+            return;
+        }
+        java.util.ArrayList<Uri> selected = new java.util.ArrayList<>();
+        if (data.getClipData() != null) {
+            for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                Uri uri = data.getClipData().getItemAt(i).getUri();
+                if (!selected.contains(uri)) selected.add(uri);
+            }
+        } else if (data.getData() != null) selected.add(data.getData());
+        int limit = request == ATTACH_PHONE && attachmentMultiple ? 16 : 1;
+        if (selected.isEmpty() || selected.size() > limit) {
+            completeAttachment(null);
+            Toast.makeText(this, "첨부할 파일을 다시 선택하세요. 최대 " + limit + "개입니다.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        // Validate picker results before handing them to the trusted local GUI.
+        for (Uri uri : selected) {
+            if (uri == null || !"content".equals(uri.getScheme())
+                    || (request == ATTACH_PHONE && (getPackageName() + ".artifacts").equals(uri.getAuthority()))
+                    || (request == ATTACH_WORKSPACE && !(getPackageName() + ".artifacts").equals(uri.getAuthority()))) {
+                completeAttachment(null);
+                Toast.makeText(this, "올바른 파일 선택 결과가 아닙니다.", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        completeAttachment(selected.toArray(new Uri[0]));
+    }
+
+    private void completeAttachment(Uri[] uris) {
+        var callback = attachmentCallback;
+        attachmentCallback = null;
+        attachmentPage = null;
+        attachmentRequest = 0;
+        if (callback != null) callback.onReceiveValue(uris);
+    }
+
     private void showSettings() {
         if (connecting.getVisibility() == View.VISIBLE) cancelInspection();
         connecting.setVisibility(View.GONE);
@@ -615,6 +718,7 @@ public final class AppActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        completeAttachment(null);
         operation++;
         if (pending != null) pending.cancel(true);
         SelfAdbClient client = activeClient;

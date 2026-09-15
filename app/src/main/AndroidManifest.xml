@@ -19,6 +19,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true">
         <activity android:name=".InstallerActivity" android:exported="false" />
+        <activity android:name=".WorkspaceActivity" android:exported="false" android:enableOnBackInvokedCallback="true" />
         <activity android:name=".ArtifactActivity" android:exported="false" android:theme="@style/ArtifactPopover" />
         <activity android:name=".VideoPreviewActivity" android:exported="false" />
         <provider android:name=".WorkspaceFileProvider"
